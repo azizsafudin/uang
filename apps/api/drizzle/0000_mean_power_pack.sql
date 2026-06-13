@@ -31,6 +31,7 @@ CREATE TABLE `fx_rates` (
 	`created_at` integer NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `fx_rates_currency_date_uq` ON `fx_rates` (`currency`,`date`);--> statement-breakpoint
 CREATE TABLE `instruments` (
 	`id` text PRIMARY KEY NOT NULL,
 	`symbol` text,
@@ -63,6 +64,7 @@ CREATE TABLE `prices` (
 	`created_at` integer NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `prices_instrument_date_uq` ON `prices` (`instrument_id`,`date`);--> statement-breakpoint
 CREATE TABLE `settings` (
 	`id` integer PRIMARY KEY NOT NULL,
 	`household_name` text NOT NULL,

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9cc71fbc-4c5e-4cda-ae00-436fd809047e",
+  "id": "b91a8074-0568-4b8a-b704-d13b67194604",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "accounts": {
@@ -198,7 +198,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "fx_rates_currency_date_uq": {
+          "name": "fx_rates_currency_date_uq",
+          "columns": [
+            "currency",
+            "date"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -391,7 +400,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "prices_instrument_date_uq": {
+          "name": "prices_instrument_date_uq",
+          "columns": [
+            "instrument_id",
+            "date"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

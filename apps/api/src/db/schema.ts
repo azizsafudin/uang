@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const settings = sqliteTable("settings", {
   id: integer("id").primaryKey(), // always 1
@@ -62,7 +62,7 @@ export const prices = sqliteTable("prices", {
   priceScaled: integer("price_scaled").notNull(),
   source: text("source").notNull().default("manual"),
   createdAt: integer("created_at").notNull(),
-});
+}, (t) => [uniqueIndex("prices_instrument_date_uq").on(t.instrumentId, t.date)]);
 
 export const fxRates = sqliteTable("fx_rates", {
   id: text("id").primaryKey(),
@@ -70,6 +70,6 @@ export const fxRates = sqliteTable("fx_rates", {
   date: text("date").notNull(),
   rateScaled: integer("rate_scaled").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+}, (t) => [uniqueIndex("fx_rates_currency_date_uq").on(t.currency, t.date)]);
 
 export * from "./auth-schema";
