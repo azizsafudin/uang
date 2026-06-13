@@ -10,7 +10,7 @@ export const exportRoutes = new Elysia()
 
     const url = process.env.DATABASE_URL ?? "file:./data/uang.db";
     const path = url.replace(/^file:/, "");
-    const file = Bun.file(path);
+    const file = (globalThis as any).Bun.file(path) as Blob;
     const today = new Date().toISOString().slice(0, 10);
 
     return new Response(file, {
