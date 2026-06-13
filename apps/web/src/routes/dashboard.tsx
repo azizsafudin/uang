@@ -14,8 +14,6 @@ import {
 type NetWorth = {
   baseCurrency: string;
   totalBaseMinor: number;
-  totalBaseMinorAssets: number;
-  totalBaseMinorLiabilities: number;
   accounts: Array<{
     id: string;
     name: string;
