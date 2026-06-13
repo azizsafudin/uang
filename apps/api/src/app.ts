@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { auth } from "./auth";
+import { onboarding } from "./routes/onboarding";
 
 export function createApp() {
   return new Elysia()
@@ -9,6 +10,7 @@ export function createApp() {
       credentials: true,
     }))
     .get("/health", () => ({ ok: true }))
+    .use(onboarding)
     // Mount better-auth's handler at /api/auth/*
     .mount("/api/auth", auth.handler);
 }
