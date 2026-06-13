@@ -1,3 +1,5 @@
+import { currencyDecimals } from "./currencies";
+
 export const SCALE = 100_000_000n; // 1e8: shared scale for rates, prices, units
 
 // Divide num/den with round-half-to-even (banker's rounding). den must be > 0.
@@ -13,8 +15,6 @@ export function roundDiv(num: bigint, den: bigint): bigint {
   else if (twice === den && q % 2n === 1n) result = q + 1n;
   return neg ? -result : result;
 }
-
-import { currencyDecimals } from "./currencies";
 
 // Convert an amount in `from` currency minor units to `base` currency minor units.
 // rateScaled = (base major per 1 from-major) * SCALE. For from === base, pass SCALE.

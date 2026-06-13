@@ -21,9 +21,13 @@ test("half rounds to even", () => {
 test("handles negatives symmetrically", () => {
   expect(roundDiv(-5n, 2n)).toBe(-2n); // -2.5 -> -2 (even)
   expect(roundDiv(-9n, 5n)).toBe(-2n); // -1.8 -> -2
+  expect(roundDiv(-15n, 2n)).toBe(-8n); // -7.5 -> -8 (even)
 });
 
-const TEN_POW = (n: number) => 10n ** BigInt(n);
+test("throws on zero or negative denominator", () => {
+  expect(() => roundDiv(1n, 0n)).toThrow("denominator must be positive");
+  expect(() => roundDiv(1n, -1n)).toThrow("denominator must be positive");
+});
 
 test("base currency converts 1:1 regardless of rate arg", () => {
   // 12345 USD-minor (=$123.45) to USD base
