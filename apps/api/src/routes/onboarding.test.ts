@@ -51,3 +51,18 @@ test("init creates settings + admin user, and blocks a second init", async () =>
   }));
   expect(res2.status).toBe(409);
 });
+
+test("public sign-up is blocked once initialized", async () => {
+  const app = createApp();
+  // initialize first
+  await app.handle(new Request(`${BASE}/onboarding/init`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ householdName: "H", baseCurrency: "MYR", email: "admin@x.com", name: "A", password: "supersecret1" }),
+  }));
+  // attempt a direct sign-up against the auth mount
+  const res = await app.handle(new Request(`${BASE}/api/auth/sign-up/email`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "intruder@x.com", name: "X", password: "supersecret1" }),
+  }));
+  expect(res.status).toBe(403);
+});
