@@ -32,3 +32,16 @@ export function convertToBase(
   const den = 10n ** fromDec * SCALE;
   return roundDiv(num, den);
 }
+
+// Boundary helpers between DB/JSON numbers and BigInt math.
+export function toBig(n: number): bigint {
+  if (!Number.isInteger(n)) throw new Error("toBig: expected an integer");
+  return BigInt(n);
+}
+
+export function fromBig(b: bigint): number {
+  if (b > 9_007_199_254_740_991n || b < -9_007_199_254_740_991n) {
+    throw new Error("fromBig: value exceeds safe integer range");
+  }
+  return Number(b);
+}
