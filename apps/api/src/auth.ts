@@ -17,4 +17,8 @@ export const auth = betterAuth({
   trustedOrigins: [process.env.WEB_ORIGIN ?? "http://localhost:5173"],
   secret: process.env.BETTER_AUTH_SECRET ?? "dev-secret",
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  advanced: {
+    // Serve session cookies only over HTTPS in production.
+    useSecureCookies: process.env.NODE_ENV === "production",
+  },
 });
