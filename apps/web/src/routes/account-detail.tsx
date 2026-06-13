@@ -1,62 +1,24 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLiveQuery } from "@tanstack/react-db";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
-import { api } from "@/lib/api";
 import { formatMoney } from "@/components/money";
 import { SetBalanceDialog } from "@/components/set-balance-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-
-type Account = {
-  id: string;
-  name: string;
-  class: string;
-  subtype: string;
-  currency: string;
-  balanceMinor: number;
-  isArchived: number;
-  sortOrder: number;
-  valuationMode: string;
-  institution: string | null;
-  createdAt: number;
-  createdBy: string;
-};
-
-type Entry = {
-  id: string;
-  accountId: string;
-  date: string;
-  amountMinor: number;
-  kind: string;
-  note: string | null;
-  createdAt: number;
-  createdBy: string;
-};
+import { accountsCollection, entriesCollection } from "@/lib/collections";
 
 export function AccountDetailPage() {
   const { id } = useParams({ from: "/accounts/$id" });
   const qc = useQueryClient();
 
-  const accountsQ = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async (): Promise<Account[]> => {
-      const { data, error } = await api.accounts.get();
-      if (error) throw new Error(String(error));
-      return (data as unknown as Account[]) ?? [];
-    },
-  });
+  const { data: accounts, isLoading: accountsLoading } = useLiveQuery(accountsCollection);
 
-  const entriesQ = useQuery({
-    queryKey: ["entries", id],
-    queryFn: async (): Promise<Entry[]> => {
-      const { data, error } = await api.accounts({ id }).entries.get();
-      if (error) throw new Error(String(error));
-      return (data as unknown as Entry[]) ?? [];
-    },
-  });
+  const collection = entriesCollection(id);
+  const { data: entries } = useLiveQuery(collection);
 
-  const account = accountsQ.data?.find((a) => a.id === id);
+  const account = (accounts ?? []).find((a) => a.id === id);
 
-  if (accountsQ.isLoading) {
+  if (accountsLoading) {
     return (
       <div className="p-8">
         <Link to="/">
@@ -79,8 +41,8 @@ export function AccountDetailPage() {
   }
 
   async function delEntry(entryId: string) {
-    await api.entries({ id: entryId }).delete();
-    await qc.invalidateQueries();
+    await collection.delete(entryId);
+    await qc.invalidateQueries({ queryKey: ["networth"] });
   }
 
   return (
@@ -115,7 +77,7 @@ export function AccountDetailPage() {
         <h2 className="text-sm font-medium uppercase text-muted-foreground">
           Entries
         </h2>
-        {(entriesQ.data ?? []).map((e) => (
+        {(entries ?? []).map((e) => (
           <Card key={e.id}>
             <CardContent className="p-3 flex items-center justify-between">
               <div>
@@ -137,7 +99,7 @@ export function AccountDetailPage() {
             </CardContent>
           </Card>
         ))}
-        {(entriesQ.data ?? []).length === 0 && (
+        {(entries ?? []).length === 0 && (
           <p className="text-sm text-muted-foreground">No entries yet.</p>
         )}
       </section>

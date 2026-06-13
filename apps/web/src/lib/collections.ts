@@ -1,15 +1,17 @@
-// TanStack DB collections for accounts and FX rates.
-//
-// NOTE: @tanstack/query-db-collection (queryCollectionOptions) is not installed.
-// We use createCollection with the native sync API from @tanstack/db 0.6.8.
-// The sync function fetches data from the API and populates the collection via
-// begin/write/commit/markReady. Mutations are handled by onInsert/onUpdate/onDelete.
-// Components read via useQuery (TanStack Query) for simplicity since the DB is REST-based.
+// TanStack DB collections backed by @tanstack/query-db-collection.
+// Each collection uses queryCollectionOptions to integrate TanStack Query's
+// fetching lifecycle with TanStack DB's optimistic-update / live-query model.
 
 import { createCollection } from "@tanstack/react-db";
+import { queryCollectionOptions } from "@tanstack/query-db-collection";
+import { queryClient } from "./query";
 import { api } from "./api";
 
-type AccountRow = {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type AccountRow = {
   id: string;
   name: string;
   class: string;
@@ -24,7 +26,7 @@ type AccountRow = {
   createdBy: string;
 };
 
-type FxRow = {
+export type FxRow = {
   id: string;
   currency: string;
   date: string;
@@ -32,87 +34,102 @@ type FxRow = {
   createdAt: number;
 };
 
-// Accounts collection — reads via GET /accounts, writes via the API.
-export const accountsCollection = createCollection<AccountRow, string>({
-  id: "accounts",
-  getKey: (a) => a.id,
-  sync: {
-    sync: ({ begin, write, commit, markReady }) => {
-      let stopped = false;
+export type EntryRow = {
+  id: string;
+  accountId: string;
+  date: string;
+  amountMinor: number;
+  kind: string;
+  note: string | null;
+  createdAt: number;
+  createdBy: string;
+};
 
-      void (async () => {
-        try {
-          const { data, error } = await api.accounts.get();
-          if (stopped) return;
-          if (!error && Array.isArray(data)) {
-            begin();
-            for (const item of data as AccountRow[]) {
-              write({ type: "insert", value: item });
-            }
-            commit();
-          }
-          markReady();
-        } catch {
-          markReady();
-        }
-      })();
+// ---------------------------------------------------------------------------
+// accountsCollection
+// ---------------------------------------------------------------------------
 
-      return () => {
-        stopped = true;
-      };
+export const accountsCollection = createCollection(
+  queryCollectionOptions<AccountRow, Error, ["accounts"], string>({
+    queryKey: ["accounts"],
+    queryFn: async (): Promise<Array<AccountRow>> => {
+      const { data, error } = await api.accounts.get();
+      if (error) throw new Error(String(error));
+      return (data as unknown as AccountRow[]) ?? [];
     },
-  },
-  onInsert: async ({ transaction }) => {
-    const m = transaction.mutations[0]?.modified as AccountRow | undefined;
-    if (!m) return;
-    const { id: _id, balanceMinor: _bal, createdAt: _ca, createdBy: _cb, ...body } = m;
-    await api.accounts.post(body as any);
-  },
-  onUpdate: async ({ transaction }) => {
-    const m = transaction.mutations[0]?.modified as AccountRow | undefined;
-    if (!m) return;
-    await api.accounts({ id: m.id }).patch(m as any);
-  },
-});
-
-// FX rates collection.
-export const fxCollection = createCollection<FxRow, string>({
-  id: "fx",
-  getKey: (r) => r.id,
-  sync: {
-    sync: ({ begin, write, commit, markReady }) => {
-      let stopped = false;
-
-      void (async () => {
-        try {
-          const { data, error } = await api.fx.get();
-          if (stopped) return;
-          if (!error && Array.isArray(data)) {
-            begin();
-            for (const item of data as FxRow[]) {
-              write({ type: "insert", value: item });
-            }
-            commit();
-          }
-          markReady();
-        } catch {
-          markReady();
-        }
-      })();
-
-      return () => {
-        stopped = true;
-      };
+    queryClient,
+    getKey: (a) => a.id,
+    onInsert: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as AccountRow | undefined;
+      if (!m) return;
+      const { id: _id, balanceMinor: _bal, createdAt: _ca, createdBy: _cb, ...body } = m;
+      await api.accounts.post(body as any);
     },
-  },
-  onInsert: async ({ transaction }) => {
-    const m = transaction.mutations[0]?.modified as FxRow | undefined;
-    if (!m) return;
-    await api.fx.post(m as any);
-  },
-  onDelete: async ({ transaction }) => {
-    const id = (transaction.mutations[0]?.original as FxRow | undefined)?.id;
-    if (!id) return;
-    await api.fx({ id }).delete();
-  },
-});
+    onUpdate: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as AccountRow | undefined;
+      if (!m) return;
+      await api.accounts({ id: m.id }).patch(m as any);
+    },
+  })
+);
+
+// ---------------------------------------------------------------------------
+// fxCollection
+// ---------------------------------------------------------------------------
+
+export const fxCollection = createCollection(
+  queryCollectionOptions<FxRow, Error, ["fx"], string>({
+    queryKey: ["fx"],
+    queryFn: async (): Promise<Array<FxRow>> => {
+      const { data, error } = await api.fx.get();
+      if (error) throw new Error(String(error));
+      return (data as unknown as FxRow[]) ?? [];
+    },
+    queryClient,
+    getKey: (r) => r.id,
+    onInsert: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as FxRow | undefined;
+      if (!m) return;
+      await api.fx.post(m as any);
+    },
+    onDelete: async ({ transaction }) => {
+      const id = (transaction.mutations[0]?.original as FxRow | undefined)?.id;
+      if (!id) return;
+      await api.fx({ id }).delete();
+    },
+  })
+);
+
+// ---------------------------------------------------------------------------
+// entriesCollection — factory, memoised per accountId
+// ---------------------------------------------------------------------------
+
+type EntriesCollection = ReturnType<typeof _makeEntriesCollection>;
+const _entriesCache = new Map<string, EntriesCollection>();
+
+function _makeEntriesCollection(accountId: string) {
+  return createCollection(
+    queryCollectionOptions<EntryRow, Error, [string, string], string>({
+      queryKey: ["entries", accountId],
+      queryFn: async (): Promise<Array<EntryRow>> => {
+        const { data, error } = await api.accounts({ id: accountId }).entries.get();
+        if (error) throw new Error(String(error));
+        return (data as unknown as EntryRow[]) ?? [];
+      },
+      queryClient,
+      getKey: (e) => e.id,
+      onDelete: async ({ transaction }) => {
+        const id = (transaction.mutations[0]?.original as EntryRow | undefined)?.id;
+        if (!id) return;
+        await api.entries({ id }).delete();
+      },
+    })
+  );
+}
+
+export function entriesCollection(accountId: string): EntriesCollection {
+  if (!_entriesCache.has(accountId)) {
+    _entriesCache.set(accountId, _makeEntriesCollection(accountId));
+  }
+  return _entriesCache.get(accountId)!;
+}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { currencyDecimals } from "@uang/shared";
-import { api } from "@/lib/api";
+import { accountsCollection } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,8 +59,7 @@ export function AccountForm() {
       body.openingBalanceMinor = Math.round(openingMajor * 10 ** dec);
       body.openingDate = f.openingDate;
     }
-    await api.accounts.post(body as any);
-    await qc.invalidateQueries({ queryKey: ["accounts"] });
+    await accountsCollection.insert(body as any);
     await qc.invalidateQueries({ queryKey: ["networth"] });
     setOpen(false);
     setF((prev) => ({ ...prev, name: "", openingBalance: "" }));

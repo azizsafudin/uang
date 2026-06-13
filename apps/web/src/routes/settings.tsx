@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useLiveQuery } from "@tanstack/react-db";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { SCALE } from "@uang/shared";
 import { api } from "@/lib/api";
+import { fxCollection } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,14 +30,7 @@ type User = {
 export function SettingsPage() {
   const qc = useQueryClient();
 
-  const fxQ = useQuery({
-    queryKey: ["fx"],
-    queryFn: async (): Promise<FxRate[]> => {
-      const { data, error } = await api.fx.get();
-      if (error) throw new Error(String(error));
-      return (data as unknown as FxRate[]) ?? [];
-    },
-  });
+  const { data: fxRates } = useLiveQuery(fxCollection);
 
   const usersQ = useQuery({
     queryKey: ["users"],
@@ -61,12 +56,11 @@ export function SettingsPage() {
     e.preventDefault();
     const rate = parseFloat(fx.rate);
     if (Number.isNaN(rate)) return;
-    await api.fx.post({
+    await fxCollection.insert({
       currency: fx.currency.toUpperCase(),
       date: fx.date,
       rateScaled: Math.round(rate * Number(SCALE)),
-    });
-    await qc.invalidateQueries();
+    } as FxRate);
     setFx((prev) => ({ ...prev, currency: "", rate: "" }));
   }
 
@@ -129,7 +123,7 @@ export function SettingsPage() {
             <Button type="submit">Add</Button>
           </form>
           <div className="space-y-1">
-            {(fxQ.data ?? []).map((r) => (
+            {(fxRates ?? []).map((r) => (
               <div
                 key={r.id}
                 className="flex justify-between text-sm items-center"
@@ -143,8 +137,7 @@ export function SettingsPage() {
                     variant="ghost"
                     size="sm"
                     onClick={async () => {
-                      await api.fx({ id: r.id }).delete();
-                      await qc.invalidateQueries({ queryKey: ["fx"] });
+                      await fxCollection.delete(r.id);
                     }}
                   >
                     ✕
