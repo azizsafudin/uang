@@ -56,6 +56,7 @@ Split client/server, two deployables.
 | Concern | Choice | Notes |
 |---|---|---|
 | Frontend | **TanStack Router SPA** (Vite) | Static build, served as its own service. |
+| UI / styling | **shadcn/ui + Tailwind CSS** | Radix-based components copied into the repo; Tailwind for styling. Charts via a shadcn-compatible chart lib (Recharts) for the net-worth graph. |
 | Client data layer | **TanStack DB** | Query collections backed by the API (optimistic mutations + live reactive queries). |
 | Backend | **ElysiaJS on Bun** | REST/RPC API; **Eden Treaty** for end-to-end type-safe client calls. |
 | Database | **SQLite via libSQL `file:`** (`@libsql/client`) | Plain SQLite file, Turso-upgradeable. File on the api service's persistent volume. |
