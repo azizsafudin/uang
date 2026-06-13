@@ -1,0 +1,13 @@
+{
+  "name": "uang",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "test": "bun test",
+    "api:dev": "bun --cwd apps/api run dev",
+    "web:dev": "bun --cwd apps/web run dev",
+    "db:generate": "bun --cwd apps/api run db:generate",
+    "db:migrate": "bun --cwd apps/api run db:migrate"
+  }
+}
