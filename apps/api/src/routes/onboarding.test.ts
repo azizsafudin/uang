@@ -66,3 +66,20 @@ test("public sign-up is blocked once initialized", async () => {
   }));
   expect(res.status).toBe(403);
 });
+
+test("init rejects invalid email with 422 and creates no settings row", async () => {
+  const app = createApp();
+  const res = await app.handle(new Request(`${BASE}/onboarding/init`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      householdName: "Safudin",
+      baseCurrency: "MYR",
+      email: "notanemail",
+      name: "Aziz",
+      password: "supersecret1",
+    }),
+  }));
+  expect(res.status).toBe(422);
+  const s = await db.select().from(settings);
+  expect(s.length).toBe(0);
+});
