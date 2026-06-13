@@ -1,10 +1,17 @@
-import { createRouter, createRoute, createRootRoute, redirect } from "@tanstack/react-router";
-import { Outlet } from "@tanstack/react-router";
+import {
+  createRouter,
+  createRoute,
+  createRootRoute,
+  redirect,
+  Outlet,
+} from "@tanstack/react-router";
 import { api } from "./lib/api";
-import { authClient } from "./lib/auth";
+import { requireInitializedAndAuthed } from "./lib/guards";
 import { OnboardingPage } from "./routes/onboarding";
 import { LoginPage } from "./routes/login";
 import { DashboardPage } from "./routes/dashboard";
+import { AccountDetailPage } from "./routes/account-detail";
+import { SettingsPage } from "./routes/settings";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
 
@@ -28,17 +35,35 @@ const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: DashboardPage,
-  beforeLoad: async () => {
-    const { data } = await api.onboarding.status.get();
-    if (!data?.initialized) throw redirect({ to: "/onboarding" });
-    const session = await authClient.getSession();
-    if (!session.data) throw redirect({ to: "/login" });
-  },
+  beforeLoad: requireInitializedAndAuthed,
 });
 
-const routeTree = rootRoute.addChildren([onboardingRoute, loginRoute, dashboardRoute]);
+const accountDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/accounts/$id",
+  component: AccountDetailPage,
+  beforeLoad: requireInitializedAndAuthed,
+});
+
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: SettingsPage,
+  beforeLoad: requireInitializedAndAuthed,
+});
+
+const routeTree = rootRoute.addChildren([
+  onboardingRoute,
+  loginRoute,
+  dashboardRoute,
+  accountDetailRoute,
+  settingsRoute,
+]);
+
 export const router = createRouter({ routeTree });
 
 declare module "@tanstack/react-router" {
-  interface Register { router: typeof router; }
+  interface Register {
+    router: typeof router;
+  }
 }
