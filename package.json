@@ -5,6 +5,7 @@
   "workspaces": ["packages/*", "apps/*"],
   "scripts": {
     "test": "bun test",
+    "dev": "bun run --filter '*' dev",
     "api:dev": "bun --cwd apps/api run dev",
     "web:dev": "bun --cwd apps/web run dev",
     "db:generate": "bun --cwd apps/api run db:generate",
