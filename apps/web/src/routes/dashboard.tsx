@@ -69,7 +69,7 @@ export function DashboardPage() {
     <AppShell
       actions={
         <>
-          <AccountForm />
+          <AccountForm defaultCurrency={base || undefined} />
           <Link to="/settings">
             <Button variant="ghost" size="sm">
               Settings

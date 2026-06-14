@@ -25,14 +25,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function AccountForm() {
+export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({
     name: "",
     class: "asset",
     subtype: "bank",
-    currency: "USD",
+    currency: defaultCurrency ?? "USD",
     valuationMode: "ledger",
     openingBalance: "",
     openingDate: new Date().toISOString().slice(0, 10),
@@ -81,6 +81,7 @@ export function AccountForm() {
       onOpenChange={(v) => {
         setOpen(v);
         if (v && meId && owners.length === 0) setOwners([meId]);
+        if (v && defaultCurrency) set("currency", defaultCurrency);
       }}
     >
       {/* DialogTrigger in @base-ui/react uses render prop instead of asChild */}
