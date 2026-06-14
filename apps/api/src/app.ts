@@ -6,6 +6,7 @@ import { accountsRoutes } from "./routes/accounts";
 import { entriesRoutes } from "./routes/entries";
 import { fxRoutes } from "./routes/fx";
 import { networthRoutes } from "./routes/networth";
+import { networthSeriesRoutes } from "./routes/networth-series";
 import { usersRoutes } from "./routes/users";
 import { exportRoutes } from "./routes/export";
 import { isInitialized } from "./lib/settings";
@@ -42,6 +43,7 @@ export function createApp() {
     .use(entriesRoutes)
     .use(fxRoutes)
     .use(networthRoutes)
+    .use(networthSeriesRoutes)
     .use(usersRoutes)
     .use(exportRoutes);
 }
