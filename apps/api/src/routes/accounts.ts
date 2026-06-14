@@ -46,7 +46,8 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         createdBy: userId!,
       });
       await setOwners(id, ownerIds);
-      if (typeof body.openingBalanceMinor === "number" && body.openingBalanceMinor !== 0) {
+      // Holdings accounts derive value from lots, never an opening ledger entry.
+      if (body.valuationMode !== "holdings" && typeof body.openingBalanceMinor === "number" && body.openingBalanceMinor !== 0) {
         const today = new Date(nowEpoch() * 1000).toISOString().slice(0, 10);
         await db.insert(entries).values({
           id: createId(),
