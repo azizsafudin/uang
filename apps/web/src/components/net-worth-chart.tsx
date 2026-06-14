@@ -111,7 +111,7 @@ export function NetWorthChart({ owner }: { owner: string }) {
       : { day: "numeric", month: "short" };
 
   return (
-    <section className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm md:px-6 md:py-5">
+    <section data-testid="networth-chart" className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm md:px-6 md:py-5">
       <div className="mb-3 flex flex-wrap gap-1.5">
         {PRESETS.map((p) => (
           <Button

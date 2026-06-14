@@ -20,6 +20,7 @@ export function OwnersField({
       {(users ?? []).map((u) => (
         <Label
           key={u.id}
+          data-testid="owner-option"
           className="flex cursor-pointer items-center gap-2 font-normal"
         >
           <Checkbox

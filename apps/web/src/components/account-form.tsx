@@ -92,6 +92,7 @@ export function AccountForm() {
           <div>
             <Label>Name</Label>
             <Input
+              data-testid="account-name"
               value={f.name}
               onChange={(e) => set("name", e.target.value)}
               required
@@ -164,6 +165,7 @@ export function AccountForm() {
             <div>
               <Label>Currency</Label>
               <Input
+                data-testid="account-currency"
                 value={f.currency}
                 maxLength={3}
                 onChange={(e) => set("currency", e.target.value)}
@@ -174,6 +176,7 @@ export function AccountForm() {
               <div>
                 <Label>Opening balance</Label>
                 <Input
+                  data-testid="account-opening"
                   type="number"
                   step="any"
                   value={f.openingBalance}

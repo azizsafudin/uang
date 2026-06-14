@@ -108,15 +108,15 @@ export function AddLotDialog({ accountId }: { accountId: string }) {
             <div className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3">
               <div className="col-span-2">
                 <Label>Name</Label>
-                <Input value={ni.name} onChange={(e) => setNi((p) => ({ ...p, name: e.target.value }))} required />
+                <Input data-testid="lot-instrument-name" value={ni.name} onChange={(e) => setNi((p) => ({ ...p, name: e.target.value }))} required />
               </div>
               <div>
                 <Label>Symbol</Label>
-                <Input value={ni.symbol} onChange={(e) => setNi((p) => ({ ...p, symbol: e.target.value }))} placeholder="optional" />
+                <Input data-testid="lot-instrument-symbol" value={ni.symbol} onChange={(e) => setNi((p) => ({ ...p, symbol: e.target.value }))} placeholder="optional" />
               </div>
               <div>
                 <Label>Currency</Label>
-                <Input value={ni.currency} maxLength={3} onChange={(e) => setNi((p) => ({ ...p, currency: e.target.value }))} required />
+                <Input data-testid="lot-instrument-currency" value={ni.currency} maxLength={3} onChange={(e) => setNi((p) => ({ ...p, currency: e.target.value }))} required />
               </div>
               <div className="col-span-2">
                 <Label>Kind</Label>
@@ -138,19 +138,19 @@ export function AddLotDialog({ accountId }: { accountId: string }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Units</Label>
-              <Input type="number" step="any" value={f.units} onChange={(e) => set("units", e.target.value)} required />
+              <Input data-testid="lot-units" type="number" step="any" value={f.units} onChange={(e) => set("units", e.target.value)} required />
             </div>
             <div>
               <Label>Unit cost ({selectedCurrency.toUpperCase()})</Label>
-              <Input type="number" step="any" value={f.unitCost} onChange={(e) => set("unitCost", e.target.value)} required />
+              <Input data-testid="lot-unit-cost" type="number" step="any" value={f.unitCost} onChange={(e) => set("unitCost", e.target.value)} required />
             </div>
             <div>
               <Label>Fees</Label>
-              <Input type="number" step="any" value={f.fees} onChange={(e) => set("fees", e.target.value)} placeholder="optional" />
+              <Input data-testid="lot-fees" type="number" step="any" value={f.fees} onChange={(e) => set("fees", e.target.value)} placeholder="optional" />
             </div>
             <div>
               <Label>Trade date</Label>
-              <Input type="date" value={f.tradeDate} onChange={(e) => set("tradeDate", e.target.value)} required />
+              <Input data-testid="lot-trade-date" type="date" value={f.tradeDate} onChange={(e) => set("tradeDate", e.target.value)} required />
             </div>
           </div>
 

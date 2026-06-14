@@ -98,6 +98,7 @@ export function DashboardPage() {
           Net worth · {owner === "household" ? "household" : "personal"} · as of today
         </Eyebrow>
         <p
+          data-testid="networth-hero"
           className={cn(
             "mt-3 font-heading text-5xl tracking-tight tabular-nums md:text-6xl",
             headline && headline.totalBaseMinor < 0 && "text-destructive",
@@ -132,6 +133,7 @@ export function DashboardPage() {
                   {rows.map((a, i) => (
                     <Link
                       key={a.id}
+                      data-testid="account-row"
                       to="/accounts/$id"
                       params={{ id: a.id }}
                       className={cn(

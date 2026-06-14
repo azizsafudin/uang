@@ -103,6 +103,7 @@ export function SettingsPage() {
             <div>
               <Label>Currency</Label>
               <Input
+                data-testid="fx-currency"
                 value={fx.currency}
                 maxLength={3}
                 placeholder="MYR"
@@ -115,6 +116,7 @@ export function SettingsPage() {
             <div>
               <Label>Date</Label>
               <Input
+                data-testid="fx-date"
                 type="date"
                 value={fx.date}
                 onChange={(e) => setFx((p) => ({ ...p, date: e.target.value }))}
@@ -124,6 +126,7 @@ export function SettingsPage() {
             <div>
               <Label>Rate</Label>
               <Input
+                data-testid="fx-rate"
                 type="number"
                 step="any"
                 placeholder="0.22"
@@ -175,6 +178,7 @@ export function SettingsPage() {
             <div>
               <Label>Name</Label>
               <Input
+                data-testid="invite-name"
                 value={invite.name}
                 onChange={(e) =>
                   setInvite((p) => ({ ...p, name: e.target.value }))
@@ -185,6 +189,7 @@ export function SettingsPage() {
             <div>
               <Label>Email</Label>
               <Input
+                data-testid="invite-email"
                 type="email"
                 value={invite.email}
                 onChange={(e) =>
@@ -196,6 +201,7 @@ export function SettingsPage() {
             <div>
               <Label>Password</Label>
               <Input
+                data-testid="invite-password"
                 type="password"
                 value={invite.password}
                 onChange={(e) =>

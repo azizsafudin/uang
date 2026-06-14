@@ -58,6 +58,7 @@ export function OnboardingPage() {
             <div>
               <Label>Household name</Label>
               <Input
+                data-testid="onboarding-household"
                 value={form.householdName}
                 onChange={set("householdName")}
                 placeholder="The Safudins"
@@ -67,6 +68,7 @@ export function OnboardingPage() {
             <div>
               <Label>Base currency</Label>
               <Input
+                data-testid="onboarding-currency"
                 value={form.baseCurrency}
                 onChange={set("baseCurrency")}
                 maxLength={3}
@@ -78,11 +80,12 @@ export function OnboardingPage() {
             </div>
             <div className="border-t border-border/70 pt-3">
               <Label>Your name</Label>
-              <Input value={form.name} onChange={set("name")} required />
+              <Input data-testid="onboarding-name" value={form.name} onChange={set("name")} required />
             </div>
             <div>
               <Label>Email</Label>
               <Input
+                data-testid="onboarding-email"
                 type="email"
                 value={form.email}
                 onChange={set("email")}
@@ -92,6 +95,7 @@ export function OnboardingPage() {
             <div>
               <Label>Password</Label>
               <Input
+                data-testid="onboarding-password"
                 type="password"
                 value={form.password}
                 onChange={set("password")}

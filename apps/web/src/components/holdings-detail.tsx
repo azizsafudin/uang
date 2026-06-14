@@ -60,7 +60,7 @@ export function HoldingsDetail({ accountId, accountName }: { accountId: string; 
       <header>
         <Eyebrow>Investments · holdings</Eyebrow>
         <h1 className="mt-2 font-heading text-3xl tracking-tight">{accountName}</h1>
-        <p className="mt-1 font-heading text-4xl tabular-nums tracking-tight">
+        <p data-testid="holdings-total" className="mt-1 font-heading text-4xl tabular-nums tracking-tight">
           {isLoading || !data ? "—" : formatMoney(data.totalBaseMinor, base)}
         </p>
         {data && (
@@ -83,7 +83,7 @@ export function HoldingsDetail({ accountId, accountName }: { accountId: string; 
         ) : (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             {lots.map((l, i) => (
-              <div key={l.lotId} className={cn("group flex items-center justify-between gap-4 px-4 py-3", i > 0 && "border-t border-border/70")}>
+              <div key={l.lotId} data-testid="lot-row" className={cn("group flex items-center justify-between gap-4 px-4 py-3", i > 0 && "border-t border-border/70")}>
                 <div className="min-w-0">
                   <p className="truncate font-medium">
                     {l.instrument.symbol ? `${l.instrument.symbol} · ` : ""}

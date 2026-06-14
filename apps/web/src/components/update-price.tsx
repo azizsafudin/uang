@@ -58,11 +58,11 @@ export function UpdatePrice({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Price</Label>
-              <Input type="number" step="any" value={price} onChange={(e) => setPrice(e.target.value)} required />
+              <Input data-testid="price-amount" type="number" step="any" value={price} onChange={(e) => setPrice(e.target.value)} required />
             </div>
             <div>
               <Label>As of date</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+              <Input data-testid="price-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
             </div>
           </div>
           <DialogFooter>

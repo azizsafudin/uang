@@ -71,6 +71,7 @@ export function SetBalanceDialog({ accountId, currency, mode, onDone }: Props) {
               {mode === "set" ? "Balance" : "New value"} ({currency})
             </Label>
             <Input
+              data-testid="set-balance-amount"
               type="number"
               step="any"
               value={amount}
@@ -81,6 +82,7 @@ export function SetBalanceDialog({ accountId, currency, mode, onDone }: Props) {
           <div>
             <Label>As of date</Label>
             <Input
+              data-testid="set-balance-date"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
