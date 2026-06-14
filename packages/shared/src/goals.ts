@@ -231,6 +231,129 @@ export function allocateGoals(params: {
   return { goals: goals.map((g) => byId.get(g.id)!), unallocatedMinor: unallocated };
 }
 
+// ---------------------------------------------------------------------------
+// simulateGoals — month-by-month multi-goal cashflow simulation
+// ---------------------------------------------------------------------------
+
+export type SpendType = "none" | "once" | "monthly" | "percent";
+
+// One goal's inputs to the simulation. startBalanceMinor is today's allocation
+// (from allocateGoals); targetMonth is whole months from the sim start to the
+// goal's targetDate (null = indefinite, no deadline).
+export type SimGoal = {
+  id: string;
+  startBalanceMinor: number;
+  targetMinor: number;
+  targetMonth: number | null;
+  monthlyContributionMinor: number;
+  spendType: SpendType;
+  spendAmountMinor: number | null; // 'once' lump / 'monthly' flat
+  spendRateBps: number | null;     // 'percent' annual % of current balance
+};
+
+export type SimGoalResult = {
+  id: string;
+  startBalanceMinor: number;
+  reachMonth: number | null;  // first month (1..horizon) balance >= target; 0 if already there; null if never
+  balances: number[];         // length horizonMonths + 1; balances[0] = startBalanceMinor
+};
+
+export type SimResult = { goals: SimGoalResult[] };
+
+// Pure month-by-month simulation of the whole goal set. Each month every goal's
+// balance grows at the plan rate, then active (not-yet-reached) goals add their
+// own contribution and the soonest active goal also receives the freed-contribution
+// stream; goals that reach their target are capped and cascade their surplus, and
+// spend goals draw down from their targetMonth onward (Task 4). Money is base
+// minor units, BigInt, banker's-rounded. The caller supplies starting balances
+// and horizon (no Date.now here).
+export function simulateGoals(params: {
+  goals: SimGoal[];
+  planRateBps: number;
+  horizonMonths: number;
+}): SimResult {
+  const { goals, planRateBps, horizonMonths } = params;
+  assertMonths(horizonMonths);
+
+  // Priority: soonest targetMonth (indefinite last), then smallest target, then id.
+  const order = [...goals].sort((a, b) => {
+    const am = a.targetMonth ?? Number.POSITIVE_INFINITY;
+    const bm = b.targetMonth ?? Number.POSITIVE_INFINITY;
+    if (am !== bm) return am - bm;
+    if (a.targetMinor !== b.targetMinor) return a.targetMinor - b.targetMinor;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+  const n = order.length;
+
+  const iScaled = monthlyRateScaled(planRateBps);
+  const factor = SCALE + iScaled;
+
+  const bal = order.map((g) => toBig(g.startBalanceMinor));
+  const targetBig = order.map((g) => toBig(g.targetMinor));
+  const contribBig = order.map((g) => toBig(g.monthlyContributionMinor));
+  const reached = order.map(() => false);
+  const finishedOnce = order.map(() => false); // 'once'-spent: emptied, no longer grows
+  const reachMonth = order.map<number | null>(() => null);
+  const series = order.map((g) => [g.startBalanceMinor]);
+
+  // A goal already at/above target today is reached at month 0; its contribution
+  // joins the freed stream immediately. (Not capped at init so today's actual ==
+  // today's projected; any pre-existing overshoot simply stays with the goal.)
+  for (let i = 0; i < n; i++) {
+    if (bal[i] >= targetBig[i]) { reached[i] = true; reachMonth[i] = 0; }
+  }
+
+  // Sum of reached goals' contributions, redirected each month to the soonest
+  // still-active goal (the "freed pool" as a recurring stream).
+  let freedMonthly = 0n;
+  for (let i = 0; i < n; i++) if (reached[i]) freedMonthly += contribBig[i];
+
+  const soonestActive = (): number => {
+    for (let i = 0; i < n; i++) if (!reached[i]) return i;
+    return -1;
+  };
+
+  for (let m = 1; m <= horizonMonths; m++) {
+    // 1. Grow every (still-held) balance at the plan rate.
+    for (let i = 0; i < n; i++) {
+      if (finishedOnce[i]) continue;
+      bal[i] = roundDiv(bal[i] * factor, SCALE);
+    }
+
+    // 2. Contribute: active goals add their own contribution; the freed stream
+    //    tops up the soonest active goal on top of its own.
+    for (let i = 0; i < n; i++) if (!reached[i]) bal[i] += contribBig[i];
+    const sa = soonestActive();
+    if (sa !== -1 && freedMonthly > 0n) bal[sa] += freedMonthly;
+
+    // 3. Reach: cap at target, cascade surplus to the soonest active goal, and
+    //    free this goal's contribution from next month on.
+    for (let i = 0; i < n; i++) {
+      if (reached[i] || finishedOnce[i]) continue;
+      if (bal[i] >= targetBig[i]) {
+        reached[i] = true;
+        reachMonth[i] = m;
+        const surplus = bal[i] - targetBig[i];
+        bal[i] = targetBig[i];
+        freedMonthly += contribBig[i];
+        if (surplus > 0n) {
+          const j = soonestActive();
+          if (j !== -1) bal[j] += surplus;
+        }
+      }
+    }
+
+    // 4. Spend — added in Task 4.
+
+    for (let i = 0; i < n; i++) series[i].push(fromBig(bal[i]));
+  }
+
+  const byId = new Map(
+    order.map((g, i) => [g.id, { id: g.id, startBalanceMinor: g.startBalanceMinor, reachMonth: reachMonth[i], balances: series[i] }] as const),
+  );
+  return { goals: goals.map((g) => byId.get(g.id)!) };
+}
+
 export type OnTrack = {
   onPlanTodayMinor: number;
   aheadByMinor: number; // actual - on-plan (negative => behind)

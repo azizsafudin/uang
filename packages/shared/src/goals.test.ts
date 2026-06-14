@@ -3,6 +3,9 @@ import {
   annuityFutureValueMinor,
   requiredMonthlyContributionMinor,
   compoundMonthlyMinor,
+  monthsToReachMinor,
+  simulateGoals,
+  type SimGoal,
 } from "./goals";
 
 // --- annuity future value (level monthly payment, ordinary annuity) ---
@@ -178,8 +181,6 @@ test("goalOnTrack: a brand-new goal (no time elapsed) is on track by constructio
   expect(r.onTrack).toBe(true);
 });
 
-import { monthsToReachMinor } from "./goals";
-
 test("monthsToReachMinor: already at/above target is month 0", () => {
   expect(monthsToReachMinor(100_000, 0, 100_000, 800, 1200)).toBe(0);
   expect(monthsToReachMinor(150_000, 0, 100_000, 800, 1200)).toBe(0);
@@ -205,4 +206,51 @@ test("monthsToReachMinor: more contribution reaches sooner", () => {
   const slow = monthsToReachMinor(0, 50_000, 5_000_000, 800, 1200)!;
   const fast = monthsToReachMinor(0, 200_000, 5_000_000, 800, 1200)!;
   expect(fast).toBeLessThan(slow);
+});
+
+// --- simulateGoals: month-by-month multi-goal cashflow ---
+
+// Convenience builder so tests only specify what they exercise.
+function simGoal(over: Partial<SimGoal> & { id: string }): SimGoal {
+  return {
+    startBalanceMinor: 0,
+    targetMinor: 0,
+    targetMonth: null,
+    monthlyContributionMinor: 0,
+    spendType: "none",
+    spendAmountMinor: null,
+    spendRateBps: null,
+    ...over,
+  };
+}
+
+test("simulateGoals: single-goal accumulation matches monthsToReachMinor (regression guard)", () => {
+  const start = 1_000_000, contrib = 50_000, target = 5_000_000, rate = 800, horizon = 1200;
+  const { goals } = simulateGoals({
+    goals: [simGoal({ id: "a", startBalanceMinor: start, targetMinor: target, monthlyContributionMinor: contrib })],
+    planRateBps: rate,
+    horizonMonths: horizon,
+  });
+  const reach = monthsToReachMinor(start, contrib, target, rate, horizon);
+  expect(goals[0].reachMonth).toBe(reach);
+  expect(goals[0].balances.length).toBe(horizon + 1);
+  expect(goals[0].balances[0]).toBe(start);
+});
+
+test("simulateGoals: zero-rate accumulation is start + n*contribution", () => {
+  const { goals } = simulateGoals({
+    goals: [simGoal({ id: "a", startBalanceMinor: 100, targetMinor: 10_000, monthlyContributionMinor: 10 })],
+    planRateBps: 0,
+    horizonMonths: 5,
+  });
+  expect(goals[0].balances).toEqual([100, 110, 120, 130, 140, 150]);
+});
+
+test("simulateGoals: a goal already at target reports reachMonth 0", () => {
+  const { goals } = simulateGoals({
+    goals: [simGoal({ id: "a", startBalanceMinor: 3_000_000, targetMinor: 3_000_000 })],
+    planRateBps: 800,
+    horizonMonths: 12,
+  });
+  expect(goals[0].reachMonth).toBe(0);
 });
