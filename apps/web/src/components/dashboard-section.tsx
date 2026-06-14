@@ -235,6 +235,19 @@ export function DashboardSection({
     setExpanded((prev) => new Set(prev).add(id));
   }
 
+  async function renameGroup(id: string, name: string) {
+    await groupsCollection.update(id, (draft) => {
+      draft.name = name;
+    });
+  }
+
+  async function deleteGroup(id: string) {
+    // Server nullifies member accounts' groupId, so they fall back to the
+    // standalone card; refresh net worth so they reappear there.
+    await groupsCollection.delete(id);
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+  }
+
   function findContainer(id: string): string | undefined {
     if (order.includes(id)) return id;
     return Object.keys(members).find((c) => members[c]?.includes(id));
@@ -501,6 +514,8 @@ export function DashboardSection({
                           baseCurrency={baseCurrency}
                           expanded={isExpanded}
                           onToggle={() => toggleGroup(group.id)}
+                          onRename={(name) => void renameGroup(group.id, name)}
+                          onDelete={() => void deleteGroup(group.id)}
                           dragHandleProps={dragHandleProps}
                           isDragging={isDragging}
                         />
