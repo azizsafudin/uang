@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { api } from "@/lib/api";
+import { currencyDecimals } from "@uang/shared";
 import { formatMoney } from "@/components/money";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,22 @@ function asDate(value: unknown): Date | null {
 function formatDay(value: unknown, opts: Intl.DateTimeFormatOptions): string {
   const d = asDate(value);
   return d ? d.toLocaleDateString(undefined, opts) : String(value ?? "");
+}
+
+// Compact money label for the y-axis (e.g. "$1.2M", "€450K"). Keeps axis ticks
+// short so they don't crowd the plot.
+function formatMoneyCompact(minor: number, currency: string): string {
+  const major = minor / 10 ** currencyDecimals(currency);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(major);
+  } catch {
+    return String(Math.round(major));
+  }
 }
 
 // Map a non-custom preset to a {from, to} range (to = today).
@@ -147,13 +164,21 @@ export function NetWorthChart({ owner }: { owner: string }) {
       )}
 
       {isLoading ? (
-        <div className="h-[200px] animate-pulse rounded-xl bg-muted/40" />
+        <div className="h-[400px] animate-pulse rounded-xl bg-muted/40" />
       ) : rows.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">No data for this range.</p>
       ) : (
-        <ChartContainer config={chartConfig} className="h-[200px] w-full">
+        <ChartContainer config={chartConfig} className="h-[400px] w-full">
           <AreaChart data={rows} margin={{ left: 8, right: 8, top: 8 }}>
             <CartesianGrid vertical={false} />
+            <YAxis
+              dataKey="net"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              width={56}
+              tickFormatter={(v) => formatMoneyCompact(Number(v), base)}
+            />
             <XAxis
               dataKey="t"
               type="number"
