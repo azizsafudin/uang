@@ -28,6 +28,8 @@ type ProjectionResponse = {
   projectedAtTargetMinor: number;
   onTrack: boolean;
   reachDate: string | null;
+  spendType: "none" | "once" | "monthly" | "percent";
+  annualIncomeMinor: number | null;
   sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
   series: GoalProjectionPoint[];
 };
@@ -144,6 +146,20 @@ export function GoalDetailPage() {
                         </span>
                       </div>
                     </>
+                  )}
+                  {p.spendType !== "none" && (
+                    <div className="flex justify-between gap-3">
+                      <span className="shrink-0 text-muted-foreground">
+                        {p.spendType === "once" ? "Spends" : "Income"}
+                      </span>
+                      <span>
+                        {p.spendType === "once"
+                          ? `${formatMoney(p.targetMinor, base)} once${p.goal.targetDate ? ` · ${formatDate(p.goal.targetDate)}` : ""}`
+                          : p.annualIncomeMinor !== null
+                            ? `≈ ${formatMoney(p.annualIncomeMinor, base)}/yr`
+                            : "—"}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
