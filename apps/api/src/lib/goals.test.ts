@@ -65,6 +65,11 @@ test("analyzeGoals: soonest-first allocation, short sees cash only, long picks u
   expect(short.onTrack).toBe(true);
   // The under-funded long goal needs a positive monthly contribution.
   expect(long.requiredMonthlyMinor).toBeGreaterThan(0);
+
+  // Funding sources surface per goal (drives the list/detail donut + breakdown).
+  expect(short.sources.map((s) => s.name)).toEqual(["Cash"]);
+  expect(long.sources.map((s) => s.name)).toEqual(["Cash", "CPF"]);
+  expect(long.sources.reduce((sum, s) => sum + s.allocatedMinor, 0)).toBe(long.allocatedMinor);
 });
 
 test("goalProjection: past actual + future on-plan/eligible series toward target", async () => {

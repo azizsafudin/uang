@@ -25,11 +25,13 @@ export function GoalDonut({
   allocatedMinor,
   targetMinor,
   progressPct,
+  size = 180,
 }: {
   sources: DonutSource[];
   allocatedMinor: number;
   targetMinor: number;
   progressPct: number;
+  size?: number;
 }) {
   const unfunded = Math.max(0, targetMinor - allocatedMinor);
   const slices = [
@@ -40,12 +42,15 @@ export function GoalDonut({
     })),
     ...(unfunded > 0 ? [{ key: "__unfunded", value: unfunded, color: UNFUNDED_COLOR }] : []),
   ];
+  const outer = Math.round(size * 0.44);
+  const inner = Math.round(size * 0.33);
+  const big = size >= 120;
 
   return (
-    <div className="relative">
-      <ChartContainer config={emptyConfig} className="mx-auto aspect-square h-[180px]">
+    <div className="relative mx-auto" style={{ height: size, width: size }}>
+      <ChartContainer config={emptyConfig} className="h-full w-full">
         <PieChart>
-          <Pie data={slices} dataKey="value" nameKey="key" innerRadius={60} outerRadius={80} strokeWidth={2}>
+          <Pie data={slices} dataKey="value" nameKey="key" innerRadius={inner} outerRadius={outer} strokeWidth={2}>
             {slices.map((s) => (
               <Cell key={s.key} fill={s.color} />
             ))}
@@ -53,7 +58,9 @@ export function GoalDonut({
         </PieChart>
       </ChartContainer>
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <span className="font-heading text-2xl tabular-nums">{progressPct}%</span>
+        <span className={big ? "font-heading text-2xl tabular-nums" : "text-xs font-medium tabular-nums"}>
+          {progressPct}%
+        </span>
       </div>
     </div>
   );

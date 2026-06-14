@@ -26,6 +26,7 @@ export type GoalAnalysis = {
   onPlanTodayMinor: number;
   aheadByMinor: number;
   onTrack: boolean;
+  sources: GoalSource[];
 };
 
 export type GoalsAnalysisResult = {
@@ -89,6 +90,7 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
   // Today's snapshot -> base targets -> allocation.
   const nwToday = await netWorth({ owner: "household" });
   const allocAccountsToday = toAllocAccounts(nwToday.accounts, birthByUser);
+  const nameById = new Map(nwToday.accounts.map((a) => [a.id, a.name]));
 
   const goalInputs: GoalInput[] = [];
   const targetBaseById = new Map<string, number>();
@@ -156,6 +158,11 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
       projectedAllocatedMinor: projectedAllocated, gapMinor: Math.max(0, gap),
       requiredMonthlyMinor: requiredMonthly,
       onPlanTodayMinor: ot.onPlanTodayMinor, aheadByMinor: ot.aheadByMinor, onTrack: ot.onTrack,
+      sources: alloc.lines.map((line) => ({
+        accountId: line.accountId,
+        name: nameById.get(line.accountId) ?? line.accountId,
+        allocatedMinor: line.allocatedMinor,
+      })),
     });
   }
 

@@ -5,8 +5,10 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { goalsCollection } from "@/lib/collections";
 import { formatMoney } from "@/components/money";
+import { formatDate } from "@/lib/utils";
+import { useDestructiveAction } from "@/lib/use-destructive-action";
 import { GoalForm } from "@/components/goal-form";
-import { GoalDonut, sourceColor, UNFUNDED_COLOR } from "@/components/goal-donut";
+import { GoalDonut, sourceColor } from "@/components/goal-donut";
 import { GoalProjectionChart, type GoalProjectionPoint } from "@/components/goal-projection-chart";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,7 @@ export function GoalDetailPage() {
   const { id } = useParams({ from: "/goals/$id" });
   const nav = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
+  const { confirm, dialog } = useDestructiveAction();
 
   const { data: rows = [] } = useLiveQuery(goalsCollection);
   const row = rows.find((g) => g.id === id);
@@ -66,7 +69,7 @@ export function GoalDetailPage() {
               <Eyebrow className="mb-2">{p.goal.term === "short" ? "Short term" : "Long term"}</Eyebrow>
               <h1 className="font-heading text-3xl tracking-tight">{p.goal.name}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                {formatMoney(p.targetMinor, base)} by {p.goal.targetDate}
+                {formatMoney(p.targetMinor, base)} by {formatDate(p.goal.targetDate)}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -81,10 +84,16 @@ export function GoalDetailPage() {
                   <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-destructive"
-                    onClick={async () => {
-                      goalsCollection.delete(id);
-                      await nav({ to: "/goals" });
-                    }}
+                    onClick={() =>
+                      confirm({
+                        title: "Delete goal?",
+                        description: `"${p.goal.name}" will be permanently removed. This can't be undone.`,
+                        onConfirm: async () => {
+                          goalsCollection.delete(id);
+                          await nav({ to: "/goals" });
+                        },
+                      })
+                    }
                   >
                     Delete
                   </DropdownMenuItem>
@@ -125,8 +134,9 @@ export function GoalDetailPage() {
             </section>
           </div>
 
-          {/* Funding-source breakdown — full width below both cards. Swatches +
-              proportion bars match the donut slice colors. */}
+          {/* Funding-source breakdown — full width below both cards. Each bar is
+              the source's share of the allocated total (so they sum to 100% and
+              read clearly); swatches/colors match the donut slices. */}
           <section className="mt-4 rounded-2xl border border-border bg-card p-4 md:p-6">
             <Eyebrow className="mb-4">Funding sources</Eyebrow>
             {p.sources.length === 0 ? (
@@ -134,7 +144,7 @@ export function GoalDetailPage() {
             ) : (
               <div className="space-y-4">
                 {p.sources.map((s, i) => {
-                  const pct = p.targetMinor > 0 ? Math.round((s.allocatedMinor * 100) / p.targetMinor) : 0;
+                  const pct = p.allocatedMinor > 0 ? Math.round((s.allocatedMinor * 100) / p.allocatedMinor) : 0;
                   return (
                     <div key={s.accountId} className="space-y-1.5">
                       <div className="flex items-baseline gap-3">
@@ -149,31 +159,10 @@ export function GoalDetailPage() {
                     </div>
                   );
                 })}
-
-                {p.targetMinor > p.allocatedMinor && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-baseline gap-3 text-muted-foreground">
-                      <span className="h-3 w-3 shrink-0 self-center rounded-full" style={{ background: UNFUNDED_COLOR }} />
-                      <span className="min-w-0 flex-1 truncate font-medium">Unfunded</span>
-                      <span className="tabular-nums">{formatMoney(p.targetMinor - p.allocatedMinor, base)}</span>
-                      <span className="w-12 shrink-0 text-right text-sm tabular-nums">
-                        {p.targetMinor > 0 ? Math.round(((p.targetMinor - p.allocatedMinor) * 100) / p.targetMinor) : 0}%
-                      </span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${p.targetMinor > 0 ? Math.min(100, Math.round(((p.targetMinor - p.allocatedMinor) * 100) / p.targetMinor)) : 0}%`,
-                          background: UNFUNDED_COLOR,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </section>
+          {dialog}
         </>
       )}
     </AppShell>

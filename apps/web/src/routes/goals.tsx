@@ -6,7 +6,10 @@ import { api } from "@/lib/api";
 import { goalsCollection } from "@/lib/collections";
 import { type GoalRow } from "@/lib/collections";
 import { formatMoney } from "@/components/money";
+import { formatDate } from "@/lib/utils";
 import { GoalForm } from "@/components/goal-form";
+import { GoalDonut } from "@/components/goal-donut";
+import { useDestructiveAction } from "@/lib/use-destructive-action";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +23,7 @@ type GoalAnalysis = {
   targetDate: string; currency: string; allocatedMinor: number; progressPct: number;
   projectedAllocatedMinor: number; gapMinor: number; requiredMonthlyMinor: number;
   onPlanTodayMinor: number; aheadByMinor: number; onTrack: boolean;
+  sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
 };
 type AnalysisResponse = {
   baseCurrency: string; contributionGrowthRateBps: number; unallocatedMinor: number;
@@ -39,38 +43,52 @@ const TERMS = [
 
 function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; base: string }) {
   const [editOpen, setEditOpen] = useState(false);
+  const { confirm, dialog } = useDestructiveAction();
   return (
     <div className="relative rounded-2xl border border-border bg-card">
       <Link
         to="/goals/$id"
         params={{ id: g.id }}
-        className="block rounded-2xl p-4 pr-12 transition-colors hover:bg-accent"
+        className="flex items-center gap-4 rounded-2xl p-4 pr-12 transition-colors hover:bg-accent"
         data-testid="goal-card"
       >
-        <p className="truncate font-medium">{g.name}</p>
-        <p className="text-xs text-muted-foreground">
-          {formatMoney(g.targetAmountMinor, g.currency)} by {g.targetDate}
-        </p>
         {a && (
-          <>
-            <div className="mt-2">
-              <Badge variant={a.onTrack ? "default" : "destructive"}>
-                {a.onTrack ? "On track" : "Behind"}
-              </Badge>
-            </div>
-            <div className="mt-3 space-y-2">
-              <Progress value={a.progressPct} />
-              <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-                <span>{formatMoney(a.allocatedMinor, base)} allocated · {a.progressPct}%</span>
-                <span>
-                  {a.requiredMonthlyMinor > 0
-                    ? `${formatMoney(a.requiredMonthlyMinor, base)}/mo to fund`
-                    : "Fully funded"}
-                </span>
-              </div>
-            </div>
-          </>
+          <div className="shrink-0">
+            <GoalDonut
+              sources={a.sources}
+              allocatedMinor={a.allocatedMinor}
+              targetMinor={a.targetAmountMinor}
+              progressPct={a.progressPct}
+              size={72}
+            />
+          </div>
         )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{g.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {formatMoney(g.targetAmountMinor, g.currency)} by {formatDate(g.targetDate)}
+          </p>
+          {a && (
+            <>
+              <div className="mt-2">
+                <Badge variant={a.onTrack ? "default" : "destructive"}>
+                  {a.onTrack ? "On track" : "Behind"}
+                </Badge>
+              </div>
+              <div className="mt-3 space-y-2">
+                <Progress value={a.progressPct} />
+                <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
+                  <span>{formatMoney(a.allocatedMinor, base)} allocated · {a.progressPct}%</span>
+                  <span>
+                    {a.requiredMonthlyMinor > 0
+                      ? `${formatMoney(a.requiredMonthlyMinor, base)}/mo to fund`
+                      : "Fully funded"}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </Link>
 
       <div className="absolute right-2 top-2">
@@ -80,7 +98,16 @@ function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; bas
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive" onClick={() => goalsCollection.delete(g.id)}>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() =>
+                confirm({
+                  title: "Delete goal?",
+                  description: `"${g.name}" will be permanently removed. This can't be undone.`,
+                  onConfirm: () => { goalsCollection.delete(g.id); },
+                })
+              }
+            >
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -88,6 +115,7 @@ function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; bas
         {/* Controlled edit dialog (no own trigger); opened from the menu item. */}
         <GoalForm goal={g} defaultCurrency={base || undefined} open={editOpen} onOpenChange={setEditOpen} hideTrigger />
       </div>
+      {dialog}
     </div>
   );
 }
