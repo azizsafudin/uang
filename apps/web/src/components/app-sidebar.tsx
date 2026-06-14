@@ -10,7 +10,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarGroup,
-  SidebarTrigger,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 
 const NAV = [
@@ -26,15 +26,18 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-          <Link
-            to="/"
-            className="font-heading text-xl leading-none tracking-tight text-foreground group-data-[collapsible=icon]:hidden"
-          >
-            uang<span className="text-gold">.</span>
-          </Link>
-          <SidebarTrigger className="-mr-1" />
-        </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" render={<Link to="/" />}>
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary font-heading text-base leading-none text-primary-foreground">
+                u<span className="text-gold">.</span>
+              </div>
+              <span className="font-heading text-xl leading-none tracking-tight">
+                uang<span className="text-gold">.</span>
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent>
@@ -72,6 +75,8 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   );
 }
