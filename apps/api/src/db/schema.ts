@@ -110,6 +110,7 @@ export const memberProfiles = sqliteTable("member_profiles", {
 // Financial goals. Ordered/allocated by soonest targetDate then smallest amount;
 // eligibility derives from targetDate. ownerScope is 'household' or a userId.
 // anchorDate is the optional on-track baseline (null => anchor at createdAt).
+// spend* model decumulation at/after targetDate (see lib/goals simulateGoals).
 export const goals = sqliteTable("goals", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -120,6 +121,12 @@ export const goals = sqliteTable("goals", {
   anchorDate: text("anchor_date"), // YYYY-MM-DD | null
   // Assumed planned saving toward this goal (base of the projected line).
   monthlyContributionMinor: integer("monthly_contribution_minor").notNull().default(0),
+  // How this goal spends at/after targetDate. 'none' = pure accumulation.
+  spendType: text("spend_type", { enum: ["none", "once", "monthly", "percent"] })
+    .notNull()
+    .default("none"),
+  spendAmountMinor: integer("spend_amount_minor"), // 'once' lump / 'monthly' flat $; null otherwise
+  spendRateBps: integer("spend_rate_bps"), // 'percent' annual % of balance (400 = 4%/yr); null otherwise
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
