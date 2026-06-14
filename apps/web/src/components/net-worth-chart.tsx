@@ -26,12 +26,19 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Format a YYYY-MM-DD day for display. Defensive: never renders "Invalid Date" —
-// if the value isn't a parseable date it falls back to the raw string.
+// Coerce an axis/tooltip value (ISO day string, epoch ms, or Date) to a Date.
+function asDate(value: unknown): Date | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === "number") return Number.isNaN(value) ? null : new Date(value);
+  const d = new Date(`${String(value)}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// Format a day value. Defensive: never renders "Invalid Date" — falls back to
+// the raw string if the value isn't a parseable date.
 function formatDay(value: unknown, opts: Intl.DateTimeFormatOptions): string {
-  const s = String(value ?? "");
-  const d = new Date(`${s}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString(undefined, opts);
+  const d = asDate(value);
+  return d ? d.toLocaleDateString(undefined, opts) : String(value ?? "");
 }
 
 // Map a non-custom preset to a {from, to} range (to = today).
@@ -79,24 +86,29 @@ export function NetWorthChart({ owner }: { owner: string }) {
   });
 
   const base = data?.baseCurrency ?? "";
-  const rows = (data?.points ?? []).map((p) => ({ date: p.date, net: p.totalBaseMinor }));
+  // Plot against a numeric time axis (epoch ms) so the line keeps its true
+  // horizontal spacing regardless of point density.
+  const rows = (data?.points ?? []).map((p) => ({
+    t: Date.parse(`${p.date}T00:00:00Z`),
+    net: p.totalBaseMinor,
+  }));
 
-  // Points are weekly, but the axis reads better with one tick per calendar
-  // month. Pick the first point of each month (rows are ascending); recharts
-  // thins these further by `minTickGap` when space is tight, so each visible
-  // tick is still a distinct month ("Jan 2026").
-  const monthTicks = (() => {
-    const seen = new Set<string>();
-    const ticks: string[] = [];
-    for (const r of rows) {
-      const month = r.date.slice(0, 7); // "YYYY-MM"
-      if (!seen.has(month)) {
-        seen.add(month);
-        ticks.push(r.date);
-      }
-    }
-    return ticks;
-  })();
+  // A handful of evenly-spaced ticks (first/last pinned to the data edges),
+  // labelled by the month they fall in — dense data, sparse labels, like a
+  // typical finance chart. Long spans show "Jun 2026"; short spans show "14 Jun".
+  const minT = rows.length ? rows[0].t : 0;
+  const maxT = rows.length ? rows[rows.length - 1].t : 0;
+  const TICK_COUNT = 6;
+  const xTicks =
+    rows.length > 1
+      ? Array.from({ length: TICK_COUNT }, (_, i) =>
+          Math.round(minT + ((maxT - minT) * i) / (TICK_COUNT - 1)),
+        )
+      : rows.map((r) => r.t);
+  const tickDateOpts: Intl.DateTimeFormatOptions =
+    maxT - minT > 90 * 86_400_000
+      ? { month: "short", year: "numeric" }
+      : { day: "numeric", month: "short" };
 
   return (
     <section className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm md:px-6 md:py-5">
@@ -143,15 +155,16 @@ export function NetWorthChart({ owner }: { owner: string }) {
           <AreaChart data={rows} margin={{ left: 8, right: 8, top: 8 }}>
             <CartesianGrid vertical={false} />
             <XAxis
-              dataKey="date"
-              ticks={monthTicks}
+              dataKey="t"
+              type="number"
+              scale="time"
+              domain={[minT, maxT]}
+              ticks={xTicks}
+              interval={0}
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              minTickGap={32}
-              tickFormatter={(v: string) =>
-                formatDay(v, { month: "short", year: "numeric" })
-              }
+              tickFormatter={(v) => formatDay(v, tickDateOpts)}
             />
             <ChartTooltip
               content={
