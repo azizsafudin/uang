@@ -24,6 +24,7 @@ export type AccountRow = {
   balanceMinor: number;
   createdAt: number;
   createdBy: string;
+  ownerIds: string[];
 };
 
 export type FxRow = {
