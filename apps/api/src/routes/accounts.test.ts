@@ -43,7 +43,7 @@ test("create then list accounts, with optional opening balance", async () => {
   expect(body[0].balanceMinor).toBe(100000); // opening entry applied
 });
 
-test("rejects holdings valuation mode in v2", async () => {
+test("accepts holdings valuation mode", async () => {
   const app = makeApp(accountsRoutes);
   const { cookie } = await initAndLogin({ app });
 
@@ -60,7 +60,7 @@ test("rejects holdings valuation mode in v2", async () => {
       }),
     }),
   );
-  expect(res.status).toBe(400);
+  expect(res.status).toBe(200);
 });
 
 async function firstUserId(): Promise<string> {
@@ -171,4 +171,20 @@ test("PATCH /:id/owners rejects invalid owner ids (422)", async () => {
     body: JSON.stringify({ ownerIds: ["ghost"] }),
   }));
   expect(res.status).toBe(422);
+});
+
+test("creates a holdings account (valuationMode='holdings')", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const res = await app.handle(new Request("http://localhost/accounts", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Broker", class: "asset", subtype: "investment", currency: "USD", valuationMode: "holdings" }),
+  }));
+  expect(res.status).toBe(200);
+
+  const list = await (await app.handle(new Request("http://localhost/accounts", { headers: { cookie } }))).json();
+  const broker = list.find((a: any) => a.name === "Broker");
+  expect(broker.valuationMode).toBe("holdings");
 });

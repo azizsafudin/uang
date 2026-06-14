@@ -8,6 +8,9 @@ import { fxRoutes } from "./routes/fx";
 import { networthRoutes } from "./routes/networth";
 import { usersRoutes } from "./routes/users";
 import { exportRoutes } from "./routes/export";
+import { instrumentsRoutes } from "./routes/instruments";
+import { lotsRoutes } from "./routes/lots";
+import { pricesRoutes } from "./routes/prices";
 import { isInitialized } from "./lib/settings";
 
 export function createApp() {
@@ -43,7 +46,10 @@ export function createApp() {
     .use(fxRoutes)
     .use(networthRoutes)
     .use(usersRoutes)
-    .use(exportRoutes);
+    .use(exportRoutes)
+    .use(instrumentsRoutes)
+    .use(lotsRoutes)
+    .use(pricesRoutes);
 }
 
 export type App = ReturnType<typeof createApp>;

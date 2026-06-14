@@ -23,10 +23,6 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
   .post(
     "/",
     async ({ body, userId, set }: any) => {
-      if ((body.valuationMode ?? "ledger") !== "ledger") {
-        set.status = 400;
-        return { error: "holdings_not_supported_in_v2" };
-      }
       // Default owners to the creator; otherwise every id must be an existing user.
       const ownerIds: string[] =
         Array.isArray(body.ownerIds) && body.ownerIds.length > 0 ? body.ownerIds : [userId!];
@@ -42,7 +38,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         class: body.class,
         subtype: body.subtype,
         currency: body.currency.toUpperCase(),
-        valuationMode: "ledger",
+        valuationMode: body.valuationMode === "holdings" ? "holdings" : "ledger",
         institution: body.institution ?? null,
         isArchived: 0,
         sortOrder: body.sortOrder ?? 0,

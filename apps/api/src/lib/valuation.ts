@@ -1,7 +1,9 @@
 import { db } from "../db/client";
-import { accounts, entries, fxRates, settings } from "../db/schema";
-import { and, eq, lte, sql, desc } from "drizzle-orm";
+import { accounts, entries, settings } from "../db/schema";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { convertToBase, toBig, fromBig, SCALE } from "@uang/shared";
+import { latestFxRateScaled } from "./fx";
+import { holdingsAccountValuation } from "./holdings";
 import { getAllOwnerSets } from "./owners";
 
 export async function accountBalanceMinor(accountId: string, asOf?: string): Promise<number> {
@@ -13,19 +15,6 @@ export async function accountBalanceMinor(accountId: string, asOf?: string): Pro
     .from(entries)
     .where(where);
   return Number(rows[0]?.total ?? 0);
-}
-
-export async function latestFxRateScaled(currency: string, asOf?: string): Promise<number | null> {
-  const where = asOf
-    ? and(eq(fxRates.currency, currency), lte(fxRates.date, asOf))
-    : eq(fxRates.currency, currency);
-  const rows = await db
-    .select({ rateScaled: fxRates.rateScaled })
-    .from(fxRates)
-    .where(where)
-    .orderBy(desc(fxRates.date))
-    .limit(1);
-  return rows[0]?.rateScaled ?? null;
 }
 
 export type AccountValuation = {
@@ -62,22 +51,33 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
       if (!personalToOwner) continue;
     }
 
-    const balanceMinor = await accountBalanceMinor(a.id, asOf);
+    let balanceMinor = 0;
     let baseMinor = 0;
     let missingRate = false;
-    if (a.currency.toUpperCase() === base.toUpperCase()) {
-      baseMinor = balanceMinor;
+    let currency = a.currency;
+
+    if (a.valuationMode === "holdings") {
+      const hv = await holdingsAccountValuation(a.id, asOf, base);
+      baseMinor = hv.baseMinor;
+      balanceMinor = hv.baseMinor; // holdings: own-currency balance == base total (display rule)
+      missingRate = hv.missing;
+      currency = base;             // holdings report in base currency
     } else {
-      const rate = await latestFxRateScaled(a.currency, asOf);
-      if (rate === null) {
-        missingRate = true;
+      balanceMinor = await accountBalanceMinor(a.id, asOf);
+      if (a.currency.toUpperCase() === base.toUpperCase()) {
+        baseMinor = balanceMinor;
       } else {
-        baseMinor = fromBig(convertToBase(toBig(balanceMinor), a.currency, base, toBig(rate)));
+        const rate = await latestFxRateScaled(a.currency, asOf);
+        if (rate === null) {
+          missingRate = true;
+        } else {
+          baseMinor = fromBig(convertToBase(toBig(balanceMinor), a.currency, base, toBig(rate)));
+        }
       }
     }
     if (!missingRate) total += toBig(baseMinor);
     out.push({
-      id: a.id, name: a.name, class: a.class, subtype: a.subtype, currency: a.currency,
+      id: a.id, name: a.name, class: a.class, subtype: a.subtype, currency,
       balanceMinor, baseMinor, missingRate, ownerIds, shared,
     });
   }
@@ -85,3 +85,4 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
 }
 
 export { SCALE };
+export { latestFxRateScaled };
