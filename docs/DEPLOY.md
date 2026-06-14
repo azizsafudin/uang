@@ -31,10 +31,11 @@ button.
      | Key | Value |
      | --- | --- |
      | `VITE_API_URL` | `https://${{ api.RAILWAY_PUBLIC_DOMAIN }}` |
-4. Click **Create Template**, then **copy the template code** (the bit after
-   `railway.com/template/`).
-5. Replace `REPLACE_WITH_TEMPLATE_CODE` in the README button URL with that code
-   and commit.
+4. Click **Create Template**, then **Publish** it (publishing is what makes the
+   public deploy link resolve — a created-but-unpublished template 404s for
+   anyone outside your workspace).
+5. Point the README button at the published template's deploy URL. The current
+   published template is <https://railway.com/deploy/uang>.
 
 ## Why these values
 
