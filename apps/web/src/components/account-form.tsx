@@ -64,6 +64,7 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
       balanceMinor: 0,
       createdAt: Math.floor(Date.now() / 1000),
       createdBy: meId ?? "",
+      groupId: null,
       ownerIds: owners.length > 0 ? owners : meId ? [meId] : [],
       growthRateBps: assumptions.growthRateBps,
       accessibleFromAge: assumptions.accessibleFromAge,

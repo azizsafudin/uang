@@ -87,6 +87,7 @@ export const accountsCollection = createCollection(
         institution: m.institution ?? undefined,
         sortOrder: m.sortOrder,
         isArchived: m.isArchived === 1,
+        groupId: m.groupId ?? null,
         growthRateBps: m.growthRateBps,
         accessibleFromAge: m.accessibleFromAge,
         earlyWithdrawal: m.earlyWithdrawal,
@@ -303,6 +304,56 @@ export function pricesCollection(instrumentId: string): PricesCollection {
 // ---------------------------------------------------------------------------
 // membersCollection — household members + birth years
 // ---------------------------------------------------------------------------
+
+export type GroupRow = {
+  id: string;
+  name: string;
+  class: "asset" | "liability";
+  sortOrder: number;
+  createdAt: number;
+};
+
+// ---------------------------------------------------------------------------
+// groupsCollection
+// ---------------------------------------------------------------------------
+
+export const groupsCollection = createCollection(
+  queryCollectionOptions<GroupRow, Error, ["groups"], string>({
+    queryKey: ["groups"],
+    queryFn: async (): Promise<Array<GroupRow>> => {
+      const { data, error } = await api.groups.get();
+      if (error) throw new Error(String(error));
+      return Array.isArray(data) ? data : [];
+    },
+    queryClient,
+    getKey: (g) => g.id,
+    onInsert: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as GroupRow | undefined;
+      if (!m) return;
+      const { error } = await api.groups.post({
+        id: m.id,
+        name: m.name,
+        class: m.class,
+        sortOrder: m.sortOrder,
+      });
+      if (error) throw new Error(String(error));
+    },
+    onUpdate: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as GroupRow | undefined;
+      if (!m) return;
+      const { error } = await api.groups({ id: m.id }).patch({
+        name: m.name,
+        sortOrder: m.sortOrder,
+      });
+      if (error) throw new Error(String(error));
+    },
+    onDelete: async ({ transaction }) => {
+      const id = (transaction.mutations[0]?.original as GroupRow | undefined)?.id;
+      if (!id) return;
+      await api.groups({ id }).delete();
+    },
+  })
+);
 
 export type MemberRow = RowOf<typeof api.members.get>;
 
