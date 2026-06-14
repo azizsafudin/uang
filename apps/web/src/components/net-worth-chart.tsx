@@ -81,6 +81,23 @@ export function NetWorthChart({ owner }: { owner: string }) {
   const base = data?.baseCurrency ?? "";
   const rows = (data?.points ?? []).map((p) => ({ date: p.date, net: p.totalBaseMinor }));
 
+  // Points are weekly, but the axis reads better with one tick per calendar
+  // month. Pick the first point of each month (rows are ascending); recharts
+  // thins these further by `minTickGap` when space is tight, so each visible
+  // tick is still a distinct month ("Jan 2026").
+  const monthTicks = (() => {
+    const seen = new Set<string>();
+    const ticks: string[] = [];
+    for (const r of rows) {
+      const month = r.date.slice(0, 7); // "YYYY-MM"
+      if (!seen.has(month)) {
+        seen.add(month);
+        ticks.push(r.date);
+      }
+    }
+    return ticks;
+  })();
+
   return (
     <section className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm md:px-6 md:py-5">
       <div className="mb-3 flex flex-wrap gap-1.5">
@@ -127,12 +144,13 @@ export function NetWorthChart({ owner }: { owner: string }) {
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="date"
+              ticks={monthTicks}
               tickLine={false}
               axisLine={false}
               tickMargin={8}
               minTickGap={32}
               tickFormatter={(v: string) =>
-                formatDay(v, { month: "short", day: "numeric" })
+                formatDay(v, { month: "short", year: "numeric" })
               }
             />
             <ChartTooltip
