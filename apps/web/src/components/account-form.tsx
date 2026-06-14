@@ -6,6 +6,8 @@ import { accountsCollection } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useSession } from "@/lib/auth";
+import { OwnersField } from "@/components/owners-field";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +37,10 @@ export function AccountForm() {
   });
   const set = (k: string, v: string) => setF((prev) => ({ ...prev, [k]: v }));
 
+  const { data: session } = useSession();
+  const meId = session?.user?.id;
+  const [owners, setOwners] = useState<string[]>([]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const openingMajor = parseFloat(f.openingBalance);
@@ -44,6 +50,7 @@ export function AccountForm() {
       class: f.class,
       subtype: f.subtype,
       currency,
+      ownerIds: owners.length > 0 ? owners : meId ? [meId] : [],
     };
     if (!Number.isNaN(openingMajor) && openingMajor !== 0) {
       const dec = currencyDecimals(currency);
@@ -57,7 +64,13 @@ export function AccountForm() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => setOpen(v)}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v && meId && owners.length === 0) setOwners([meId]);
+      }}
+    >
       {/* DialogTrigger in @base-ui/react uses render prop instead of asChild */}
       <DialogTrigger render={<Button />}>Add account</DialogTrigger>
       <DialogContent>
@@ -140,6 +153,10 @@ export function AccountForm() {
               value={f.openingDate}
               onChange={(e) => set("openingDate", e.target.value)}
             />
+          </div>
+          <div>
+            <Label>Owners</Label>
+            <OwnersField value={owners} onChange={setOwners} />
           </div>
           <DialogFooter>
             <Button type="submit">Create</Button>
