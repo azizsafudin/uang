@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex, primaryKey, index } from "drizzle-orm/sqlite-core";
 
 export const settings = sqliteTable("settings", {
   id: integer("id").primaryKey(), // always 1
@@ -71,5 +71,15 @@ export const fxRates = sqliteTable("fx_rates", {
   rateScaled: integer("rate_scaled").notNull(),
   createdAt: integer("created_at").notNull(),
 }, (t) => [uniqueIndex("fx_rates_currency_date_uq").on(t.currency, t.date)]);
+
+// Many-to-many: which users own an account. >=1 owner per account.
+// 1 owner = personal (counts in that member's net worth); 2+ = shared (household total only).
+export const accountOwners = sqliteTable("account_owners", {
+  accountId: text("account_id").notNull(), // FK -> accounts.id
+  userId: text("user_id").notNull(),       // FK -> user.id
+}, (t) => [
+  primaryKey({ columns: [t.accountId, t.userId] }),
+  index("account_owners_user_id_idx").on(t.userId),
+]);
 
 export * from "./auth-schema";

@@ -8,6 +8,13 @@
       "when": 1781370205682,
       "tag": "0000_mean_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1781404897224,
+      "tag": "0001_cheerful_microbe",
+      "breakpoints": true
     }
   ]
 }
