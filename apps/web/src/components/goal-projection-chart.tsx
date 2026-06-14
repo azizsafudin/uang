@@ -34,6 +34,12 @@ export function GoalProjectionChart({
   targetDate: string;
   baseCurrency: string;
 }) {
+  // The "no new saving" line only carries information when the funding accounts
+  // actually grow. With all-0% growth it's a flat duplicate of today's allocation,
+  // so hide it (it reappears, curving, once an account has a growth rate).
+  const eligibleVals = series.map((p) => p.eligible).filter((v): v is number => v != null);
+  const showEligible = eligibleVals.length > 1 && Math.max(...eligibleVals) !== Math.min(...eligibleVals);
+
   return (
     <ChartContainer config={config} className="h-[280px] w-full">
       <LineChart data={series} margin={{ left: 8, right: 8, top: 16, bottom: 0 }}>
@@ -54,7 +60,9 @@ export function GoalProjectionChart({
         <ReferenceLine x={targetDate} stroke="var(--border)" strokeDasharray="3 3" />
         <Line dataKey="actual" type="monotone" stroke="var(--color-actual)" strokeWidth={2} dot={false} connectNulls={false} />
         <Line dataKey="onPlan" type="monotone" stroke="var(--color-onPlan)" strokeWidth={2} strokeDasharray="5 3" dot={false} connectNulls={false} />
-        <Line dataKey="eligible" type="monotone" stroke="var(--color-eligible)" strokeWidth={2} dot={false} connectNulls={false} />
+        {showEligible && (
+          <Line dataKey="eligible" type="monotone" stroke="var(--color-eligible)" strokeWidth={2} dot={false} connectNulls={false} />
+        )}
       </LineChart>
     </ChartContainer>
   );
