@@ -44,7 +44,7 @@ export function AccountGroupRow({
 
       <button
         onClick={onToggle}
-        className="flex flex-1 items-center gap-3 text-left min-w-0"
+        className="flex flex-1 cursor-pointer items-center gap-3 text-left min-w-0"
       >
         <span
           className={cn(
