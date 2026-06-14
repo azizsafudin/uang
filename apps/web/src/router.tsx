@@ -22,6 +22,11 @@ const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/onboarding",
   component: OnboardingPage,
+  beforeLoad: async () => {
+    // Already set up? Onboarding is a dead end — send them to sign in.
+    const { data } = await api.onboarding.status.get();
+    if (data?.initialized) throw redirect({ to: "/login" });
+  },
 });
 
 const loginRoute = createRoute({
