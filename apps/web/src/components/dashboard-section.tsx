@@ -45,6 +45,13 @@ export type AccountValuation = {
   sortOrder: number;
 };
 
+// Shape of the cached ["networth", ...] query data (mirrors dashboard.tsx).
+type NetWorthData = {
+  baseCurrency: string;
+  totalBaseMinor: number;
+  accounts: AccountValuation[];
+};
+
 type Props = {
   cls: "asset" | "liability";
   label: string;
@@ -254,8 +261,18 @@ export function DashboardSection({
   }
 
   async function deleteGroup(id: string) {
-    // Server nullifies member accounts' groupId, so they fall back to the
-    // standalone card; refresh net worth so they reappear there.
+    // Optimistically un-assign the group's accounts in the cached net-worth
+    // data so they immediately fall back into their owner buckets — otherwise
+    // they'd point at a now-deleted group and vanish until the server refetch.
+    qc.setQueriesData<NetWorthData>({ queryKey: ["networth"] }, (old) =>
+      old
+        ? {
+            ...old,
+            accounts: old.accounts.map((a) => (a.groupId === id ? { ...a, groupId: null } : a)),
+          }
+        : old,
+    );
+    // Server also nullifies member accounts' groupId on its side.
     await groupsCollection.delete(id);
     await qc.invalidateQueries({ queryKey: ["networth"] });
   }
