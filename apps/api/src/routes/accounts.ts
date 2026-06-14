@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
-import { accounts, entries, accountOwners, lots } from "../db/schema";
+import { accounts, entries, accountOwners, lots, groups } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
@@ -46,6 +46,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
           sortOrder: body.sortOrder ?? 0,
           createdAt: nowEpoch(),
           createdBy: userId!,
+          groupId: body.groupId ?? null,
           growthRateBps: body.growthRateBps ?? 0,
           accessibleFromAge: body.accessibleFromAge ?? 0,
           earlyWithdrawal: body.earlyWithdrawal === "penalty" ? "penalty" : "none",
@@ -85,6 +86,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         currency: t.String({ pattern: "^[A-Za-z]{3}$" }),
         valuationMode: t.Optional(t.String()),
         institution: t.Optional(t.String()),
+        groupId: t.Optional(t.Union([t.String(), t.Null()])),
         sortOrder: t.Optional(t.Number()),
         openingBalanceMinor: t.Optional(t.Number()),
         openingDate: t.Optional(t.String()),
@@ -113,6 +115,33 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
     },
   )
   .patch(
+    "/reorder",
+    async ({ body }: any) => {
+      for (const item of body.items) {
+        if (item.kind === "account") {
+          const upd: Record<string, unknown> = { sortOrder: item.sortOrder };
+          if ("groupId" in item) upd.groupId = item.groupId;
+          await db.update(accounts).set(upd).where(eq(accounts.id, item.id));
+        } else {
+          await db.update(groups).set({ sortOrder: item.sortOrder }).where(eq(groups.id, item.id));
+        }
+      }
+      return { ok: true };
+    },
+    {
+      body: t.Object({
+        items: t.Array(
+          t.Object({
+            id: t.String(),
+            kind: t.Union([t.Literal("account"), t.Literal("group")]),
+            sortOrder: t.Number(),
+            groupId: t.Optional(t.Union([t.String(), t.Null()])),
+          }),
+        ),
+      }),
+    },
+  )
+  .patch(
     "/:id",
     async ({ params, body }: any) => {
       const update: Record<string, unknown> = {};
@@ -120,6 +149,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
       if (body.institution !== undefined) update.institution = body.institution;
       if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
       if (body.isArchived !== undefined) update.isArchived = body.isArchived ? 1 : 0;
+      if ("groupId" in body) update.groupId = body.groupId;
       if (body.growthRateBps !== undefined) update.growthRateBps = body.growthRateBps;
       if (body.accessibleFromAge !== undefined) update.accessibleFromAge = body.accessibleFromAge;
       if (body.earlyWithdrawal !== undefined) update.earlyWithdrawal = body.earlyWithdrawal;
@@ -134,6 +164,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         name: t.Optional(t.String({ minLength: 1 })),
         institution: t.Optional(t.String()),
         sortOrder: t.Optional(t.Number()),
+        groupId: t.Optional(t.Union([t.String(), t.Null()])),
         isArchived: t.Optional(t.Boolean()),
         growthRateBps: t.Optional(t.Number()),
         accessibleFromAge: t.Optional(t.Number()),
