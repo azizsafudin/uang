@@ -2,6 +2,7 @@ import { db } from "../db/client";
 import { goals as goalsTable, memberProfiles } from "../db/schema";
 import {
   convertToBase, toBig, fromBig, compoundMinor,
+  compoundMonthlyMinor, annuityFutureValueMinor,
   allocateGoals, requiredMonthlyContributionMinor, goalOnTrack,
   type AllocAccount, type GoalInput,
 } from "@uang/shared";
@@ -165,5 +166,134 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
     unallocatedMinor: allocToday.unallocatedMinor,
     goals: analyses,
     overall: { onTrack: behindCount === 0, behindCount },
+  };
+}
+
+// Shift an ISO date (YYYY-MM-DD) by whole months (UTC).
+function addMonthsISO(iso: string, deltaMonths: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + deltaMonths);
+  return d.toISOString().slice(0, 10);
+}
+
+export type GoalProjectionPoint = {
+  date: string;
+  actual: number | null;   // realized allocated value (past + today)
+  onPlan: number | null;   // glide path (today + future)
+  eligible: number | null; // allocated capital left to grow (today + future)
+};
+
+export type GoalProjectionResult = {
+  baseCurrency: string;
+  goal: { id: string; name: string; term: "short" | "long"; targetDate: string; currency: string };
+  targetMinor: number;
+  allocatedMinor: number;
+  progressPct: number;
+  requiredMonthlyMinor: number;
+  onTrack: boolean;
+  aheadByMinor: number;
+  series: GoalProjectionPoint[];
+};
+
+// Per-goal time series: realized allocation over the last `historyMonths`,
+// then the on-plan glide path vs the eligible-accounts trajectory to the target
+// date. All goal allocations are computed globally (no double-counting), then
+// this goal's slice is taken. Returns null if the goal does not exist.
+export async function goalProjection(
+  goalId: string,
+  historyMonths = 12,
+): Promise<GoalProjectionResult | null> {
+  const s = await getSettings();
+  const base = s?.baseCurrency ?? "USD";
+  const planRateBps = s?.contributionGrowthRateBps ?? 800;
+
+  const goalRows = await db.select().from(goalsTable).orderBy(goalsTable.sortOrder);
+  const goal = goalRows.find((g) => g.id === goalId);
+  if (!goal) return null;
+
+  const profiles = await db.select().from(memberProfiles);
+  const birthByUser = new Map<string, number | null>(profiles.map((p) => [p.userId, p.birthYear]));
+
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const thisYear = yearOf(todayISO);
+
+  // Inputs for ALL goals (allocation is global), with base-currency targets.
+  const goalInputs: GoalInput[] = [];
+  const targetBaseById = new Map<string, number>();
+  for (const g of goalRows) {
+    const tb = await targetInBaseMinor(g, base);
+    targetBaseById.set(g.id, tb);
+    goalInputs.push({
+      id: g.id, targetAmountMinor: tb, targetYear: yearOf(g.targetDate),
+      ownerScope: g.ownerScope, term: g.term, sortOrder: g.sortOrder,
+    });
+  }
+  const targetBase = targetBaseById.get(goal.id)!;
+
+  // Today's allocation for this goal.
+  const nwToday = await netWorth({ owner: "household" });
+  const allocToday = allocateGoals({ goals: goalInputs, accounts: toAllocAccounts(nwToday.accounts, birthByUser) });
+  const mine = allocToday.goals.find((g) => g.id === goal.id)!;
+  const allocatedToday = mine.allocatedMinor;
+
+  // Required monthly (same model as analyzeGoals): grow allocated at per-account
+  // annual rates to the target year, fill the gap at the plan rate.
+  const yearsToTarget = Math.max(0, yearOf(goal.targetDate) - thisYear);
+  let projectedAllocated = 0;
+  for (const line of mine.lines) projectedAllocated += compoundMinor(line.allocatedMinor, line.growthRateBps, yearsToTarget);
+  const monthsToTarget = monthsBetween(todayISO, goal.targetDate);
+  const requiredMonthly = requiredMonthlyContributionMinor(targetBase - projectedAllocated, planRateBps, monthsToTarget);
+
+  // On-track, anchored (same as analyzeGoals).
+  const anchor = goal.anchorDate ?? new Date(goal.createdAt * 1000).toISOString().slice(0, 10);
+  const nwAnchor = await netWorth({ asOf: anchor, owner: "household" });
+  const allocAnchor = allocateGoals({ goals: goalInputs, accounts: toAllocAccounts(nwAnchor.accounts, birthByUser) });
+  const startAnchor = allocAnchor.goals.find((g) => g.id === goal.id)?.allocatedMinor ?? allocatedToday;
+  const ot = goalOnTrack({
+    targetMinor: targetBase,
+    startAnchorMinor: startAnchor,
+    allocatedTodayMinor: allocatedToday,
+    planRateBps,
+    monthsAnchorToToday: monthsBetween(anchor, todayISO),
+    monthsAnchorToTarget: monthsBetween(anchor, goal.targetDate),
+  });
+
+  const series: GoalProjectionPoint[] = [];
+
+  // Past: realized allocation as of each month-end (oldest first).
+  for (let k = historyMonths; k >= 1; k--) {
+    const date = addMonthsISO(todayISO, -k);
+    const nwPast = await netWorth({ asOf: date, owner: "household" });
+    const allocPast = allocateGoals({ goals: goalInputs, accounts: toAllocAccounts(nwPast.accounts, birthByUser) });
+    const realized = allocPast.goals.find((g) => g.id === goal.id)?.allocatedMinor ?? 0;
+    series.push({ date, actual: realized, onPlan: null, eligible: null });
+  }
+
+  // Today: all three series meet at the current allocation.
+  series.push({ date: todayISO, actual: allocatedToday, onPlan: allocatedToday, eligible: allocatedToday });
+
+  // Future: step so a far-dated goal stays under ~120 points; always include the target month.
+  const step = Math.max(1, Math.ceil(monthsToTarget / 120));
+  const futureMonths: number[] = [];
+  for (let m = step; m < monthsToTarget; m += step) futureMonths.push(m);
+  if (monthsToTarget > 0) futureMonths.push(monthsToTarget);
+  for (const m of futureMonths) {
+    const date = addMonthsISO(todayISO, m);
+    const onPlan = compoundMonthlyMinor(allocatedToday, planRateBps, m) + annuityFutureValueMinor(requiredMonthly, planRateBps, m);
+    let eligible = 0;
+    for (const line of mine.lines) eligible += compoundMonthlyMinor(line.allocatedMinor, line.growthRateBps, m);
+    series.push({ date, actual: null, onPlan, eligible });
+  }
+
+  return {
+    baseCurrency: base,
+    goal: { id: goal.id, name: goal.name, term: goal.term, targetDate: goal.targetDate, currency: goal.currency },
+    targetMinor: targetBase,
+    allocatedMinor: allocatedToday,
+    progressPct: mine.progressPct,
+    requiredMonthlyMinor: requiredMonthly,
+    onTrack: ot.onTrack,
+    aheadByMinor: ot.aheadByMinor,
+    series,
   };
 }

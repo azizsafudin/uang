@@ -4,7 +4,7 @@ import { accounts, entries, goals, memberProfiles, user } from "../db/schema";
 import { createId, nowEpoch } from "./ids";
 import { setOwners } from "./owners";
 import { resetDb, initAndLogin } from "./test-helpers";
-import { analyzeGoals } from "./goals";
+import { analyzeGoals, goalProjection } from "./goals";
 
 beforeEach(resetDb);
 
@@ -65,4 +65,51 @@ test("analyzeGoals: soonest-first allocation, short sees cash only, long picks u
   expect(short.onTrack).toBe(true);
   // The under-funded long goal needs a positive monthly contribution.
   expect(long.requiredMonthlyMinor).toBeGreaterThan(0);
+});
+
+test("goalProjection: past actual + future on-plan/eligible series toward target", async () => {
+  await initAndLogin({ baseCurrency: "USD" });
+  const [owner] = await db.select().from(user);
+  const userId = owner.id;
+  await db.insert(memberProfiles).values({ userId, birthYear: 1990 });
+
+  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 5_000_000, ownerId: userId });
+  await addAccount({ name: "CPF", subtype: "other", accessibleFromAge: 55, openingMinor: 10_000_000, ownerId: userId });
+
+  await db.insert(goals).values({
+    id: "g", name: "Retire", term: "long", targetAmountMinor: 20_000_000, currency: "USD",
+    targetDate: "2050-01-01", ownerScope: "household", anchorDate: null, sortOrder: 0,
+    createdAt: nowEpoch(), createdBy: "seed",
+  });
+
+  const r = await goalProjection("g", 2);
+  if (!r) throw new Error("expected a projection");
+
+  // Single goal sees both accounts by 2050 (owner age 60 -> CPF unlocked): 5M + 10M.
+  expect(r.allocatedMinor).toBe(15_000_000);
+  expect(r.progressPct).toBe(75);
+  expect(r.targetMinor).toBe(20_000_000);
+  expect(r.requiredMonthlyMinor).toBeGreaterThan(0); // 5M gap to fund
+  expect(r.onTrack).toBe(true);                       // fresh goal, anchored at today
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayPoint = r.series.find((p) => p.date === today);
+  if (!todayPoint) throw new Error("expected a today point");
+  // At today all three series meet at the current allocation.
+  expect(todayPoint.actual).toBe(15_000_000);
+  expect(todayPoint.onPlan).toBe(15_000_000);
+  expect(todayPoint.eligible).toBe(15_000_000);
+
+  // Past points: actual present, on-plan/eligible null.
+  const past = r.series.filter((p) => p.date < today);
+  expect(past.length).toBeGreaterThan(0);
+  expect(past.every((p) => p.actual !== null && p.onPlan === null && p.eligible === null)).toBe(true);
+
+  // Future points: actual null, on-plan/eligible present; on-plan rises above flat eligible (0% growth here).
+  const future = r.series.filter((p) => p.date > today);
+  expect(future.length).toBeGreaterThan(0);
+  expect(future.every((p) => p.actual === null && p.onPlan !== null && p.eligible !== null)).toBe(true);
+  const last = r.series[r.series.length - 1];
+  expect(last.date.slice(0, 7)).toBe("2050-01");     // final point lands on the target month
+  expect((last.onPlan ?? 0)).toBeGreaterThan(last.eligible ?? 0);
 });
