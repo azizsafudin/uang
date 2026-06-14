@@ -343,7 +343,32 @@ export function simulateGoals(params: {
       }
     }
 
-    // 4. Spend — added in Task 4.
+    // 4. Spend at/after each goal's targetMonth. Consumed money leaves the sim;
+    //    the pot keeps growing at the plan rate underneath.
+    for (let i = 0; i < n; i++) {
+      const g = order[i];
+      const tm = g.targetMonth;
+      if (tm === null || m < tm || finishedOnce[i]) continue;
+      if (g.spendType === "once" && m === tm) {
+        const amt = toBig(g.spendAmountMinor ?? 0);
+        const spent = amt > bal[i] ? bal[i] : amt;
+        bal[i] -= spent;
+        const leftover = bal[i];
+        bal[i] = 0n;
+        finishedOnce[i] = true;
+        if (!reached[i]) { reached[i] = true; reachMonth[i] = m; freedMonthly += contribBig[i]; }
+        if (leftover > 0n) {
+          const j = soonestActive();
+          if (j !== -1) bal[j] += leftover;
+        }
+      } else if (g.spendType === "monthly") {
+        const amt = toBig(g.spendAmountMinor ?? 0);
+        bal[i] = bal[i] > amt ? bal[i] - amt : 0n;
+      } else if (g.spendType === "percent" && (m - tm) % 12 === 0) {
+        const wd = roundDiv(bal[i] * toBig(g.spendRateBps ?? 0), BPS);
+        bal[i] = bal[i] > wd ? bal[i] - wd : 0n;
+      }
+    }
 
     for (let i = 0; i < n; i++) series[i].push(fromBig(bal[i]));
   }

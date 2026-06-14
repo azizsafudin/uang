@@ -275,3 +275,32 @@ test("simulateGoals: a finished goal's freed contribution + surplus accelerate t
   expect(bWith).toBeLessThan(bAlone);
   expect(bWith).toBeLessThanOrEqual(11);
 });
+
+test("simulateGoals: one-time spend removes the lump at targetMonth and cascades the remainder", () => {
+  // A holds its 1,000,000 target, spends 600,000 once at month 1; the 400,000
+  // leftover cascades to B (which is far from its target, so stays active).
+  const A = simGoal({ id: "a", startBalanceMinor: 1_000_000, targetMinor: 1_000_000, targetMonth: 1, spendType: "once", spendAmountMinor: 600_000 });
+  const B = simGoal({ id: "b", startBalanceMinor: 0, targetMinor: 100_000_000, targetMonth: 360 });
+  const { goals } = simulateGoals({ goals: [A, B], planRateBps: 0, horizonMonths: 3 });
+  const a = goals.find((g) => g.id === "a")!;
+  const b = goals.find((g) => g.id === "b")!;
+  expect(a.balances[1]).toBe(0);        // emptied after the once-spend
+  expect(a.balances[2]).toBe(0);        // stays empty
+  expect(b.balances[1]).toBe(400_000);  // leftover cascaded to B
+});
+
+test("simulateGoals: monthly spend depletes the balance each month from targetMonth", () => {
+  const A = simGoal({ id: "a", startBalanceMinor: 1_000_000, targetMinor: 1_000_000, targetMonth: 0, spendType: "monthly", spendAmountMinor: 100_000 });
+  const { goals } = simulateGoals({ goals: [A], planRateBps: 0, horizonMonths: 3 });
+  expect(goals[0].balances).toEqual([1_000_000, 900_000, 800_000, 700_000]);
+});
+
+test("simulateGoals: percent spend withdraws a share of current balance and never fully depletes", () => {
+  const A = simGoal({ id: "a", startBalanceMinor: 10_000_000, targetMinor: 10_000_000, targetMonth: 0, spendType: "percent", spendRateBps: 400 });
+  const { goals } = simulateGoals({ goals: [A], planRateBps: 0, horizonMonths: 36 });
+  const b = goals[0].balances;
+  // Withdrawals at the 12-month marks from targetMonth (12, 24, 36); 4% of current.
+  expect(b[12]).toBe(10_000_000 - 400_000);   // 4% of 10,000,000
+  expect(b[24]).toBe(9_600_000 - 384_000);    // 4% of 9,600,000
+  expect(b[b.length - 1]).toBeGreaterThan(0); // self-adjusting; never zero
+});
