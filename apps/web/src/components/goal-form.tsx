@@ -16,10 +16,24 @@ const toMajor = (minor: number, currency: string) => String(minor / 10 ** curren
 const toMinor = (major: string, currency: string) =>
   Math.round((parseFloat(major) || 0) * 10 ** currencyDecimals(currency));
 
-export function GoalForm({ goal, defaultCurrency = "USD" }: { goal?: GoalRow; defaultCurrency?: string }) {
+export function GoalForm({
+  goal,
+  defaultCurrency = "USD",
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
+}: {
+  goal?: GoalRow;
+  defaultCurrency?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
+}) {
   const editing = !!goal;
   const currency = goal?.currency ?? defaultCurrency;
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = onOpenChange ?? setOpenState;
   const [f, setF] = useState({
     name: goal?.name ?? "",
     term: goal?.term ?? ("long" as "short" | "long"),
@@ -57,9 +71,11 @@ export function GoalForm({ goal, defaultCurrency = "USD" }: { goal?: GoalRow; de
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant={editing ? "outline" : "default"} size="sm" />}>
-        {editing ? "Edit" : "New goal"}
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger render={<Button variant={editing ? "outline" : "default"} size="sm" />}>
+          {editing ? "Edit" : "New goal"}
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader><DialogTitle>{editing ? "Edit goal" : "New goal"}</DialogTitle></DialogHeader>
         <form onSubmit={submit} className="space-y-3">
