@@ -27,6 +27,7 @@ export type AccountValuation = {
   earlyHaircutBps: number;
   illiquid: boolean;
   liquidationAge: number | null;
+  groupId: string | null; sortOrder: number;
 };
 
 export type NetWorthOpts = { asOf?: string; owner?: string };
@@ -91,6 +92,8 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
       earlyHaircutBps: a.earlyHaircutBps,
       illiquid: a.illiquid === 1,
       liquidationAge: a.liquidationAge ?? null,
+      groupId: a.groupId ?? null,
+      sortOrder: a.sortOrder,
     });
   }
   return { baseCurrency: base, totalBaseMinor: fromBig(total), accounts: out };

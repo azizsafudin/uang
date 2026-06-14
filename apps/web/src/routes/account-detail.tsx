@@ -9,13 +9,10 @@ import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { accountsCollection, entriesCollection } from "@/lib/collections";
-import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
-import { OwnersField } from "@/components/owners-field";
-import { OwnersBadge } from "@/components/owners-badge";
-import { HoldingsDetail } from "@/components/holdings-detail";
+import { AccountInfoCard } from "@/components/account-info-card";
 import { AccountAssumptionsDialog } from "@/components/account-assumptions-dialog";
-import { EditAccountInline } from "@/components/edit-account-inline";
+import { HoldingsDetail } from "@/components/holdings-detail";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -37,13 +34,10 @@ export function AccountDetailPage() {
   const { id } = useParams({ from: "/accounts/$id" });
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [editingOwners, setEditingOwners] = useState(false);
-  const [draftOwners, setDraftOwners] = useState<string[]>([]);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteName, setDeleteName] = useState("");
 
-  const { data: accounts, isLoading: accountsLoading } =
-    useLiveQuery(accountsCollection);
+  const { data: accounts, isLoading: accountsLoading } = useLiveQuery(accountsCollection);
   const collection = entriesCollection(id);
   const { data: entries } = useLiveQuery(collection);
 
@@ -79,6 +73,11 @@ export function AccountDetailPage() {
     await nav({ to: "/" });
   }
 
+  async function delEntry(entryId: string) {
+    await collection.delete(entryId);
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+  }
+
   const dangerZone = (
     <section className="mt-12 border-t border-border pt-6">
       <Eyebrow className="mb-3 text-destructive">Danger zone</Eyebrow>
@@ -109,9 +108,7 @@ export function AccountDetailPage() {
           </div>
           <div className="flex items-center justify-between rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
             <div>
-              <p className="text-sm font-medium text-destructive">
-                Delete permanently
-              </p>
+              <p className="text-sm font-medium text-destructive">Delete permanently</p>
               <p className="text-xs text-muted-foreground">
                 Removes all history. Cannot be undone.
               </p>
@@ -131,8 +128,7 @@ export function AccountDetailPage() {
                   <DialogTitle>Delete "{account.name}" permanently?</DialogTitle>
                 </DialogHeader>
                 <p className="text-sm text-muted-foreground">
-                  This deletes the account and all its history. Type the account
-                  name to confirm.
+                  This deletes the account and all its history. Type the account name to confirm.
                 </p>
                 <Input
                   value={deleteName}
@@ -158,39 +154,26 @@ export function AccountDetailPage() {
 
   if (account.valuationMode === "holdings") {
     return (
-      <AppShell
-        actions={
-          <div className="flex items-center gap-2">
-            <AccountAssumptionsDialog account={account} />
-            <BackButton />
-          </div>
-        }
-      >
+      <AppShell actions={<BackButton />}>
         {account.isArchived === 1 && (
           <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
             This account is archived and hidden from the dashboard.
           </div>
         )}
+        <header className="mb-4">
+          <Eyebrow>{classLabel(account.class)} · {subtypeLabel(account.subtype)} · {account.currency}</Eyebrow>
+          <h1 className="mt-2 font-heading text-3xl tracking-tight">{account.name}</h1>
+        </header>
         <section className="mb-4">
-          <EditAccountInline account={account} />
+          <AccountInfoCard account={account} />
         </section>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <AccountAssumptionsDialog account={account} />
+        </div>
         <HoldingsDetail accountId={id} accountName={account.name} />
         {dangerZone}
       </AppShell>
     );
-  }
-
-  async function delEntry(entryId: string) {
-    await collection.delete(entryId);
-    await qc.invalidateQueries({ queryKey: ["networth"] });
-  }
-
-  async function saveOwners() {
-    if (draftOwners.length === 0) return;
-    await api.accounts({ id }).owners.patch({ ownerIds: draftOwners });
-    await qc.invalidateQueries({ queryKey: ["accounts"] });
-    await qc.invalidateQueries({ queryKey: ["networth"] });
-    setEditingOwners(false);
   }
 
   const sorted = [...(entries ?? [])].sort((a, b) =>
@@ -205,14 +188,11 @@ export function AccountDetailPage() {
         </div>
       )}
 
-      <header>
+      <header className="mb-5">
         <Eyebrow>
-          {classLabel(account.class)} · {subtypeLabel(account.subtype)} ·{" "}
-          {account.currency}
+          {classLabel(account.class)} · {subtypeLabel(account.subtype)} · {account.currency}
         </Eyebrow>
-        <h1 className="mt-2 font-heading text-3xl tracking-tight">
-          {account.name}
-        </h1>
+        <h1 className="mt-2 font-heading text-3xl tracking-tight">{account.name}</h1>
         <p
           className={cn(
             "mt-1 font-heading text-4xl tabular-nums tracking-tight",
@@ -223,54 +203,11 @@ export function AccountDetailPage() {
         </p>
       </header>
 
-      <section className="mt-4">
-        <EditAccountInline account={account} />
-      </section>
+      <AccountInfoCard account={account} />
 
-      <section className="mt-4">
-        {!editingOwners ? (
-          <div className="flex items-center gap-3">
-            <OwnersBadge ownerIds={account.ownerIds} />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setDraftOwners(account!.ownerIds);
-                setEditingOwners(true);
-              }}
-            >
-              Edit owners
-            </Button>
-          </div>
-        ) : (
-          <div className="max-w-xs space-y-3 rounded-xl border border-border bg-card p-4">
-            <Eyebrow>Owners</Eyebrow>
-            <OwnersField value={draftOwners} onChange={setDraftOwners} />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={saveOwners} disabled={draftOwners.length === 0}>
-                Save
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditingOwners(false)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        <SetBalanceDialog
-          accountId={id}
-          currency={account.currency}
-          mode="set"
-          onDone={() => {}}
-        />
-        <SetBalanceDialog
-          accountId={id}
-          currency={account.currency}
-          mode="revalue"
-          onDone={() => {}}
-        />
+      <div className="mt-4 flex flex-wrap gap-2">
+        <SetBalanceDialog accountId={id} currency={account.currency} mode="set" onDone={() => {}} />
+        <SetBalanceDialog accountId={id} currency={account.currency} mode="revalue" onDone={() => {}} />
         <AccountAssumptionsDialog account={account} />
       </div>
 
@@ -278,8 +215,7 @@ export function AccountDetailPage() {
         <Eyebrow className="mb-3">History</Eyebrow>
         {sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No entries yet. Use "Set balance…" to record where this account
-            stands today.
+            No entries yet. Use "Set balance…" to record where this account stands today.
           </p>
         ) : (
           <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -292,12 +228,7 @@ export function AccountDetailPage() {
                 )}
               >
                 <div className="min-w-0">
-                  <p
-                    className={cn(
-                      "tabular-nums",
-                      e.amountMinor < 0 && "text-destructive",
-                    )}
-                  >
+                  <p className={cn("tabular-nums", e.amountMinor < 0 && "text-destructive")}>
                     {formatMoney(e.amountMinor, account.currency)}
                   </p>
                   <p className="text-xs text-muted-foreground">

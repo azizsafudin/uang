@@ -57,7 +57,7 @@ export function AccountAssumptionsDialog({ account }: { account: AccountRow }) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (v) setF(seedForm(account)); setOpen(v); }}>
-      <DialogTrigger render={<Button variant="outline" size="sm" />}>Edit assumptions</DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" />}>Edit assumptions</DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Projection assumptions</DialogTitle></DialogHeader>
         <form onSubmit={save} className="space-y-3">
