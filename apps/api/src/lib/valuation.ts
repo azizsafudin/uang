@@ -1,7 +1,8 @@
 import { db } from "../db/client";
-import { accounts, entries, fxRates, settings } from "../db/schema";
-import { and, eq, lte, sql, desc } from "drizzle-orm";
+import { accounts, entries, settings } from "../db/schema";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { convertToBase, toBig, fromBig, SCALE } from "@uang/shared";
+import { latestFxRateScaled } from "./fx";
 import { getAllOwnerSets } from "./owners";
 
 export async function accountBalanceMinor(accountId: string, asOf?: string): Promise<number> {
@@ -13,19 +14,6 @@ export async function accountBalanceMinor(accountId: string, asOf?: string): Pro
     .from(entries)
     .where(where);
   return Number(rows[0]?.total ?? 0);
-}
-
-export async function latestFxRateScaled(currency: string, asOf?: string): Promise<number | null> {
-  const where = asOf
-    ? and(eq(fxRates.currency, currency), lte(fxRates.date, asOf))
-    : eq(fxRates.currency, currency);
-  const rows = await db
-    .select({ rateScaled: fxRates.rateScaled })
-    .from(fxRates)
-    .where(where)
-    .orderBy(desc(fxRates.date))
-    .limit(1);
-  return rows[0]?.rateScaled ?? null;
 }
 
 export type AccountValuation = {
@@ -85,3 +73,4 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
 }
 
 export { SCALE };
+export { latestFxRateScaled };
