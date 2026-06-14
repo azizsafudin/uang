@@ -25,17 +25,21 @@ import {
 const toPct = (bps: number) => String(bps / 100);
 const fromPct = (s: string) => Math.round((parseFloat(s) || 0) * 100);
 
-export function AccountAssumptionsDialog({ account }: { account: AccountRow }) {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState({
+function seedForm(account: AccountRow) {
+  return {
     growthPct: toPct(account.growthRateBps),
     accessibleFromAge: String(account.accessibleFromAge),
     earlyWithdrawal: account.earlyWithdrawal,
     earlyHaircutPct: toPct(account.earlyHaircutBps),
     illiquid: account.illiquid === 1,
     liquidationAge: account.liquidationAge == null ? "" : String(account.liquidationAge),
-  });
+  };
+}
+
+export function AccountAssumptionsDialog({ account }: { account: AccountRow }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState(() => seedForm(account));
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -52,7 +56,7 @@ export function AccountAssumptionsDialog({ account }: { account: AccountRow }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { if (v) setF(seedForm(account)); setOpen(v); }}>
       <DialogTrigger render={<Button variant="outline" size="sm" />}>Edit assumptions</DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Projection assumptions</DialogTitle></DialogHeader>
@@ -65,7 +69,7 @@ export function AccountAssumptionsDialog({ account }: { account: AccountRow }) {
             </div>
             <div>
               <Label>Accessible from age</Label>
-              <Input type="number" value={f.accessibleFromAge}
+              <Input type="number" min="0" value={f.accessibleFromAge}
                 onChange={(e) => setF((p) => ({ ...p, accessibleFromAge: e.target.value }))} />
             </div>
           </div>
@@ -85,7 +89,7 @@ export function AccountAssumptionsDialog({ account }: { account: AccountRow }) {
             </div>
             <div>
               <Label>Early penalty %</Label>
-              <Input type="number" step="any" value={f.earlyHaircutPct}
+              <Input type="number" min="0" step="any" value={f.earlyHaircutPct}
                 disabled={f.earlyWithdrawal !== "penalty"}
                 onChange={(e) => setF((p) => ({ ...p, earlyHaircutPct: e.target.value }))} />
             </div>
@@ -97,7 +101,7 @@ export function AccountAssumptionsDialog({ account }: { account: AccountRow }) {
           {f.illiquid && (
             <div>
               <Label>Liquidation age (optional)</Label>
-              <Input type="number" value={f.liquidationAge} placeholder="never"
+              <Input type="number" min="0" value={f.liquidationAge} placeholder="never"
                 onChange={(e) => setF((p) => ({ ...p, liquidationAge: e.target.value }))} />
             </div>
           )}
