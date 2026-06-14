@@ -48,7 +48,14 @@ export function AccountDetailPage() {
 
   if (account.valuationMode === "holdings") {
     return (
-      <AppShell actions={<BackButton />}>
+      <AppShell
+        actions={
+          <div className="flex items-center gap-2">
+            <AccountAssumptionsDialog account={account} />
+            <BackButton />
+          </div>
+        }
+      >
         <HoldingsDetail accountId={id} accountName={account.name} />
       </AppShell>
     );
