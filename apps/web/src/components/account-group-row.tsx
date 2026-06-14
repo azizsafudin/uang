@@ -27,7 +27,6 @@ export function AccountGroupRow({
       onClick={onToggle}
       className={cn(
         "group relative flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors",
-        "border-b border-border/70 last:border-b-0",
         "bg-[color-mix(in_oklab,var(--color-primary)_6%,var(--color-card))]",
         "hover:bg-[color-mix(in_oklab,var(--color-primary)_10%,var(--color-card))]",
         isDragging && "opacity-50",

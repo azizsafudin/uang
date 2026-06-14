@@ -1,7 +1,24 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { Link, useNavigate } from "@tanstack/react-router";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { signOut } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/components/money";
@@ -48,12 +65,39 @@ const CLASS_SECTIONS = [
   { cls: "liability", label: "Liabilities" },
 ] as const;
 
+function SortableItem({
+  id,
+  children,
+}: {
+  id: string;
+  children: (props: {
+    dragHandleProps: React.HTMLAttributes<HTMLSpanElement>;
+    isDragging: boolean;
+  }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging })}
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const nav = useNavigate();
+  const qc = useQueryClient();
   const [owner, setOwner] = useState("household");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [newGroupSection, setNewGroupSection] = useState<"asset" | "liability" | null>(null);
   const [newGroupName, setNewGroupName] = useState("");
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   // The account list + group totals always reflect the whole household, so the
   // list never changes when you toggle the headline.
@@ -89,7 +133,7 @@ export function DashboardPage() {
       id,
       name: newGroupName.trim(),
       class: cls,
-      sortOrder: 0,
+      sortOrder: (allGroups ?? []).filter((g) => g.class === cls).length,
       createdAt: Math.floor(Date.now() / 1000),
     });
     setNewGroupSection(null);
@@ -101,6 +145,42 @@ export function DashboardPage() {
     return accounts
       .filter((a) => a.class === cls && !a.missingRate)
       .reduce((sum, a) => sum + a.baseMinor, 0);
+  }
+
+  // Flat, ordered id list for a section's draggable top-level items:
+  // groups first (by sortOrder), then ungrouped accounts (by sortOrder).
+  // Used by both SortableContext.items and handleDragEnd so they can't diverge.
+  function sectionFlatIds(cls: "asset" | "liability") {
+    const groupIds = (allGroups ?? [])
+      .filter((g) => g.class === cls)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((g) => g.id);
+    const ungroupedIds = accounts
+      .filter((a) => a.class === cls && !a.groupId)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((a) => a.id);
+    return [...groupIds, ...ungroupedIds];
+  }
+
+  async function handleDragEnd(event: DragEndEvent, cls: "asset" | "liability") {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const flatIds = sectionFlatIds(cls);
+
+    const oldIndex = flatIds.indexOf(String(active.id));
+    const newIndex = flatIds.indexOf(String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(flatIds, oldIndex, newIndex);
+    const items = reordered.map((id, sortOrder) => {
+      const isGroup = (allGroups ?? []).some((g) => g.id === id);
+      return { id, kind: isGroup ? ("group" as const) : ("account" as const), sortOrder };
+    });
+
+    await api.accounts.reorder.patch({ items });
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["groups"] });
   }
 
   return (
@@ -226,7 +306,10 @@ export function DashboardPage() {
                       variant="ghost"
                       size="sm"
                       className="h-6 text-xs text-muted-foreground"
-                      onClick={() => setNewGroupSection(cls)}
+                      onClick={() => {
+                        setNewGroupSection(cls);
+                        setNewGroupName("");
+                      }}
                     >
                       + New group
                     </Button>
@@ -237,50 +320,75 @@ export function DashboardPage() {
               {items.length === 0 ? (
                 <p className="text-sm text-muted-foreground">None yet.</p>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-border bg-card">
-                  {items.map((item) => {
-                    if (item.type === "group") {
-                      const g = sectionGroups.find((g) => g.id === item.groupId)!;
-                      const members = sectionAccounts.filter((a) => a.groupId === g.id);
-                      const subtotal = members
-                        .filter((a) => !a.missingRate)
-                        .reduce((sum, a) => sum + a.baseMinor, 0);
-                      const expanded = expandedGroups.has(g.id);
-
-                      return (
-                        <div key={g.id}>
-                          <AccountGroupRow
-                            name={g.name}
-                            memberCount={members.length}
-                            subtotalMinor={subtotal}
-                            baseCurrency={base}
-                            expanded={expanded}
-                            onToggle={() => toggleGroup(g.id)}
-                          />
-                          {expanded &&
-                            members.map((a, i) => (
-                              <div key={a.id} className="border-t border-border/70 pl-4">
-                                <AccountRow
-                                  account={a}
-                                  baseCurrency={base}
-                                  isLast={i === members.length - 1}
-                                />
-                              </div>
-                            ))}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <AccountRow
-                        key={item.account.id}
-                        account={item.account}
-                        baseCurrency={base}
-                        isLast={false}
-                      />
-                    );
-                  })}
-                </div>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(e) => void handleDragEnd(e, cls)}
+                >
+                  <SortableContext
+                    items={sectionFlatIds(cls)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="overflow-hidden rounded-xl border border-border bg-card">
+                      {items.map((item, index) => {
+                        const isLastItem = index === items.length - 1;
+                        if (item.type === "group") {
+                          const g = sectionGroups.find((g) => g.id === item.groupId)!;
+                          const members = sectionAccounts.filter((a) => a.groupId === g.id);
+                          const subtotal = members
+                            .filter((a) => !a.missingRate)
+                            .reduce((sum, a) => sum + a.baseMinor, 0);
+                          const expanded = expandedGroups.has(g.id);
+                          return (
+                            <SortableItem key={g.id} id={g.id}>
+                              {({ dragHandleProps, isDragging }) => (
+                                <div
+                                  className={cn(
+                                    !isLastItem && "border-b border-border/70",
+                                  )}
+                                >
+                                  <AccountGroupRow
+                                    name={g.name}
+                                    memberCount={members.length}
+                                    subtotalMinor={subtotal}
+                                    baseCurrency={base}
+                                    expanded={expanded}
+                                    onToggle={() => toggleGroup(g.id)}
+                                    dragHandleProps={dragHandleProps}
+                                    isDragging={isDragging}
+                                  />
+                                  {expanded &&
+                                    members.map((a, i) => (
+                                      <div key={a.id} className="border-t border-border/70 pl-4">
+                                        <AccountRow
+                                          account={a}
+                                          baseCurrency={base}
+                                          isLast={i === members.length - 1}
+                                        />
+                                      </div>
+                                    ))}
+                                </div>
+                              )}
+                            </SortableItem>
+                          );
+                        }
+                        return (
+                          <SortableItem key={item.account.id} id={item.account.id}>
+                            {({ dragHandleProps, isDragging }) => (
+                              <AccountRow
+                                account={item.account}
+                                baseCurrency={base}
+                                isLast={isLastItem}
+                                dragHandleProps={dragHandleProps}
+                                isDragging={isDragging}
+                              />
+                            )}
+                          </SortableItem>
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
             </section>
           );
