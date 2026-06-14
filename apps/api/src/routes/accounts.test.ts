@@ -221,3 +221,81 @@ test("creates a holdings account (valuationMode='holdings')", async () => {
   const broker = list.find((a: any) => a.name === "Broker");
   expect(broker.valuationMode).toBe("holdings");
 });
+
+test("DELETE /:id removes an archived account and cascades its data", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+
+  // Create with an opening balance (produces an entry row)
+  const { id } = await (
+    await app.handle(
+      new Request("http://localhost/accounts", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "Old Bank",
+          class: "asset",
+          subtype: "bank",
+          currency: "USD",
+          openingBalanceMinor: 50000,
+        }),
+      }),
+    )
+  ).json();
+
+  // Archive first
+  await app.handle(
+    new Request(`http://localhost/accounts/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ isArchived: true }),
+    }),
+  );
+
+  // Delete
+  const del = await app.handle(
+    new Request(`http://localhost/accounts/${id}`, {
+      method: "DELETE",
+      headers: { cookie },
+    }),
+  );
+  expect(del.status).toBe(200);
+  expect((await del.json()).ok).toBe(true);
+
+  // Gone from list
+  const list = await (
+    await app.handle(
+      new Request("http://localhost/accounts", { headers: { cookie } }),
+    )
+  ).json();
+  expect(list.find((a: any) => a.id === id)).toBeUndefined();
+});
+
+test("DELETE /:id rejects a non-archived account with 422", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const { id } = await (
+    await app.handle(
+      new Request("http://localhost/accounts", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: JSON.stringify({
+          name: "Active",
+          class: "asset",
+          subtype: "bank",
+          currency: "USD",
+        }),
+      }),
+    )
+  ).json();
+
+  const del = await app.handle(
+    new Request(`http://localhost/accounts/${id}`, {
+      method: "DELETE",
+      headers: { cookie },
+    }),
+  );
+  expect(del.status).toBe(422);
+  expect((await del.json()).error).toBe("not_archived");
+});

@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
-import { accounts, entries } from "../db/schema";
+import { accounts, entries, accountOwners, lots } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
@@ -119,4 +119,25 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         isArchived: t.Optional(t.Boolean()),
       }),
     },
-  );
+  )
+  .delete("/:id", async ({ params, set }: any) => {
+    const [account] = await db
+      .select()
+      .from(accounts)
+      .where(eq(accounts.id, params.id));
+    if (!account) {
+      set.status = 404;
+      return { error: "not_found" };
+    }
+    if (!account.isArchived) {
+      set.status = 422;
+      return { error: "not_archived" };
+    }
+    await db
+      .delete(accountOwners)
+      .where(eq(accountOwners.accountId, params.id));
+    await db.delete(entries).where(eq(entries.accountId, params.id));
+    await db.delete(lots).where(eq(lots.accountId, params.id));
+    await db.delete(accounts).where(eq(accounts.id, params.id));
+    return { ok: true };
+  });
