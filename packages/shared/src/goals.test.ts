@@ -254,3 +254,24 @@ test("simulateGoals: a goal already at target reports reachMonth 0", () => {
   });
   expect(goals[0].reachMonth).toBe(0);
 });
+
+test("simulateGoals: a finished goal's freed contribution + surplus accelerate the next goal", () => {
+  const planRateBps = 0; // isolate the cascade from growth
+
+  // Goal A overshoots its 1,000,000 target at month 1 (contributes 1,100,000):
+  // it frees its contribution AND cascades the 100,000 surplus to B.
+  const A = simGoal({ id: "a", startBalanceMinor: 0, targetMinor: 1_000_000, targetMonth: 1, monthlyContributionMinor: 1_100_000 });
+  // Goal B: large + later, contributes 100,000/mo.
+  const B = simGoal({ id: "b", startBalanceMinor: 0, targetMinor: 10_000_000, targetMonth: 240, monthlyContributionMinor: 100_000 });
+
+  const bWith = simulateGoals({ goals: [A, B], planRateBps, horizonMonths: 1200 })
+    .goals.find((g) => g.id === "b")!.reachMonth!;
+  const bAlone = simulateGoals({ goals: [B], planRateBps, horizonMonths: 1200 })
+    .goals[0].reachMonth!;
+
+  // B alone: 10,000,000 / 100,000 = 100 months.
+  expect(bAlone).toBe(100);
+  // With A's freed 1,100,000/mo + 100,000 surplus, B reaches far sooner.
+  expect(bWith).toBeLessThan(bAlone);
+  expect(bWith).toBeLessThanOrEqual(11);
+});
