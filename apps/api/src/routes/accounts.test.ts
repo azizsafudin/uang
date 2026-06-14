@@ -221,3 +221,41 @@ test("creates a holdings account (valuationMode='holdings')", async () => {
   const broker = list.find((a: any) => a.name === "Broker");
   expect(broker.valuationMode).toBe("holdings");
 });
+
+test("POST then PATCH round-trips projection assumptions", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+
+  const id = crypto.randomUUID();
+  const create = await app.handle(new Request("http://localhost/accounts", {
+    method: "POST", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({
+      id, name: "SRS", class: "asset", subtype: "investment", currency: "USD",
+      valuationMode: "ledger",
+      growthRateBps: 800, accessibleFromAge: 62, earlyWithdrawal: "penalty",
+      earlyHaircutBps: 500, illiquid: false, liquidationAge: null,
+    }),
+  }));
+  expect(create.status).toBe(200);
+
+  let list = await (await app.handle(new Request("http://localhost/accounts", { headers: { cookie } }))).json();
+  let a = list.find((x: any) => x.id === id);
+  expect(a.growthRateBps).toBe(800);
+  expect(a.accessibleFromAge).toBe(62);
+  expect(a.earlyWithdrawal).toBe("penalty");
+  expect(a.earlyHaircutBps).toBe(500);
+
+  const patch = await app.handle(new Request(`http://localhost/accounts/${id}`, {
+    method: "PATCH", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ growthRateBps: 250, accessibleFromAge: 55, earlyWithdrawal: "none", illiquid: true, liquidationAge: 70 }),
+  }));
+  expect(patch.status).toBe(200);
+
+  list = await (await app.handle(new Request("http://localhost/accounts", { headers: { cookie } }))).json();
+  a = list.find((x: any) => x.id === id);
+  expect(a.growthRateBps).toBe(250);
+  expect(a.accessibleFromAge).toBe(55);
+  expect(a.earlyWithdrawal).toBe("none");
+  expect(a.illiquid).toBe(1);
+  expect(a.liquidationAge).toBe(70);
+});

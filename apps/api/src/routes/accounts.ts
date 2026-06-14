@@ -46,6 +46,12 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
           sortOrder: body.sortOrder ?? 0,
           createdAt: nowEpoch(),
           createdBy: userId!,
+          growthRateBps: body.growthRateBps ?? 0,
+          accessibleFromAge: body.accessibleFromAge ?? 0,
+          earlyWithdrawal: body.earlyWithdrawal === "penalty" ? "penalty" : "none",
+          earlyHaircutBps: body.earlyHaircutBps ?? 0,
+          illiquid: body.illiquid ? 1 : 0,
+          liquidationAge: body.liquidationAge ?? null,
         });
       } catch (e) {
         if (isUniqueViolation(e)) {
@@ -83,6 +89,12 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         openingBalanceMinor: t.Optional(t.Number()),
         openingDate: t.Optional(t.String()),
         ownerIds: t.Optional(t.Array(t.String())),
+        growthRateBps: t.Optional(t.Number()),
+        accessibleFromAge: t.Optional(t.Number()),
+        earlyWithdrawal: t.Optional(t.Union([t.Literal("none"), t.Literal("penalty")])),
+        earlyHaircutBps: t.Optional(t.Number()),
+        illiquid: t.Optional(t.Boolean()),
+        liquidationAge: t.Optional(t.Union([t.Number(), t.Null()])),
       }),
     },
   )
@@ -108,6 +120,12 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
       if (body.institution !== undefined) update.institution = body.institution;
       if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
       if (body.isArchived !== undefined) update.isArchived = body.isArchived ? 1 : 0;
+      if (body.growthRateBps !== undefined) update.growthRateBps = body.growthRateBps;
+      if (body.accessibleFromAge !== undefined) update.accessibleFromAge = body.accessibleFromAge;
+      if (body.earlyWithdrawal !== undefined) update.earlyWithdrawal = body.earlyWithdrawal;
+      if (body.earlyHaircutBps !== undefined) update.earlyHaircutBps = body.earlyHaircutBps;
+      if (body.illiquid !== undefined) update.illiquid = body.illiquid ? 1 : 0;
+      if (body.liquidationAge !== undefined) update.liquidationAge = body.liquidationAge;
       await db.update(accounts).set(update).where(eq(accounts.id, params.id));
       return { ok: true };
     },
@@ -117,6 +135,12 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         institution: t.Optional(t.String()),
         sortOrder: t.Optional(t.Number()),
         isArchived: t.Optional(t.Boolean()),
+        growthRateBps: t.Optional(t.Number()),
+        accessibleFromAge: t.Optional(t.Number()),
+        earlyWithdrawal: t.Optional(t.Union([t.Literal("none"), t.Literal("penalty")])),
+        earlyHaircutBps: t.Optional(t.Number()),
+        illiquid: t.Optional(t.Boolean()),
+        liquidationAge: t.Optional(t.Union([t.Number(), t.Null()])),
       }),
     },
   );
