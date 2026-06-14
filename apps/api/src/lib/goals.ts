@@ -1,10 +1,10 @@
 import { db } from "../db/client";
 import { goals as goalsTable, memberProfiles } from "../db/schema";
 import {
-  convertToBase, toBig, fromBig,
-  compoundMonthlyMinor, annuityFutureValueMinor, monthsToReachMinor,
-  allocateGoals, requiredMonthlyContributionMinor,
-  type AllocAccount, type GoalInput,
+  convertToBase, toBig, fromBig, roundDiv,
+  compoundMonthlyMinor,
+  allocateGoals, requiredMonthlyContributionMinor, simulateGoals,
+  type AllocAccount, type GoalInput, type SimGoal, type SpendType,
 } from "@uang/shared";
 import { netWorth, latestFxRateScaled } from "./valuation";
 import { getSettings } from "./settings";
@@ -31,6 +31,8 @@ export type GoalAnalysis = {
   projectedAtTargetMinor: number | null; // where the plan lands by the target date (null if indefinite)
   onTrack: boolean;                   // dated: projected >= target; indefinite: reachable
   reachDate: string | null;          // YYYY-MM-DD the plan first reaches target (null = not within ~100y)
+  spendType: SpendType;              // how this goal spends at/after targetDate
+  annualIncomeMinor: number | null;  // derived recurring income (monthly/percent); null otherwise
   sources: GoalSource[];
 };
 
@@ -58,30 +60,64 @@ function addMonthsISO(iso: string, deltaMonths: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Single-rate plan math: today's allocated balance grows at the plan rate, and the
-// planned monthly contribution accumulates on top. `required` is the contribution
-// that would land exactly on target; on track when the plan reaches the target.
-function goalPlanMath(params: {
-  allocatedMinor: number;
-  monthlyContributionMinor: number;
-  targetMinor: number;
-  planRateBps: number;
-  monthsToTarget: number | null; // null = indefinite (no deadline)
-}): { requiredMonthlyMinor: number; projectedAtTargetMinor: number | null; onTrack: boolean; reachMonths: number | null } {
-  const { allocatedMinor, monthlyContributionMinor, targetMinor, planRateBps, monthsToTarget } = params;
-  // When (with growth + contribution) the balance first reaches the target. Search
-  // well past any deadline so a behind/indefinite goal still gets a completion date.
-  const cap = Math.max((monthsToTarget ?? 0) * 3, 1200);
-  const reachMonths = monthsToReachMinor(allocatedMinor, monthlyContributionMinor, targetMinor, planRateBps, cap);
-  if (monthsToTarget === null) {
-    // Indefinite: no deadline, so no required rate or dated projection — just whether
-    // (and when) the amount is reached.
-    return { requiredMonthlyMinor: 0, projectedAtTargetMinor: null, onTrack: reachMonths !== null, reachMonths };
+// Drawdown display window appended after the target date so recurring spends are
+// visible on the chart (30 years).
+const DRAWDOWN_MONTHS = 360;
+
+// Contribution that would land exactly on target by the deadline (per-goal,
+// closed-form — ignores cascade, matching the "what you'd need alone" figure).
+function requiredMonthlyMinorFor(
+  allocatedMinor: number,
+  targetMinor: number,
+  planRateBps: number,
+  monthsToTarget: number | null,
+): number {
+  if (monthsToTarget === null) return 0;
+  const grown = compoundMonthlyMinor(allocatedMinor, planRateBps, monthsToTarget);
+  return requiredMonthlyContributionMinor(targetMinor - grown, planRateBps, monthsToTarget);
+}
+
+// Derived recurring income: monthly -> flat * 12; percent -> rate% * balance at
+// the target date; once/none -> null.
+function annualIncomeMinorFor(
+  spendType: SpendType,
+  spendAmountMinor: number | null,
+  spendRateBps: number | null,
+  balanceAtTargetMinor: number | null,
+): number | null {
+  if (spendType === "monthly") return (spendAmountMinor ?? 0) * 12;
+  if (spendType === "percent" && balanceAtTargetMinor !== null) {
+    return fromBig(roundDiv(toBig(balanceAtTargetMinor) * toBig(spendRateBps ?? 0), 10_000n));
   }
-  const grownAllocated = compoundMonthlyMinor(allocatedMinor, planRateBps, monthsToTarget);
-  const requiredMonthlyMinor = requiredMonthlyContributionMinor(targetMinor - grownAllocated, planRateBps, monthsToTarget);
-  const projectedAtTargetMinor = grownAllocated + annuityFutureValueMinor(monthlyContributionMinor, planRateBps, monthsToTarget);
-  return { requiredMonthlyMinor, projectedAtTargetMinor, onTrack: projectedAtTargetMinor >= targetMinor, reachMonths };
+  return null;
+}
+
+// Build the SimGoal list for the whole goal set (allocation is global). Caller
+// supplies each goal's starting balance (today's allocation) and base target.
+function toSimGoals(
+  goalRows: GoalRow[],
+  startById: Map<string, number>,
+  targetBaseById: Map<string, number>,
+  todayISO: string,
+): SimGoal[] {
+  return goalRows.map((g) => ({
+    id: g.id,
+    startBalanceMinor: startById.get(g.id) ?? 0,
+    targetMinor: targetBaseById.get(g.id) ?? g.targetAmountMinor,
+    targetMonth: g.targetDate ? monthsBetween(todayISO, g.targetDate) : null,
+    monthlyContributionMinor: g.monthlyContributionMinor,
+    spendType: g.spendType,
+    spendAmountMinor: g.spendAmountMinor,
+    spendRateBps: g.spendRateBps,
+  }));
+}
+
+// A horizon large enough to cover every target date plus the drawdown window and
+// to detect a late reach (mirrors the old ~1200-month search cap).
+function simHorizon(goalRows: GoalRow[], todayISO: string): number {
+  const targets = goalRows.map((g) => (g.targetDate ? monthsBetween(todayISO, g.targetDate) : 0));
+  const maxTarget = targets.length ? Math.max(...targets) : 0;
+  return Math.max(maxTarget + DRAWDOWN_MONTHS, 1200);
 }
 
 // Convert a goal's target into base currency using the latest FX rate.
@@ -142,29 +178,40 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
 
   const allocToday = allocateGoals({ goals: goalInputs, accounts: allocAccountsToday });
   const allocById = new Map(allocToday.goals.map((g) => [g.id, g]));
+  const startById = new Map(allocToday.goals.map((g) => [g.id, g.allocatedMinor]));
+
+  // One global simulation drives reach/projection/income (cascade is global).
+  const horizonMonths = simHorizon(goalRows, todayISO);
+  const sim = simulateGoals({
+    goals: toSimGoals(goalRows, startById, targetBaseById, todayISO),
+    planRateBps,
+    horizonMonths,
+  });
+  const simById = new Map(sim.goals.map((g) => [g.id, g]));
 
   const analyses: GoalAnalysis[] = [];
   for (const g of goalRows) {
     const targetBase = targetBaseById.get(g.id) ?? g.targetAmountMinor;
     const alloc = allocById.get(g.id)!;
+    const sg = simById.get(g.id)!;
     const monthsToTarget = g.targetDate ? monthsBetween(todayISO, g.targetDate) : null;
-    const m = goalPlanMath({
-      allocatedMinor: alloc.allocatedMinor,
-      monthlyContributionMinor: g.monthlyContributionMinor,
-      targetMinor: targetBase,
-      planRateBps,
-      monthsToTarget,
-    });
+    const reachMonths = sg.reachMonth;
+    const balanceAtTarget = monthsToTarget === null ? null : (sg.balances[monthsToTarget] ?? null);
+    const onTrack = monthsToTarget === null
+      ? reachMonths !== null
+      : reachMonths !== null && reachMonths <= monthsToTarget;
 
     analyses.push({
       id: g.id, name: g.name, targetAmountMinor: targetBase,
       targetDate: g.targetDate, currency: g.currency,
       allocatedMinor: alloc.allocatedMinor, progressPct: alloc.progressPct,
       monthlyContributionMinor: g.monthlyContributionMinor,
-      requiredMonthlyMinor: m.requiredMonthlyMinor,
-      projectedAtTargetMinor: m.projectedAtTargetMinor,
-      onTrack: m.onTrack,
-      reachDate: m.reachMonths === null ? null : addMonthsISO(todayISO, m.reachMonths),
+      requiredMonthlyMinor: requiredMonthlyMinorFor(alloc.allocatedMinor, targetBase, planRateBps, monthsToTarget),
+      projectedAtTargetMinor: balanceAtTarget,
+      onTrack,
+      reachDate: reachMonths === null ? null : addMonthsISO(todayISO, reachMonths),
+      spendType: g.spendType,
+      annualIncomeMinor: annualIncomeMinorFor(g.spendType, g.spendAmountMinor, g.spendRateBps, balanceAtTarget),
       sources: alloc.lines.map((line) => ({
         accountId: line.accountId,
         name: nameById.get(line.accountId) ?? line.accountId,
@@ -200,6 +247,8 @@ export type GoalProjectionResult = {
   projectedAtTargetMinor: number | null;
   onTrack: boolean;
   reachDate: string | null; // YYYY-MM-DD the plan first reaches target (null = not within ~100y)
+  spendType: SpendType;
+  annualIncomeMinor: number | null;
   sources: GoalSource[];
   series: GoalProjectionPoint[];
 };
@@ -255,17 +304,30 @@ export async function goalProjection(
 
   const contribution = goal.monthlyContributionMinor;
   const monthsToTarget = goal.targetDate ? monthsBetween(todayISO, goal.targetDate) : null;
-  const m = goalPlanMath({
-    allocatedMinor: allocatedToday,
-    monthlyContributionMinor: contribution,
-    targetMinor: targetBase,
-    planRateBps,
-    monthsToTarget,
-  });
 
-  // Chart horizon: to the deadline for dated goals; to the reach month for
-  // indefinite goals (fall back to 30y if the amount isn't reached within the cap).
-  const horizonMonths = monthsToTarget ?? (m.reachMonths ?? 360);
+  // One global simulation (cascade is global); read this goal's trajectory off it.
+  const startById = new Map(allocToday.goals.map((g) => [g.id, g.allocatedMinor]));
+  const horizonMonths = simHorizon(goalRows, todayISO);
+  const sim = simulateGoals({
+    goals: toSimGoals(goalRows, startById, targetBaseById, todayISO),
+    planRateBps,
+    horizonMonths,
+  });
+  const sg = sim.goals.find((g) => g.id === goal.id)!;
+  const reachMonths = sg.reachMonth;
+  const balanceAtTarget = monthsToTarget === null ? null : (sg.balances[monthsToTarget] ?? null);
+  const onTrack = monthsToTarget === null
+    ? reachMonths !== null
+    : reachMonths !== null && reachMonths <= monthsToTarget;
+
+  // Display window: to the target date for accumulate-only dated goals; extended
+  // by the drawdown window for spend goals; to the reach month for indefinite goals.
+  const displayHorizon =
+    goal.spendType !== "none" && monthsToTarget !== null
+      ? monthsToTarget + DRAWDOWN_MONTHS
+      : monthsToTarget !== null
+        ? monthsToTarget
+        : (reachMonths ?? 360);
 
   const series: GoalProjectionPoint[] = [];
 
@@ -278,25 +340,21 @@ export async function goalProjection(
     series.push({ date, actual: realized, projected: null });
   }
 
-  // Today: actual meets projected at the current allocation.
+  // Today: actual meets projected at the current allocation (== sim balances[0]).
   series.push({ date: todayISO, actual: allocatedToday, projected: allocatedToday });
 
   // Future: step so a far-dated goal stays under ~120 points; always include the
-  // horizon end, and the reach month (if within the horizon) so the line clearly
-  // meets the target there.
-  const step = Math.max(1, Math.ceil(horizonMonths / 120));
+  // display horizon, the reach month, and the target month (the drawdown kink).
+  const step = Math.max(1, Math.ceil(displayHorizon / 120));
   const monthsSet = new Set<number>();
-  for (let mo = step; mo < horizonMonths; mo += step) monthsSet.add(mo);
-  if (horizonMonths > 0) monthsSet.add(horizonMonths);
-  if (m.reachMonths !== null && m.reachMonths > 0 && m.reachMonths <= horizonMonths) monthsSet.add(m.reachMonths);
+  for (let mo = step; mo < displayHorizon; mo += step) monthsSet.add(mo);
+  if (displayHorizon > 0) monthsSet.add(displayHorizon);
+  if (reachMonths !== null && reachMonths > 0 && reachMonths <= displayHorizon) monthsSet.add(reachMonths);
+  if (monthsToTarget !== null && monthsToTarget > 0 && monthsToTarget <= displayHorizon) monthsSet.add(monthsToTarget);
   const futureMonths = [...monthsSet].sort((a, b) => a - b);
   for (const mo of futureMonths) {
-    const date = addMonthsISO(todayISO, mo);
-    const projected = compoundMonthlyMinor(allocatedToday, planRateBps, mo) + annuityFutureValueMinor(contribution, planRateBps, mo);
-    series.push({ date, actual: null, projected });
+    series.push({ date: addMonthsISO(todayISO, mo), actual: null, projected: sg.balances[mo] ?? null });
   }
-
-  const reachDate = m.reachMonths === null ? null : addMonthsISO(todayISO, m.reachMonths);
 
   return {
     baseCurrency: base,
@@ -305,10 +363,12 @@ export async function goalProjection(
     allocatedMinor: allocatedToday,
     progressPct: mine.progressPct,
     monthlyContributionMinor: contribution,
-    requiredMonthlyMinor: m.requiredMonthlyMinor,
-    projectedAtTargetMinor: m.projectedAtTargetMinor,
-    onTrack: m.onTrack,
-    reachDate,
+    requiredMonthlyMinor: requiredMonthlyMinorFor(allocatedToday, targetBase, planRateBps, monthsToTarget),
+    projectedAtTargetMinor: balanceAtTarget,
+    onTrack,
+    reachDate: reachMonths === null ? null : addMonthsISO(todayISO, reachMonths),
+    spendType: goal.spendType,
+    annualIncomeMinor: annualIncomeMinorFor(goal.spendType, goal.spendAmountMinor, goal.spendRateBps, balanceAtTarget),
     sources,
     series,
   };

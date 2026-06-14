@@ -172,3 +172,51 @@ test("goals: an indefinite (no target date) goal reports a reach date, no requir
   const last = proj.series[proj.series.length - 1];
   expect((last.projected ?? 0)).toBeGreaterThanOrEqual(proj.targetMinor);
 });
+
+test("goalProjection: a monthly-spend goal draws down after its target date", async () => {
+  await initAndLogin({ baseCurrency: "USD" });
+  const [owner] = await db.select().from(user);
+  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 50_000_000, ownerId: owner.id });
+
+  await db.insert(goals).values({
+    id: "draw", name: "Retire", targetAmountMinor: 40_000_000, currency: "USD",
+    targetDate: "2030-01-01", ownerScope: "household", anchorDate: null,
+    monthlyContributionMinor: 0, spendType: "monthly", spendAmountMinor: 500_000, spendRateBps: null,
+    sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
+  });
+
+  const r = await goalProjection("draw", 2);
+  if (!r) throw new Error("expected a projection");
+
+  expect(r.spendType).toBe("monthly");
+  // Income figure: flat monthly spend annualised.
+  expect(r.annualIncomeMinor).toBe(500_000 * 12);
+
+  // The projected line extends past the target date and ends lower than its value
+  // at the target date (drawdown is visible).
+  const target = "2030-01";
+  const atTarget = r.series.find((p) => p.date.slice(0, 7) === target && p.projected !== null);
+  if (!atTarget) throw new Error("expected a point at the target month");
+  const last = r.series[r.series.length - 1];
+  expect(last.date > "2030-01-01").toBe(true);                 // extends into drawdown
+  expect((last.projected ?? 0)).toBeLessThan(atTarget.projected ?? 0); // declines after spending
+});
+
+test("analyzeGoals: a percent-spend goal reports an annual income from balance-at-target", async () => {
+  await initAndLogin({ baseCurrency: "USD" });
+  const [owner] = await db.select().from(user);
+  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 100_000_000, ownerId: owner.id });
+
+  await db.insert(goals).values({
+    id: "swr", name: "FIRE", targetAmountMinor: 80_000_000, currency: "USD",
+    targetDate: "2030-01-01", ownerScope: "household", anchorDate: null,
+    monthlyContributionMinor: 0, spendType: "percent", spendAmountMinor: null, spendRateBps: 400,
+    sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
+  });
+
+  const a = (await analyzeGoals()).goals.find((g) => g.id === "swr")!;
+  expect(a.spendType).toBe("percent");
+  // 4% of the balance reached by the target date.
+  expect(a.annualIncomeMinor).not.toBeNull();
+  expect(a.annualIncomeMinor!).toBeGreaterThan(0);
+});
