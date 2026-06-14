@@ -43,7 +43,9 @@ test("shared vs personal accounts and the net-worth owner toggle", async ({ page
   });
 
   await test.step("admin view = 500 (shared excluded); list unchanged", async () => {
-    await page.getByRole("button", { name: ADMIN.name }).click();
+    // Exact match targets the owner toggle button (whose label is exactly the
+    // member name), not the account-list group headers that embed the name.
+    await page.getByRole("button", { name: ADMIN.name, exact: true }).click();
     await expect(page.getByTestId("networth-hero")).toContainText("500.00");
     await expect(page.getByTestId("networth-hero")).not.toContainText("2,500.00");
     // The account list still shows everything regardless of the toggle.
