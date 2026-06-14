@@ -32,6 +32,7 @@ export function AccountForm() {
     class: "asset",
     subtype: "bank",
     currency: "USD",
+    valuationMode: "ledger",
     openingBalance: "",
     openingDate: new Date().toISOString().slice(0, 10),
   });
@@ -50,9 +51,10 @@ export function AccountForm() {
       class: f.class,
       subtype: f.subtype,
       currency,
+      valuationMode: f.valuationMode,
       ownerIds: owners.length > 0 ? owners : meId ? [meId] : [],
     };
-    if (!Number.isNaN(openingMajor) && openingMajor !== 0) {
+    if (f.valuationMode === "ledger" && !Number.isNaN(openingMajor) && openingMajor !== 0) {
       const dec = currencyDecimals(currency);
       body.openingBalanceMinor = Math.round(openingMajor * 10 ** dec);
       body.openingDate = f.openingDate;
@@ -108,7 +110,14 @@ export function AccountForm() {
               <Label>Category</Label>
               <Select
                 value={f.subtype}
-                onValueChange={(v: string | null) => v && set("subtype", v)}
+                onValueChange={(v: string | null) => {
+                  if (!v) return;
+                  setF((prev) => ({
+                    ...prev,
+                    subtype: v,
+                    valuationMode: v === "investment" ? "holdings" : "ledger",
+                  }));
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
@@ -125,6 +134,23 @@ export function AccountForm() {
               </Select>
             </div>
           </div>
+          <div>
+            <Label>Valuation</Label>
+            <Select
+              value={f.valuationMode}
+              onValueChange={(v: string | null) => v && set("valuationMode", v)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>
+                  {(v: unknown) => (String(v) === "holdings" ? "Holdings (investments)" : "Ledger (balance)")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ledger">Ledger (balance)</SelectItem>
+                <SelectItem value="holdings">Holdings (investments)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Currency</Label>
@@ -135,25 +161,29 @@ export function AccountForm() {
                 required
               />
             </div>
+            {f.valuationMode === "ledger" && (
+              <div>
+                <Label>Opening balance</Label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={f.openingBalance}
+                  onChange={(e) => set("openingBalance", e.target.value)}
+                  placeholder="optional"
+                />
+              </div>
+            )}
+          </div>
+          {f.valuationMode === "ledger" && (
             <div>
-              <Label>Opening balance</Label>
+              <Label>Opening date</Label>
               <Input
-                type="number"
-                step="any"
-                value={f.openingBalance}
-                onChange={(e) => set("openingBalance", e.target.value)}
-                placeholder="optional"
+                type="date"
+                value={f.openingDate}
+                onChange={(e) => set("openingDate", e.target.value)}
               />
             </div>
-          </div>
-          <div>
-            <Label>Opening date</Label>
-            <Input
-              type="date"
-              value={f.openingDate}
-              onChange={(e) => set("openingDate", e.target.value)}
-            />
-          </div>
+          )}
           <div>
             <Label>Owners</Label>
             <OwnersField value={owners} onChange={setOwners} />
