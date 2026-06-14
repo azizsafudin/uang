@@ -66,7 +66,9 @@ Defaults are seeding conveniences only; every value is user-editable. CPF (≈25
 
 ### 3.3 `goals` — new table
 
-`{ id (uuid PK), name, term ('short'|'long'), targetAmountMinor int, currency, targetDate (YYYY-MM-DD), ownerScope ('household' | userId), sortOrder int, createdAt int, createdBy }`. New TanStack DB collection.
+`{ id (uuid PK), name, term ('short'|'long'), targetAmountMinor int, currency, targetDate (YYYY-MM-DD), ownerScope ('household' | userId), anchorDate (YYYY-MM-DD | null), sortOrder int, createdAt int, createdBy }`. New TanStack DB collection.
+
+`anchorDate` is the optional on-track baseline (§5.4); when null the on-track path anchors at `createdAt`. It can be set to an earlier date to measure progress from before the goal was recorded.
 
 `term` drives grouping & sort, not the funding math (eligibility derives from `targetDate` vs unlock ages — see §5).
 
@@ -118,7 +120,7 @@ Per goal: project its allocated accounts to `targetDate` at their growth rates �
 
 ### 5.4 On-track / behind
 
-Per goal, anchored at the goal's `createdAt`: build the compound on-plan path from net worth at creation (read from the historical series) to the target, using the required contribution. Compare **today's actual allocated** vs the **on-plan value for today**; report ahead/behind by $ and %. Roll up to an overall household status.
+Per goal, anchored at `anchorDate` (defaults to the goal's `createdAt`; can be set to an earlier date): build the compound on-plan path from net worth at the anchor (read from the historical series) to the target, using the required contribution. Compare **today's actual allocated** vs the **on-plan value for today**; report ahead/behind by $ and %. Roll up to an overall household status.
 
 > This is the most error-prone piece (anchoring, reading historical net worth at a past date, annuity math). It gets dedicated tests.
 
