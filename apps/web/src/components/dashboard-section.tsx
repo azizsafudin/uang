@@ -5,6 +5,7 @@ import {
   closestCorners,
   KeyboardSensor,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -19,7 +20,6 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/components/money";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,6 @@ type Built = { order: string[]; members: Record<string, string[]> };
 
 function build(groups: GroupRow[], accounts: AccountValuation[]): Built {
   const members: Record<string, string[]> = {};
-  const sortKey: Record<string, number> = {};
 
   const sortedGroups = [...groups].sort((a, b) => a.sortOrder - b.sortOrder);
   for (const g of sortedGroups) {
@@ -69,18 +68,15 @@ function build(groups: GroupRow[], accounts: AccountValuation[]): Built {
       .filter((a) => a.groupId === g.id)
       .sort((a, b) => a.sortOrder - b.sortOrder);
     members[g.id] = mem.map((a) => a.id);
-    sortKey[g.id] = g.sortOrder;
   }
 
   const ungrouped = accounts
     .filter((a) => !a.groupId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
   members[STANDALONE] = ungrouped.map((a) => a.id);
-  sortKey[STANDALONE] = ungrouped.length
-    ? Math.min(...ungrouped.map((a) => a.sortOrder))
-    : Number.POSITIVE_INFINITY;
 
-  const order = Object.keys(members).sort((a, b) => sortKey[a] - sortKey[b]);
+  // Group cards are reorderable; the standalone card is always pinned last.
+  const order = [...sortedGroups.map((g) => g.id), STANDALONE];
   return { order, members };
 }
 
@@ -93,9 +89,11 @@ function signature(groups: GroupRow[], accounts: AccountValuation[]): string {
 
 function SortableCard({
   id,
+  highlight,
   children,
 }: {
   id: string;
+  highlight?: boolean;
   children: (props: {
     dragHandleProps: React.HTMLAttributes<HTMLSpanElement>;
     isDragging: boolean;
@@ -109,9 +107,38 @@ function SortableCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={cn("overflow-hidden rounded-xl border border-border bg-card", isDragging && "opacity-60")}
+      className={cn(
+        "overflow-hidden rounded-xl border border-border bg-card",
+        isDragging && "opacity-60",
+        highlight && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+      )}
     >
       {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging })}
+    </div>
+  );
+}
+
+// The standalone (ungrouped) card is pinned to the bottom and is NOT
+// reorderable — it only needs to be a drop target for accounts.
+function DroppableCard({
+  id,
+  highlight,
+  children,
+}: {
+  id: string;
+  highlight?: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "overflow-hidden rounded-xl border border-border bg-card",
+        highlight && "ring-2 ring-primary ring-offset-1 ring-offset-background",
+      )}
+    >
+      {children}
     </div>
   );
 }
@@ -155,6 +182,8 @@ export function DashboardSection({
   const [order, setOrder] = useState<string[]>([]);
   const [members, setMembers] = useState<Record<string, string[]>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
+  // The container currently hovered during an account drag (for drop hints).
+  const [overContainer, setOverContainer] = useState<string | null>(null);
   const draggingRef = useRef(false);
   // Mirrors `members` synchronously so onDragEnd can persist the latest
   // arrangement even when onDragOver's setState hasn't committed yet.
@@ -238,13 +267,17 @@ export function DashboardSection({
 
   function onDragStart(event: DragStartEvent) {
     setActiveId(String(event.active.id));
+    setOverContainer(null);
     draggingRef.current = true;
     crossMovedRef.current = false;
   }
 
   function onDragOver(event: DragOverEvent) {
     const { active, over } = event;
-    if (!over) return;
+    if (!over) {
+      setOverContainer(null);
+      return;
+    }
     const activeIdStr = String(active.id);
     // Skip container (card) drags — those reorder only on drag end.
     if (order.includes(activeIdStr)) return;
@@ -252,6 +285,7 @@ export function DashboardSection({
     const overIdStr = String(over.id);
     const fromContainer = findContainer(activeIdStr);
     const toContainer = order.includes(overIdStr) ? overIdStr : findContainer(overIdStr);
+    setOverContainer(toContainer ?? null);
     if (!fromContainer || !toContainer || fromContainer === toContainer) return;
 
     setMembers((prev) => {
@@ -279,19 +313,24 @@ export function DashboardSection({
     const { active, over } = event;
     draggingRef.current = false;
     setActiveId(null);
+    setOverContainer(null);
     if (!over) return;
 
     const activeIdStr = String(active.id);
     const overIdStr = String(over.id);
 
-    // Card (container) drag.
-    if (order.includes(activeIdStr)) {
+    // Group card drag — reorder among groups; the standalone card stays last.
+    if (order.includes(activeIdStr) && activeIdStr !== STANDALONE) {
+      const groupOrder = order.filter((id) => id !== STANDALONE);
       const overCard = order.includes(overIdStr) ? overIdStr : findContainer(overIdStr);
-      if (!overCard || overCard === activeIdStr) return;
-      const oldIndex = order.indexOf(activeIdStr);
-      const newIndex = order.indexOf(overCard);
+      const oldIndex = groupOrder.indexOf(activeIdStr);
+      // Dropping onto (or past) the standalone card sends the group to the end.
+      const newIndex =
+        !overCard || overCard === STANDALONE
+          ? groupOrder.length - 1
+          : groupOrder.indexOf(overCard);
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-      const newOrder = arrayMove(order, oldIndex, newIndex);
+      const newOrder = [...arrayMove(groupOrder, oldIndex, newIndex), STANDALONE];
       setOrder(newOrder);
       await persist(newOrder, membersRef.current);
       return;
@@ -394,54 +433,49 @@ export function DashboardSection({
           onDragOver={onDragOver}
           onDragEnd={(e) => void onDragEnd(e)}
         >
-          <SortableContext items={order} strategy={verticalListSortingStrategy}>
+          <SortableContext
+            items={order.filter((id) => id !== STANDALONE)}
+            strategy={verticalListSortingStrategy}
+          >
             <div className="space-y-3">
               {order.map((cardId) => {
                 const memberIds = members[cardId] ?? [];
                 const dragging = activeId !== null;
+                const isAccountDrag = activeId !== null && !order.includes(activeId);
+                const isDropTarget = isAccountDrag && overContainer === cardId;
+                const activeAcctName = activeId ? acctById.get(activeId)?.name : undefined;
 
                 if (cardId === STANDALONE) {
-                  // Hide an empty standalone card at rest; show it during a drag as a drop target.
+                  // Hidden at rest when empty; shown during a drag as a drop target.
                   if (memberIds.length === 0 && !dragging) return null;
                   return (
-                    <SortableCard key={cardId} id={cardId}>
-                      {({ dragHandleProps }) => (
-                        <div>
-                          <div
-                            {...dragHandleProps}
-                            className="flex cursor-grab touch-none items-center justify-center border-b border-border/70 py-1 text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
-                            aria-label="Drag card"
-                          >
-                            <GripVertical size={14} />
-                          </div>
-                          {memberIds.length === 0 ? (
-                            <p className="px-4 py-4 text-center text-xs text-muted-foreground">
-                              Drop here to remove from group
-                            </p>
-                          ) : (
-                            <SortableContext items={memberIds} strategy={verticalListSortingStrategy}>
-                              {memberIds.map((aid, i) => {
-                                const acct = acctById.get(aid);
-                                if (!acct) return null;
-                                return (
-                                  <SortableAccount key={aid} id={aid}>
-                                    {({ dragHandleProps: dp, isDragging }) => (
-                                      <AccountRow
-                                        account={acct}
-                                        baseCurrency={baseCurrency}
-                                        isLast={i === memberIds.length - 1}
-                                        dragHandleProps={dp}
-                                        isDragging={isDragging}
-                                      />
-                                    )}
-                                  </SortableAccount>
-                                );
-                              })}
-                            </SortableContext>
-                          )}
-                        </div>
+                    <DroppableCard key={cardId} id={cardId} highlight={isDropTarget}>
+                      {memberIds.length === 0 ? (
+                        <p className="px-4 py-4 text-center text-xs text-muted-foreground">
+                          Drop here to remove from group
+                        </p>
+                      ) : (
+                        <SortableContext items={memberIds} strategy={verticalListSortingStrategy}>
+                          {memberIds.map((aid, i) => {
+                            const acct = acctById.get(aid);
+                            if (!acct) return null;
+                            return (
+                              <SortableAccount key={aid} id={aid}>
+                                {({ dragHandleProps: dp, isDragging }) => (
+                                  <AccountRow
+                                    account={acct}
+                                    baseCurrency={baseCurrency}
+                                    isLast={i === memberIds.length - 1}
+                                    dragHandleProps={dp}
+                                    isDragging={isDragging}
+                                  />
+                                )}
+                              </SortableAccount>
+                            );
+                          })}
+                        </SortableContext>
                       )}
-                    </SortableCard>
+                    </DroppableCard>
                   );
                 }
 
@@ -457,7 +491,7 @@ export function DashboardSection({
                 const isExpanded = expanded.has(group.id);
 
                 return (
-                  <SortableCard key={cardId} id={cardId}>
+                  <SortableCard key={cardId} id={cardId} highlight={isDropTarget}>
                     {({ dragHandleProps, isDragging }) => (
                       <div>
                         <AccountGroupRow
@@ -470,6 +504,12 @@ export function DashboardSection({
                           dragHandleProps={dragHandleProps}
                           isDragging={isDragging}
                         />
+                        {isDropTarget && !isExpanded && (
+                          <p className="border-t border-primary/30 bg-primary/10 px-4 py-2 text-center text-xs font-medium text-primary">
+                            Drop here to add{activeAcctName ? ` ${activeAcctName}` : " account"} into{" "}
+                            {group.name}
+                          </p>
+                        )}
                         {isExpanded && (
                           <SortableContext items={memberIds} strategy={verticalListSortingStrategy}>
                             <div className="border-t border-border/70">
