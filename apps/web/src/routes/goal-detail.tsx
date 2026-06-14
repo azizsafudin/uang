@@ -149,7 +149,6 @@ export function GoalDetailPage() {
                 series={p.series}
                 targetMinor={p.targetMinor}
                 targetDate={p.goal.targetDate}
-                reachDate={p.reachDate}
                 baseCurrency={base}
               />
             </section>
