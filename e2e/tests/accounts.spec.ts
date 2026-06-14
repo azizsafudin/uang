@@ -14,6 +14,9 @@ test("create a ledger account with an opening balance and update it", async ({ p
   });
 
   await test.step("it appears in the list and the headline reflects it", async () => {
+    // Reload so the account list and the (separate) net-worth query read the
+    // server's truth rather than racing the optimistic insert's background refetch.
+    await page.reload();
     await expect(page.getByTestId("account-row").filter({ hasText: "Checking" })).toBeVisible();
     await expect(page.getByTestId("networth-hero")).toContainText("1,000.00");
   });

@@ -8,6 +8,21 @@ const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const TEST_SECRET = "e2e-test-secret-0123456789-abcdefghij"; // >= 32 chars
 const portOffset = Number(process.env.E2E_PORT_OFFSET ?? 0);
 
+// Kill a detached child AND its descendants (bun spawns a child vite/node that
+// otherwise survives a plain child.kill() and leaks the port).
+function killTree(child?: ChildProcess) {
+  if (!child?.pid) return;
+  try {
+    process.kill(-child.pid, "SIGKILL"); // negative pid = the whole process group
+  } catch {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
 async function waitFor(fn: () => Promise<boolean>, timeoutMs: number, label: string): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -44,6 +59,7 @@ export class Backend {
         cwd: path.join(repoRoot, "apps/web"),
         env: { ...process.env, VITE_API_URL: this.apiURL },
         stdio: "ignore",
+        detached: true, // own process group, so killTree() can reap the child vite/node too
       },
     );
     await waitFor(async () => (await fetch(this.webURL)).ok, 60_000, "web dev server");
@@ -54,7 +70,7 @@ export class Backend {
   // a fresh one on boot. Nothing touches disk, so there are no files to track or clean up.
   async freshDb() {
     if (this.api) {
-      this.api.kill("SIGKILL");
+      killTree(this.api);
       this.api = undefined;
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -69,13 +85,14 @@ export class Backend {
         NODE_ENV: "test",
       },
       stdio: "ignore",
+      detached: true,
     });
     await waitFor(async () => (await fetch(`${this.apiURL}/health`)).ok, 30_000, "api /health");
   }
 
   dispose() {
-    this.api?.kill("SIGKILL");
-    this.web?.kill("SIGKILL");
+    killTree(this.api);
+    killTree(this.web);
   }
 }
 
