@@ -3,6 +3,9 @@ import {
   annuityFutureValueMinor,
   requiredMonthlyContributionMinor,
   compoundMonthlyMinor,
+  monthsToReachMinor,
+  simulateGoals,
+  type SimGoal,
 } from "./goals";
 
 // --- annuity future value (level monthly payment, ordinary annuity) ---
@@ -178,8 +181,6 @@ test("goalOnTrack: a brand-new goal (no time elapsed) is on track by constructio
   expect(r.onTrack).toBe(true);
 });
 
-import { monthsToReachMinor } from "./goals";
-
 test("monthsToReachMinor: already at/above target is month 0", () => {
   expect(monthsToReachMinor(100_000, 0, 100_000, 800, 1200)).toBe(0);
   expect(monthsToReachMinor(150_000, 0, 100_000, 800, 1200)).toBe(0);
@@ -205,4 +206,101 @@ test("monthsToReachMinor: more contribution reaches sooner", () => {
   const slow = monthsToReachMinor(0, 50_000, 5_000_000, 800, 1200)!;
   const fast = monthsToReachMinor(0, 200_000, 5_000_000, 800, 1200)!;
   expect(fast).toBeLessThan(slow);
+});
+
+// --- simulateGoals: month-by-month multi-goal cashflow ---
+
+// Convenience builder so tests only specify what they exercise.
+function simGoal(over: Partial<SimGoal> & { id: string }): SimGoal {
+  return {
+    startBalanceMinor: 0,
+    targetMinor: 0,
+    targetMonth: null,
+    monthlyContributionMinor: 0,
+    spendType: "none",
+    spendAmountMinor: null,
+    spendRateBps: null,
+    ...over,
+  };
+}
+
+test("simulateGoals: single-goal accumulation matches monthsToReachMinor (regression guard)", () => {
+  const start = 1_000_000, contrib = 50_000, target = 5_000_000, rate = 800, horizon = 1200;
+  const { goals } = simulateGoals({
+    goals: [simGoal({ id: "a", startBalanceMinor: start, targetMinor: target, monthlyContributionMinor: contrib })],
+    planRateBps: rate,
+    horizonMonths: horizon,
+  });
+  const reach = monthsToReachMinor(start, contrib, target, rate, horizon);
+  expect(goals[0].reachMonth).toBe(reach);
+  expect(goals[0].balances.length).toBe(horizon + 1);
+  expect(goals[0].balances[0]).toBe(start);
+});
+
+test("simulateGoals: zero-rate accumulation is start + n*contribution", () => {
+  const { goals } = simulateGoals({
+    goals: [simGoal({ id: "a", startBalanceMinor: 100, targetMinor: 10_000, monthlyContributionMinor: 10 })],
+    planRateBps: 0,
+    horizonMonths: 5,
+  });
+  expect(goals[0].balances).toEqual([100, 110, 120, 130, 140, 150]);
+});
+
+test("simulateGoals: a goal already at target reports reachMonth 0", () => {
+  const { goals } = simulateGoals({
+    goals: [simGoal({ id: "a", startBalanceMinor: 3_000_000, targetMinor: 3_000_000 })],
+    planRateBps: 800,
+    horizonMonths: 12,
+  });
+  expect(goals[0].reachMonth).toBe(0);
+});
+
+test("simulateGoals: a finished goal's freed contribution + surplus accelerate the next goal", () => {
+  const planRateBps = 0; // isolate the cascade from growth
+
+  // Goal A overshoots its 1,000,000 target at month 1 (contributes 1,100,000):
+  // it frees its contribution AND cascades the 100,000 surplus to B.
+  const A = simGoal({ id: "a", startBalanceMinor: 0, targetMinor: 1_000_000, targetMonth: 1, monthlyContributionMinor: 1_100_000 });
+  // Goal B: large + later, contributes 100,000/mo.
+  const B = simGoal({ id: "b", startBalanceMinor: 0, targetMinor: 10_000_000, targetMonth: 240, monthlyContributionMinor: 100_000 });
+
+  const bWith = simulateGoals({ goals: [A, B], planRateBps, horizonMonths: 1200 })
+    .goals.find((g) => g.id === "b")!.reachMonth!;
+  const bAlone = simulateGoals({ goals: [B], planRateBps, horizonMonths: 1200 })
+    .goals[0].reachMonth!;
+
+  // B alone: 10,000,000 / 100,000 = 100 months.
+  expect(bAlone).toBe(100);
+  // With A's freed 1,100,000/mo + 100,000 surplus, B reaches far sooner.
+  expect(bWith).toBeLessThan(bAlone);
+  expect(bWith).toBeLessThanOrEqual(11);
+});
+
+test("simulateGoals: one-time spend removes the lump at targetMonth and cascades the remainder", () => {
+  // A holds its 1,000,000 target, spends 600,000 once at month 1; the 400,000
+  // leftover cascades to B (which is far from its target, so stays active).
+  const A = simGoal({ id: "a", startBalanceMinor: 1_000_000, targetMinor: 1_000_000, targetMonth: 1, spendType: "once", spendAmountMinor: 600_000 });
+  const B = simGoal({ id: "b", startBalanceMinor: 0, targetMinor: 100_000_000, targetMonth: 360 });
+  const { goals } = simulateGoals({ goals: [A, B], planRateBps: 0, horizonMonths: 3 });
+  const a = goals.find((g) => g.id === "a")!;
+  const b = goals.find((g) => g.id === "b")!;
+  expect(a.balances[1]).toBe(0);        // emptied after the once-spend
+  expect(a.balances[2]).toBe(0);        // stays empty
+  expect(b.balances[1]).toBe(400_000);  // leftover cascaded to B
+});
+
+test("simulateGoals: monthly spend depletes the balance each month from targetMonth", () => {
+  const A = simGoal({ id: "a", startBalanceMinor: 1_000_000, targetMinor: 1_000_000, targetMonth: 0, spendType: "monthly", spendAmountMinor: 100_000 });
+  const { goals } = simulateGoals({ goals: [A], planRateBps: 0, horizonMonths: 3 });
+  expect(goals[0].balances).toEqual([1_000_000, 900_000, 800_000, 700_000]);
+});
+
+test("simulateGoals: percent spend withdraws a share of current balance and never fully depletes", () => {
+  const A = simGoal({ id: "a", startBalanceMinor: 10_000_000, targetMinor: 10_000_000, targetMonth: 0, spendType: "percent", spendRateBps: 400 });
+  const { goals } = simulateGoals({ goals: [A], planRateBps: 0, horizonMonths: 36 });
+  const b = goals[0].balances;
+  // Withdrawals at the 12-month marks from targetMonth (12, 24, 36); 4% of current.
+  expect(b[12]).toBe(10_000_000 - 400_000);   // 4% of 10,000,000
+  expect(b[24]).toBe(9_600_000 - 384_000);    // 4% of 9,600,000
+  expect(b[b.length - 1]).toBeGreaterThan(0); // self-adjusting; never zero
 });
