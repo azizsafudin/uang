@@ -56,3 +56,15 @@ test("negative amounts (liabilities) convert correctly", () => {
   const rate = 45n * SCALE / 10n;
   expect(convertToBase(-10000n, "USD", "MYR", rate)).toBe(-45000n);
 });
+
+import { toBig, fromBig } from "./money";
+
+test("toBig/fromBig round-trip integers", () => {
+  expect(toBig(12345)).toBe(12345n);
+  expect(fromBig(12345n)).toBe(12345);
+  expect(toBig(-50)).toBe(-50n);
+});
+
+test("fromBig throws above the safe integer boundary", () => {
+  expect(() => fromBig(9_007_199_254_740_993n)).toThrow();
+});

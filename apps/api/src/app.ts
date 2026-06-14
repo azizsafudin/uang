@@ -2,6 +2,12 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { auth } from "./auth";
 import { onboarding } from "./routes/onboarding";
+import { accountsRoutes } from "./routes/accounts";
+import { entriesRoutes } from "./routes/entries";
+import { fxRoutes } from "./routes/fx";
+import { networthRoutes } from "./routes/networth";
+import { usersRoutes } from "./routes/users";
+import { exportRoutes } from "./routes/export";
 import { isInitialized } from "./lib/settings";
 
 export function createApp() {
@@ -27,7 +33,17 @@ export function createApp() {
     // router can strip its own basePath (/api/auth) and match routes correctly.
     // parse: "none" prevents Elysia from consuming the request body before
     // auth.handler reads it (critical for POST /api/auth/sign-in/email).
-    .all("/api/auth/*", ({ request }) => auth.handler(request), { parse: "none" });
+    .all("/api/auth/*", ({ request }) => auth.handler(request), { parse: "none" })
+    // Auth-guarded app routes are mounted AFTER the auth/onboarding handlers.
+    // Each of these route plugins uses `authGuard`, whose scoped onBeforeHandle
+    // propagates forward; mounting them last keeps it from intercepting
+    // /api/auth/* (sign-in) or /onboarding/*.
+    .use(accountsRoutes)
+    .use(entriesRoutes)
+    .use(fxRoutes)
+    .use(networthRoutes)
+    .use(usersRoutes)
+    .use(exportRoutes);
 }
 
 export type App = ReturnType<typeof createApp>;
