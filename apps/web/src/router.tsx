@@ -30,6 +30,7 @@ const appLayoutRoute = createRoute({
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
+          {/* Mobile opener for the off-canvas sidebar; the header trigger is the desktop collapse toggle. */}
           <SidebarTrigger className="fixed left-3 top-3 z-20 md:hidden" />
           <Outlet />
         </SidebarInset>
