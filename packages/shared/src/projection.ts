@@ -69,3 +69,51 @@ export function accessibleValueMinor(
   }
   return 0;
 }
+
+export type ProjectionAccount = AccessibilityConfig & {
+  baseMinor: number;      // current base-currency balance (signed)
+  growthRateBps: number;
+  ownerBirthYears: number[]; // owners' birth years; empty = unknown
+};
+
+export type ProjectionPoint = {
+  year: number;
+  totalBaseMinor: number;
+  accessibleBaseMinor: number;
+};
+
+export function projectNetWorth(params: {
+  accounts: ProjectionAccount[];
+  fromYear: number;
+  toYear: number;
+}): ProjectionPoint[] {
+  const { accounts, fromYear, toYear } = params;
+  if (toYear < fromYear) throw new Error("projectNetWorth: toYear must be >= fromYear");
+  const span = toYear - fromYear;
+  // Precompute each account's balance series once (offset 0..span).
+  const series = accounts.map((a) => projectSeries(a.baseMinor, a.growthRateBps, span));
+  const points: ProjectionPoint[] = [];
+  for (let offset = 0; offset <= span; offset++) {
+    const year = fromYear + offset;
+    let total = 0;
+    let accessible = 0;
+    accounts.forEach((a, i) => {
+      const bal = series[i][offset];
+      total += bal;
+      // Youngest owner (largest birth year) is the binding constraint for unlocks.
+      const youngestBirth = a.ownerBirthYears.length ? Math.max(...a.ownerBirthYears) : null;
+      const age = youngestBirth === null ? Number.POSITIVE_INFINITY : year - youngestBirth;
+      accessible += accessibleValueMinor(bal, age, a);
+    });
+    points.push({ year, totalBaseMinor: total, accessibleBaseMinor: accessible });
+  }
+  return points;
+}
+
+// Calendar years a person reaches each milestone age.
+export function milestoneYears(
+  birthYear: number,
+  ages: number[] = [55, 62, 65],
+): { age: number; year: number }[] {
+  return ages.map((age) => ({ age, year: birthYear + age }));
+}

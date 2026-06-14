@@ -93,3 +93,46 @@ test("accessibleValueMinor: rejects out-of-range earlyHaircutBps", () => {
   };
   expect(() => accessibleValueMinor(100_000, 50, bad)).toThrow();
 });
+
+import { projectNetWorth, milestoneYears, type ProjectionAccount } from "./projection";
+
+test("milestoneYears: default 55/62/65", () => {
+  expect(milestoneYears(1990)).toEqual([
+    { age: 55, year: 2045 },
+    { age: 62, year: 2052 },
+    { age: 65, year: 2055 },
+  ]);
+});
+
+test("projectNetWorth: total grows; accessible respects unlocks", () => {
+  const cash: ProjectionAccount = {
+    baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 0,
+    earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
+    liquidationAge: null, ownerBirthYears: [1990],
+  };
+  const cpf: ProjectionAccount = {
+    baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
+    earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
+    liquidationAge: null, ownerBirthYears: [1990],
+  };
+  // 2030: owner age 40 -> CPF locked. 2045: owner age 55 -> CPF unlocks.
+  const pts = projectNetWorth({ accounts: [cash, cpf], fromYear: 2030, toYear: 2045 });
+  expect(pts[0]).toEqual({ year: 2030, totalBaseMinor: 200_000, accessibleBaseMinor: 100_000 });
+  expect(pts[pts.length - 1]).toEqual({ year: 2045, totalBaseMinor: 200_000, accessibleBaseMinor: 200_000 });
+});
+
+test("projectNetWorth: shared account uses the youngest owner's age", () => {
+  const shared: ProjectionAccount = {
+    baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
+    earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
+    liquidationAge: null, ownerBirthYears: [1980, 1990], // youngest born 1990
+  };
+  const pts = projectNetWorth({ accounts: [shared], fromYear: 2040, toYear: 2045 });
+  // 2040: younger is 50 -> locked. 2045: younger is 55 -> unlocked.
+  expect(pts[0].accessibleBaseMinor).toBe(0);
+  expect(pts[pts.length - 1].accessibleBaseMinor).toBe(100_000);
+});
+
+test("projectNetWorth: rejects inverted range", () => {
+  expect(() => projectNetWorth({ accounts: [], fromYear: 2050, toYear: 2040 })).toThrow();
+});
