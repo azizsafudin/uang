@@ -96,6 +96,13 @@ export const accountsCollection = createCollection(
       });
       if (error) throw new Error(String(error));
     },
+    onDelete: async ({ transaction }) => {
+      const id = (transaction.mutations[0]?.original as AccountRow | undefined)
+        ?.id;
+      if (!id) return;
+      const { error } = await api.accounts({ id }).delete();
+      if (error) throw new Error(String(error));
+    },
   })
 );
 

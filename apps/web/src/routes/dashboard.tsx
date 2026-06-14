@@ -69,7 +69,7 @@ export function DashboardPage() {
     <AppShell
       actions={
         <>
-          <AccountForm />
+          <AccountForm defaultCurrency={base || undefined} />
           <Link to="/projections" className="text-sm font-medium text-primary hover:underline">
             Projections →
           </Link>
