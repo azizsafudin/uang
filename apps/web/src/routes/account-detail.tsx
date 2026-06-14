@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { OwnersField } from "@/components/owners-field";
 import { OwnersBadge } from "@/components/owners-badge";
 import { HoldingsDetail } from "@/components/holdings-detail";
+import { AccountAssumptionsDialog } from "@/components/account-assumptions-dialog";
 
 const BackButton = () => (
   <Link to="/">
@@ -134,6 +135,7 @@ export function AccountDetailPage() {
           mode="revalue"
           onDone={() => {}}
         />
+        <AccountAssumptionsDialog account={account} />
       </div>
 
       <section className="mt-9">
