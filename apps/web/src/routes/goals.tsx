@@ -22,7 +22,7 @@ type GoalAnalysis = {
   id: string; name: string; term: "short" | "long"; targetAmountMinor: number;
   targetDate: string; currency: string; allocatedMinor: number; progressPct: number;
   monthlyContributionMinor: number; requiredMonthlyMinor: number;
-  projectedAtTargetMinor: number; onTrack: boolean;
+  projectedAtTargetMinor: number; onTrack: boolean; reachDate: string | null;
   sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
 };
 type AnalysisResponse = {
@@ -80,9 +80,9 @@ function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; bas
                 <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
                   <span>{formatMoney(a.allocatedMinor, base)} allocated · {a.progressPct}%</span>
                   <span>
-                    {a.requiredMonthlyMinor > 0
-                      ? `${formatMoney(a.requiredMonthlyMinor, base)}/mo to fund`
-                      : "Fully funded"}
+                    {a.onTrack
+                      ? `Reaches ${a.reachDate ? formatDate(a.reachDate) : "target"}`
+                      : `${formatMoney(a.targetAmountMinor - a.projectedAtTargetMinor, base)} short`}
                   </span>
                 </div>
               </div>

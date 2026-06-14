@@ -74,6 +74,31 @@ export function compoundMonthlyMinor(
   return fromBig(roundDiv(toBig(principalMinor) * pow, SCALE));
 }
 
+// First whole month at which `principalMinor` (compounding monthly at annualRateBps)
+// plus a level monthly contribution (ordinary annuity) reaches `targetMinor`.
+// Returns 0 if already there, or null if not reached within `capMonths`.
+export function monthsToReachMinor(
+  principalMinor: number,
+  monthlyContributionMinor: number,
+  targetMinor: number,
+  annualRateBps: number,
+  capMonths: number,
+): number | null {
+  assertMonths(capMonths);
+  if (principalMinor >= targetMinor) return 0;
+  const iScaled = monthlyRateScaled(annualRateBps);
+  const factor = SCALE + iScaled;
+  const pmt = toBig(monthlyContributionMinor);
+  const target = toBig(targetMinor);
+  let bal = toBig(principalMinor);
+  for (let m = 1; m <= capMonths; m++) {
+    // Grow last month's balance, then add this month's contribution (end of period).
+    bal = roundDiv(bal * factor, SCALE) + pmt;
+    if (bal >= target) return m;
+  }
+  return null;
+}
+
 import { accessibleValueMinor, type AccessibilityConfig } from "./projection";
 
 export type GoalTerm = "short" | "long";

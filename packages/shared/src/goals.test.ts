@@ -177,3 +177,32 @@ test("goalOnTrack: a brand-new goal (no time elapsed) is on track by constructio
   expect(r.aheadByMinor).toBe(0);
   expect(r.onTrack).toBe(true);
 });
+
+import { monthsToReachMinor } from "./goals";
+
+test("monthsToReachMinor: already at/above target is month 0", () => {
+  expect(monthsToReachMinor(100_000, 0, 100_000, 800, 1200)).toBe(0);
+  expect(monthsToReachMinor(150_000, 0, 100_000, 800, 1200)).toBe(0);
+});
+
+test("monthsToReachMinor: zero rate is a straight contribution count", () => {
+  // need 1_200_000 from 0 at 100_000/mo, no growth -> 12 months.
+  expect(monthsToReachMinor(0, 100_000, 1_200_000, 0, 1200)).toBe(12);
+});
+
+test("monthsToReachMinor: returns null when unreachable within the cap", () => {
+  // No growth, no contribution -> never reaches.
+  expect(monthsToReachMinor(50_000, 0, 100_000, 0, 240)).toBeNull();
+});
+
+test("monthsToReachMinor: growth alone eventually reaches the target", () => {
+  const m = monthsToReachMinor(50_000, 0, 100_000, 800, 1200);
+  expect(m).not.toBeNull();
+  expect(m!).toBeGreaterThan(0);
+});
+
+test("monthsToReachMinor: more contribution reaches sooner", () => {
+  const slow = monthsToReachMinor(0, 50_000, 5_000_000, 800, 1200)!;
+  const fast = monthsToReachMinor(0, 200_000, 5_000_000, 800, 1200)!;
+  expect(fast).toBeLessThan(slow);
+});
