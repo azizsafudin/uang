@@ -15,6 +15,13 @@
       "when": 1781404897224,
       "tag": "0001_cheerful_microbe",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781426267961,
+      "tag": "0002_young_hercules",
+      "breakpoints": true
     }
   ]
 }

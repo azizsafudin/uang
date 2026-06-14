@@ -17,6 +17,13 @@ export const accounts = sqliteTable("accounts", {
   institution: text("institution"),
   isArchived: integer("is_archived").notNull().default(0),
   sortOrder: integer("sort_order").notNull().default(0),
+  // Projection assumptions (slice 1). Rates/haircuts in basis points.
+  growthRateBps: integer("growth_rate_bps").notNull().default(0),
+  accessibleFromAge: integer("accessible_from_age").notNull().default(0),
+  earlyWithdrawal: text("early_withdrawal").$type<"none" | "penalty">().notNull().default("none"),
+  earlyHaircutBps: integer("early_haircut_bps").notNull().default(0),
+  illiquid: integer("illiquid").notNull().default(0),
+  liquidationAge: integer("liquidation_age"),
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
 });
@@ -81,5 +88,11 @@ export const accountOwners = sqliteTable("account_owners", {
   primaryKey({ columns: [t.accountId, t.userId] }),
   index("account_owners_user_id_idx").on(t.userId),
 ]);
+
+// One row per household member holding projection inputs that aren't on the auth user.
+export const memberProfiles = sqliteTable("member_profiles", {
+  userId: text("user_id").primaryKey(), // FK -> user.id
+  birthYear: integer("birth_year"),
+});
 
 export * from "./auth-schema";
