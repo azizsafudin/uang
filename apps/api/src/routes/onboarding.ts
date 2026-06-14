@@ -3,10 +3,14 @@ import { db } from "../db/client";
 import { settings, user } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "../auth";
-import { isInitialized } from "../lib/settings";
+import { isInitialized, getSettings } from "../lib/settings";
 
 export const onboarding = new Elysia({ prefix: "/onboarding" })
   .get("/status", async () => ({ initialized: await isInitialized() }))
+  .get("/household", async () => {
+    const s = await getSettings();
+    return s ? { householdName: s.householdName, baseCurrency: s.baseCurrency } : null;
+  })
   .post(
     "/init",
     async ({ body, set }) => {

@@ -1,7 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, TrendingUp, Settings } from "lucide-react";
+import { LayoutDashboard, TrendingUp } from "lucide-react";
 import {
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -10,7 +11,6 @@ import {
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/projections", label: "Projections", icon: TrendingUp },
-  { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function NavMain() {
@@ -18,6 +18,7 @@ export function NavMain() {
 
   return (
     <SidebarGroup>
+      <SidebarGroupLabel>Overview</SidebarGroupLabel>
       <SidebarMenu>
         {NAV.map(({ to, label, icon: Icon }) => (
           <SidebarMenuItem key={to}>

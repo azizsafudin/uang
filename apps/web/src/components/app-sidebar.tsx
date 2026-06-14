@@ -1,5 +1,17 @@
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronsUpDownIcon, Settings } from "lucide-react";
 import { useSession } from "@/lib/auth";
+import { api } from "@/lib/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarHeader,
@@ -9,9 +21,58 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
+
+function HouseholdSwitcher() {
+  const { isMobile } = useSidebar();
+  const { data: household } = useQuery({
+    queryKey: ["household"],
+    queryFn: async () => (await api.onboarding.household.get()).data,
+  });
+  const name = household?.householdName ?? "uang.";
+  const subtitle = household?.baseCurrency ? `Base · ${household.baseCurrency}` : "Household";
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<SidebarMenuButton size="lg" className="aria-expanded:bg-sidebar-accent" />}
+          >
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary font-heading text-base leading-none text-primary-foreground">
+              u<span className="text-gold">.</span>
+            </div>
+            <div className="grid flex-1 text-left leading-tight">
+              <span className="truncate font-heading text-base tracking-tight">{name}</span>
+              <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
+            </div>
+            <ChevronsUpDownIcon className="ml-auto size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="min-w-56"
+            side={isMobile ? "bottom" : "right"}
+            align="start"
+            sideOffset={4}
+          >
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Household
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem render={<Link to="/settings" />}>
+              <Settings />
+              Settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
 
 export function AppSidebar() {
   const { data: session } = useSession();
@@ -24,18 +85,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/" />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary font-heading text-base leading-none text-primary-foreground">
-                u<span className="text-gold">.</span>
-              </div>
-              <span className="font-heading text-xl leading-none tracking-tight">
-                uang<span className="text-gold">.</span>
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <HouseholdSwitcher />
       </SidebarHeader>
 
       <SidebarContent>

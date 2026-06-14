@@ -17,7 +17,9 @@ import { GoalsPage } from "./routes/goals";
 import { GoalDetailPage } from "./routes/goal-detail";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/app-sidebar";
+import { AppBreadcrumb } from "@/components/app-breadcrumb";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
 
@@ -30,8 +32,11 @@ const appLayoutRoute = createRoute({
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
-          {/* Mobile opener for the off-canvas sidebar; the header trigger is the desktop collapse toggle. */}
-          <SidebarTrigger className="fixed left-3 top-3 z-20 md:hidden" />
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 bg-background/95 px-4 backdrop-blur">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-1 h-4" />
+            <AppBreadcrumb />
+          </header>
           <Outlet />
         </SidebarInset>
       </SidebarProvider>
