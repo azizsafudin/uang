@@ -1,14 +1,19 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { Link } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { goalsCollection } from "@/lib/collections";
+import { type GoalRow } from "@/lib/collections";
 import { formatMoney } from "@/components/money";
 import { GoalForm } from "@/components/goal-form";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 type GoalAnalysis = {
   id: string; name: string; term: "short" | "long"; targetAmountMinor: number;
@@ -31,6 +36,61 @@ const TERMS = [
   { key: "short", label: "Short term" },
   { key: "long", label: "Long term" },
 ] as const;
+
+function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; base: string }) {
+  const [editOpen, setEditOpen] = useState(false);
+  return (
+    <div className="relative rounded-2xl border border-border bg-card">
+      <Link
+        to="/goals/$id"
+        params={{ id: g.id }}
+        className="block rounded-2xl p-4 pr-12 transition-colors hover:bg-accent"
+        data-testid="goal-card"
+      >
+        <p className="truncate font-medium">{g.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {formatMoney(g.targetAmountMinor, g.currency)} by {g.targetDate}
+        </p>
+        {a && (
+          <>
+            <div className="mt-2">
+              <Badge variant={a.onTrack ? "default" : "destructive"}>
+                {a.onTrack ? "On track" : "Behind"}
+              </Badge>
+            </div>
+            <div className="mt-3 space-y-2">
+              <Progress value={a.progressPct} />
+              <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
+                <span>{formatMoney(a.allocatedMinor, base)} allocated · {a.progressPct}%</span>
+                <span>
+                  {a.requiredMonthlyMinor > 0
+                    ? `${formatMoney(a.requiredMonthlyMinor, base)}/mo to fund`
+                    : "Fully funded"}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+      </Link>
+
+      <div className="absolute right-2 top-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Goal actions" />}>
+            ⋮
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive" onClick={() => goalsCollection.delete(g.id)}>
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {/* Controlled edit dialog (no own trigger); opened from the menu item. */}
+        <GoalForm goal={g} defaultCurrency={base || undefined} open={editOpen} onOpenChange={setEditOpen} hideTrigger />
+      </div>
+    </div>
+  );
+}
 
 export function GoalsPage() {
   // Live goal rows drive create/edit/delete; the analysis query provides the math.
@@ -78,53 +138,9 @@ export function GoalsPage() {
                 <p className="text-sm text-muted-foreground">None yet.</p>
               ) : (
                 <div className="space-y-3">
-                  {termRows.map((g) => {
-                    const a = byId.get(g.id);
-                    return (
-                      <div key={g.id} className="rounded-2xl border border-border bg-card p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">{g.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatMoney(g.targetAmountMinor, g.currency)} by {g.targetDate}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            {a && (
-                              <Badge variant={a.onTrack ? "default" : "destructive"}>
-                                {a.onTrack ? "On track" : "Behind"}
-                              </Badge>
-                            )}
-                            <GoalForm goal={g} defaultCurrency={base || undefined} />
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-muted-foreground hover:text-destructive"
-                              onClick={() => goalsCollection.delete(g.id)}
-                            >
-                              ✕
-                            </Button>
-                          </div>
-                        </div>
-
-                        {a && (
-                          <div className="mt-3 space-y-2">
-                            <Progress value={a.progressPct} />
-                            <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-                              <span>
-                                {formatMoney(a.allocatedMinor, base)} allocated · {a.progressPct}%
-                              </span>
-                              <span>
-                                {a.requiredMonthlyMinor > 0
-                                  ? `${formatMoney(a.requiredMonthlyMinor, base)}/mo to fund`
-                                  : "Fully funded"}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {termRows.map((g) => (
+                    <GoalCard key={g.id} g={g} a={byId.get(g.id)} base={base} />
+                  ))}
                 </div>
               )}
             </section>
