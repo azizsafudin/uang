@@ -1,5 +1,12 @@
 # Uang
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/REPLACE_WITH_TEMPLATE_CODE)
+
+> One click provisions the **API + web** services and a persistent volume for the
+> database. You only confirm the deploy — the auth secret and service URLs are
+> wired automatically. See [`docs/DEPLOY.md`](docs/DEPLOY.md) for how the template
+> is built. (The button link is a placeholder until the template is published.)
+
 Self-hosted, single-household personal finance. Monorepo: `apps/web` (SPA),
 `apps/api` (ElysiaJS/Bun + libSQL/Drizzle), `packages/shared` (money core).
 
