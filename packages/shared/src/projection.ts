@@ -62,6 +62,9 @@ export function accessibleValueMinor(
   }
   if (ownerAge >= c.accessibleFromAge) return balanceMinor;
   if (c.earlyWithdrawal === "penalty") {
+    if (c.earlyHaircutBps < 0 || c.earlyHaircutBps > 10000) {
+      throw new Error("accessibleValueMinor: earlyHaircutBps must be in [0, 10000]");
+    }
     return fromBig(roundDiv(toBig(balanceMinor) * (BPS - toBig(c.earlyHaircutBps)), BPS));
   }
   return 0;

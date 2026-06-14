@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { compoundMinor, projectSeries } from "./projection";
+import { compoundMinor, projectSeries, accessibleValueMinor, type AccessibilityConfig } from "./projection";
 
 test("compoundMinor: zero years returns the input", () => {
   expect(compoundMinor(100_000, 800, 0)).toBe(100_000);
@@ -35,8 +35,6 @@ test("projectSeries: contribution added at start of each year before growth", ()
   // y1: (100000 + 10000) * 1.08 = 118800 ; y2: (118800 + 10000) * 1.08 = 139104
   expect(projectSeries(100_000, 800, 2, 10_000)).toEqual([100_000, 118_800, 139_104]);
 });
-
-import { accessibleValueMinor, type AccessibilityConfig } from "./projection";
 
 const liquid: AccessibilityConfig = {
   accessibleFromAge: 0, earlyWithdrawal: "none", earlyHaircutBps: 0,
@@ -86,4 +84,12 @@ test("illiquid is excluded until liquidationAge", () => {
 
 test("infinite age (no birth year) treats age-gated as accessible", () => {
   expect(accessibleValueMinor(100_000, Number.POSITIVE_INFINITY, cpf)).toBe(100_000);
+});
+
+test("accessibleValueMinor: rejects out-of-range earlyHaircutBps", () => {
+  const bad: AccessibilityConfig = {
+    accessibleFromAge: 62, earlyWithdrawal: "penalty", earlyHaircutBps: 15000,
+    illiquid: false, liquidationAge: null,
+  };
+  expect(() => accessibleValueMinor(100_000, 50, bad)).toThrow();
 });
