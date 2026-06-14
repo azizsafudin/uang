@@ -39,3 +39,30 @@ export function projectSeries(
   }
   return out;
 }
+
+export type EarlyWithdrawal = "none" | "penalty";
+
+export type AccessibilityConfig = {
+  accessibleFromAge: number;
+  earlyWithdrawal: EarlyWithdrawal;
+  earlyHaircutBps: number;
+  illiquid: boolean;
+  liquidationAge: number | null;
+};
+
+// Withdrawable value of a balance at a given owner age. Slice 1 has no late
+// haircut (tax deferred), so at/after the free age the full balance counts.
+export function accessibleValueMinor(
+  balanceMinor: number,
+  ownerAge: number,
+  c: AccessibilityConfig,
+): number {
+  if (c.illiquid) {
+    return c.liquidationAge !== null && ownerAge >= c.liquidationAge ? balanceMinor : 0;
+  }
+  if (ownerAge >= c.accessibleFromAge) return balanceMinor;
+  if (c.earlyWithdrawal === "penalty") {
+    return fromBig(roundDiv(toBig(balanceMinor) * (BPS - toBig(c.earlyHaircutBps)), BPS));
+  }
+  return 0;
+}
