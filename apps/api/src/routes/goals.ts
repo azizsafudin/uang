@@ -5,13 +5,25 @@ import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { isUniqueViolation } from "../lib/db-errors";
-import { analyzeGoals } from "../lib/goals";
+import { analyzeGoals, goalProjection } from "../lib/goals";
 
 export const goalsRoutes = new Elysia({ prefix: "/goals" })
   .use(authGuard)
   .get("/", async () => db.select().from(goals).orderBy(goals.sortOrder))
   // Heavier liquidity-aware analysis (allocation + required contribution + on-track).
   .get("/analysis", async () => analyzeGoals())
+  .get(
+    "/:id/projection",
+    async ({ params, query, set }: any) => {
+      const r = await goalProjection(params.id, query.historyMonths ?? 12);
+      if (!r) {
+        set.status = 404;
+        return { error: "not_found" };
+      }
+      return r;
+    },
+    { query: t.Object({ historyMonths: t.Optional(t.Numeric()) }) },
+  )
   .post(
     "/",
     async ({ body, userId, set }: any) => {

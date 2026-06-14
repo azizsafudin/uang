@@ -46,3 +46,26 @@ test("POST /goals creates, GET lists, PATCH edits, DELETE removes", async () => 
   list = await (await app.handle(new Request("http://localhost/goals", { headers: { cookie } }))).json();
   expect(list.length).toBe(0);
 });
+
+test("GET /goals/:id/projection returns a series; 404 for unknown id", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const id = crypto.randomUUID();
+  await app.handle(new Request("http://localhost/goals", {
+    method: "POST", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({
+      id, name: "House", term: "long", targetAmountMinor: 50_000_000,
+      currency: "USD", targetDate: "2040-01-01", ownerScope: "household",
+    }),
+  }));
+
+  const ok = await app.handle(new Request(`http://localhost/goals/${id}/projection?historyMonths=3`, { headers: { cookie } }));
+  expect(ok.status).toBe(200);
+  const body = await ok.json();
+  expect(body.goal.id).toBe(id);
+  expect(body.targetMinor).toBe(50_000_000);
+  expect(Array.isArray(body.series)).toBe(true);
+  expect(body.series.length).toBeGreaterThan(0);
+
+  const missing = await app.handle(new Request(`http://localhost/goals/does-not-exist/projection`, { headers: { cookie } }));
+  expect(missing.status).toBe(404);
+});
