@@ -92,6 +92,9 @@ export function projectNetWorth(params: {
   const span = toYear - fromYear;
   // Precompute each account's balance series once (offset 0..span).
   const series = accounts.map((a) => projectSeries(a.baseMinor, a.growthRateBps, span));
+  const youngestBirths = accounts.map((a) =>
+    a.ownerBirthYears.length ? Math.max(...a.ownerBirthYears) : null,
+  );
   const points: ProjectionPoint[] = [];
   for (let offset = 0; offset <= span; offset++) {
     const year = fromYear + offset;
@@ -101,7 +104,7 @@ export function projectNetWorth(params: {
       const bal = series[i][offset];
       total += bal;
       // Youngest owner (largest birth year) is the binding constraint for unlocks.
-      const youngestBirth = a.ownerBirthYears.length ? Math.max(...a.ownerBirthYears) : null;
+      const youngestBirth = youngestBirths[i];
       const age = youngestBirth === null ? Number.POSITIVE_INFINITY : year - youngestBirth;
       accessible += accessibleValueMinor(bal, age, a);
     });

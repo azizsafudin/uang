@@ -136,3 +136,13 @@ test("projectNetWorth: shared account uses the youngest owner's age", () => {
 test("projectNetWorth: rejects inverted range", () => {
   expect(() => projectNetWorth({ accounts: [], fromYear: 2050, toYear: 2040 })).toThrow();
 });
+
+test("projectNetWorth: empty ownerBirthYears treats account as accessible", () => {
+  const noBirth: ProjectionAccount = {
+    baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
+    earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
+    liquidationAge: null, ownerBirthYears: [],
+  };
+  const pts = projectNetWorth({ accounts: [noBirth], fromYear: 2030, toYear: 2030 });
+  expect(pts[0].accessibleBaseMinor).toBe(100_000);
+});
