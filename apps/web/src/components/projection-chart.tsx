@@ -89,13 +89,13 @@ export function ProjectionChart() {
 
     const milestones = members
       .filter((m) => m.birthYear != null)
-      .flatMap((m) =>
+      .flatMap((m, memberIdx) =>
         milestoneYears(m.birthYear as number)
           .filter((ms) => ms.year >= thisYear && ms.year <= (rows.at(-1)?.year ?? thisYear))
-          .map((ms, i) => ({
+          .map((ms) => ({
             ...ms,
             name: m.name,
-            color: MILESTONE_COLORS[i % MILESTONE_COLORS.length],
+            color: MILESTONE_COLORS[memberIdx % MILESTONE_COLORS.length],
           })),
       );
 
@@ -103,7 +103,7 @@ export function ProjectionChart() {
   }, [nwQ.data, membersQ.data, endAge, thisYear]);
 
   return (
-    <section className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm md:px-6 md:py-5">
+    <section data-testid="projection-chart" className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm md:px-6 md:py-5">
       <div className="mb-3 flex items-center gap-2">
         <Label htmlFor="endAge" className="text-sm text-muted-foreground">
           Project until age
@@ -112,8 +112,9 @@ export function ProjectionChart() {
           id="endAge"
           type="number"
           className="w-20"
+          min={1}
           value={endAge}
-          onChange={(e) => setEndAge(parseInt(e.target.value, 10) || 90)}
+          onChange={(e) => setEndAge(Math.max(1, parseInt(e.target.value, 10) || 90))}
         />
       </div>
 
