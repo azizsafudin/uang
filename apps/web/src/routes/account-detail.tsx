@@ -1,18 +1,28 @@
 import { useState } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { formatMoney } from "@/components/money";
 import { subtypeLabel, classLabel, kindLabel } from "@/components/labels";
 import { SetBalanceDialog } from "@/components/set-balance-dialog";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { accountsCollection, entriesCollection } from "@/lib/collections";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { OwnersField } from "@/components/owners-field";
 import { OwnersBadge } from "@/components/owners-badge";
 import { HoldingsDetail } from "@/components/holdings-detail";
+import { EditAccountInline } from "@/components/edit-account-inline";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const BackButton = () => (
   <Link to="/">
@@ -24,9 +34,12 @@ const BackButton = () => (
 
 export function AccountDetailPage() {
   const { id } = useParams({ from: "/accounts/$id" });
+  const nav = useNavigate();
   const qc = useQueryClient();
   const [editingOwners, setEditingOwners] = useState(false);
   const [draftOwners, setDraftOwners] = useState<string[]>([]);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteName, setDeleteName] = useState("");
 
   const { data: accounts, isLoading: accountsLoading } =
     useLiveQuery(accountsCollection);
@@ -45,10 +58,116 @@ export function AccountDetailPage() {
     );
   }
 
+  async function archiveAccount() {
+    await accountsCollection.update(account!.id, (draft) => {
+      draft.isArchived = 1;
+    });
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+  }
+
+  async function restoreAccount() {
+    await accountsCollection.update(account!.id, (draft) => {
+      draft.isArchived = 0;
+    });
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+  }
+
+  async function deleteAccount() {
+    await accountsCollection.delete(account!.id);
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+    await nav({ to: "/" });
+  }
+
+  const dangerZone = (
+    <section className="mt-12 border-t border-border pt-6">
+      <Eyebrow className="mb-3 text-destructive">Danger zone</Eyebrow>
+      {account.isArchived === 0 ? (
+        <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+          <div>
+            <p className="text-sm font-medium">Archive account</p>
+            <p className="text-xs text-muted-foreground">
+              Hides it from the dashboard. You can restore it later.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={archiveAccount}>
+            Archive
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Restore account</p>
+              <p className="text-xs text-muted-foreground">
+                Makes it visible on the dashboard again.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={restoreAccount}>
+              Restore
+            </Button>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-destructive">
+                Delete permanently
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Removes all history. Cannot be undone.
+              </p>
+            </div>
+            <Dialog
+              open={deleteOpen}
+              onOpenChange={(open) => {
+                setDeleteOpen(open);
+                if (!open) setDeleteName("");
+              }}
+            >
+              <DialogTrigger render={<Button variant="destructive" size="sm" />}>
+                Delete permanently
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete "{account.name}" permanently?</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-muted-foreground">
+                  This deletes the account and all its history. Type the account
+                  name to confirm.
+                </p>
+                <Input
+                  value={deleteName}
+                  onChange={(e) => setDeleteName(e.target.value)}
+                  placeholder={account.name}
+                />
+                <DialogFooter>
+                  <Button
+                    variant="destructive"
+                    disabled={deleteName !== account.name}
+                    onClick={deleteAccount}
+                  >
+                    Delete permanently
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+
   if (account.valuationMode === "holdings") {
     return (
       <AppShell actions={<BackButton />}>
+        {account.isArchived === 1 && (
+          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+            This account is archived and hidden from the dashboard.
+          </div>
+        )}
+        <section className="mb-4">
+          <EditAccountInline account={account} />
+        </section>
         <HoldingsDetail accountId={id} accountName={account.name} />
+        {dangerZone}
       </AppShell>
     );
   }
@@ -59,7 +178,7 @@ export function AccountDetailPage() {
   }
 
   async function saveOwners() {
-    if (draftOwners.length === 0) return; // at least one owner required
+    if (draftOwners.length === 0) return;
     await api.accounts({ id }).owners.patch({ ownerIds: draftOwners });
     await qc.invalidateQueries({ queryKey: ["accounts"] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
@@ -72,6 +191,12 @@ export function AccountDetailPage() {
 
   return (
     <AppShell actions={<BackButton />}>
+      {account.isArchived === 1 && (
+        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          This account is archived and hidden from the dashboard.
+        </div>
+      )}
+
       <header>
         <Eyebrow>
           {classLabel(account.class)} · {subtypeLabel(account.subtype)} ·{" "}
@@ -89,6 +214,10 @@ export function AccountDetailPage() {
           {formatMoney(account.balanceMinor, account.currency)}
         </p>
       </header>
+
+      <section className="mt-4">
+        <EditAccountInline account={account} />
+      </section>
 
       <section className="mt-4">
         {!editingOwners ? (
@@ -140,7 +269,7 @@ export function AccountDetailPage() {
         <Eyebrow className="mb-3">History</Eyebrow>
         {sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No entries yet. Use “Set balance…” to record where this account
+            No entries yet. Use "Set balance…" to record where this account
             stands today.
           </p>
         ) : (
@@ -180,6 +309,8 @@ export function AccountDetailPage() {
           </div>
         )}
       </section>
+
+      {dangerZone}
     </AppShell>
   );
 }
