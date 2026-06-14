@@ -1,6 +1,8 @@
 import { expect, test, beforeEach } from "bun:test";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { accountsRoutes } from "./accounts";
+import { db } from "../db/client";
+import { user } from "../db/schema";
 
 beforeEach(resetDb);
 
@@ -59,4 +61,114 @@ test("rejects holdings valuation mode in v2", async () => {
     }),
   );
   expect(res.status).toBe(400);
+});
+
+async function firstUserId(): Promise<string> {
+  const rows = await db.select({ id: user.id }).from(user);
+  return rows[0]!.id;
+}
+
+test("create defaults owner to the creator and GET returns ownerIds", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+  const me = await firstUserId();
+
+  const create = await app.handle(new Request("http://localhost/accounts", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Solo", class: "asset", subtype: "bank", currency: "USD" }),
+  }));
+  expect(create.status).toBe(200);
+
+  const list = await (await app.handle(
+    new Request("http://localhost/accounts", { headers: { cookie } }),
+  )).json();
+  expect(list[0].ownerIds).toEqual([me]);
+});
+
+test("create accepts explicit ownerIds", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+  const me = await firstUserId();
+
+  const create = await app.handle(new Request("http://localhost/accounts", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Joint", class: "asset", subtype: "bank", currency: "USD", ownerIds: [me] }),
+  }));
+  expect(create.status).toBe(200);
+  const list = await (await app.handle(
+    new Request("http://localhost/accounts", { headers: { cookie } }),
+  )).json();
+  expect(list.find((a: any) => a.name === "Joint").ownerIds).toEqual([me]);
+});
+
+test("create rejects invalid owner ids with 422", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const res = await app.handle(new Request("http://localhost/accounts", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Bad", class: "asset", subtype: "bank", currency: "USD", ownerIds: ["ghost"] }),
+  }));
+  expect(res.status).toBe(422);
+});
+
+test("PATCH /:id/owners replaces the owner set", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+  const me = await firstUserId();
+
+  const { id } = await (await app.handle(new Request("http://localhost/accounts", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Solo", class: "asset", subtype: "bank", currency: "USD" }),
+  }))).json();
+
+  const patch = await app.handle(new Request(`http://localhost/accounts/${id}/owners`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ ownerIds: [me] }),
+  }));
+  expect(patch.status).toBe(200);
+
+  const list = await (await app.handle(
+    new Request("http://localhost/accounts", { headers: { cookie } }),
+  )).json();
+  expect(list.find((a: any) => a.id === id).ownerIds).toEqual([me]);
+});
+
+test("PATCH /:id/owners rejects empty list (422)", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+  const { id } = await (await app.handle(new Request("http://localhost/accounts", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Solo", class: "asset", subtype: "bank", currency: "USD" }),
+  }))).json();
+
+  const res = await app.handle(new Request(`http://localhost/accounts/${id}/owners`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ ownerIds: [] }),
+  }));
+  expect(res.status).toBe(422);
+});
+
+test("PATCH /:id/owners rejects invalid owner ids (422)", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+  const { id } = await (await app.handle(new Request("http://localhost/accounts", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Solo", class: "asset", subtype: "bank", currency: "USD" }),
+  }))).json();
+
+  const res = await app.handle(new Request(`http://localhost/accounts/${id}/owners`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ ownerIds: ["ghost"] }),
+  }));
+  expect(res.status).toBe(422);
 });

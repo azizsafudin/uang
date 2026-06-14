@@ -5,13 +5,19 @@ import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { accountBalanceMinor } from "../lib/valuation";
+import { getAllOwnerSets, setOwners, allUsersExist } from "../lib/owners";
 
 export const accountsRoutes = new Elysia({ prefix: "/accounts" })
   .use(authGuard)
   .get("/", async () => {
     const rows = await db.select().from(accounts).orderBy(accounts.sortOrder);
+    const ownerSets = await getAllOwnerSets();
     return Promise.all(
-      rows.map(async (a) => ({ ...a, balanceMinor: await accountBalanceMinor(a.id) })),
+      rows.map(async (a) => ({
+        ...a,
+        balanceMinor: await accountBalanceMinor(a.id),
+        ownerIds: ownerSets.get(a.id) ?? [],
+      })),
     );
   })
   .post(
@@ -21,6 +27,14 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         set.status = 400;
         return { error: "holdings_not_supported_in_v2" };
       }
+      // Default owners to the creator; otherwise every id must be an existing user.
+      const ownerIds: string[] =
+        Array.isArray(body.ownerIds) && body.ownerIds.length > 0 ? body.ownerIds : [userId!];
+      if (!(await allUsersExist(ownerIds))) {
+        set.status = 422;
+        return { error: "invalid_owner_ids" };
+      }
+
       const id = createId();
       await db.insert(accounts).values({
         id,
@@ -35,6 +49,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         createdAt: nowEpoch(),
         createdBy: userId!,
       });
+      await setOwners(id, ownerIds);
       if (typeof body.openingBalanceMinor === "number" && body.openingBalanceMinor !== 0) {
         const today = new Date(nowEpoch() * 1000).toISOString().slice(0, 10);
         await db.insert(entries).values({
@@ -60,7 +75,22 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         sortOrder: t.Optional(t.Number()),
         openingBalanceMinor: t.Optional(t.Number()),
         openingDate: t.Optional(t.String()),
+        ownerIds: t.Optional(t.Array(t.String())),
       }),
+    },
+  )
+  .patch(
+    "/:id/owners",
+    async ({ params, body, set }: any) => {
+      if (!Array.isArray(body.ownerIds) || body.ownerIds.length === 0 || !(await allUsersExist(body.ownerIds))) {
+        set.status = 422;
+        return { error: "invalid_owner_ids" };
+      }
+      await setOwners(params.id, body.ownerIds);
+      return { ok: true };
+    },
+    {
+      body: t.Object({ ownerIds: t.Array(t.String()) }),
     },
   )
   .patch(
