@@ -23,6 +23,7 @@ type GoalAnalysis = {
   targetDate: string | null; currency: string; allocatedMinor: number; progressPct: number;
   monthlyContributionMinor: number; requiredMonthlyMinor: number;
   projectedAtTargetMinor: number | null; onTrack: boolean; reachDate: string | null;
+  spendType: "none" | "once" | "monthly" | "percent"; annualIncomeMinor: number | null;
   sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
 };
 type AnalysisResponse = {
@@ -63,6 +64,9 @@ function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; bas
           <p className="text-xs text-muted-foreground">
             {formatMoney(g.targetAmountMinor, g.currency)}
             {g.targetDate ? ` by ${formatDate(g.targetDate)}` : " · no deadline"}
+            {a && a.spendType === "monthly" && a.annualIncomeMinor !== null && ` · income ≈ ${formatMoney(a.annualIncomeMinor, base)}/yr`}
+            {a && a.spendType === "percent" && a.annualIncomeMinor !== null && ` · drawdown ≈ ${formatMoney(a.annualIncomeMinor, base)}/yr`}
+            {a && a.spendType === "once" && " · one-time spend"}
           </p>
           {a && (
             <>
