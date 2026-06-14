@@ -2,13 +2,15 @@
   "name": "uang",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": ["packages/*", "apps/*", "e2e"],
   "scripts": {
     "test": "bun test",
     "dev": "bun run --filter '*' dev",
     "api:dev": "bun --cwd apps/api run dev",
     "web:dev": "bun --cwd apps/web run dev",
     "db:generate": "bun --cwd apps/api run db:generate",
-    "db:migrate": "bun --cwd apps/api run db:migrate"
+    "db:migrate": "bun --cwd apps/api run db:migrate",
+    "e2e": "bun run --cwd e2e test",
+    "e2e:ui": "bun run --cwd e2e test:ui"
   }
 }
