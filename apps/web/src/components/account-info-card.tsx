@@ -7,6 +7,13 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { OwnersField } from "@/components/owners-field";
 import { OwnersBadge } from "@/components/owners-badge";
 import { cn } from "@/lib/utils";
@@ -120,27 +127,39 @@ export function AccountInfoCard({ account }: Props) {
             </Field>
 
             <Field label="Group" hint="Accounts in the same group are shown together on the dashboard.">
-              <select
-                value={showNewGroup ? "__new__" : (groupId ?? "")}
-                onChange={(e) => {
-                  if (e.target.value === "__new__") {
+              <Select
+                value={showNewGroup ? "__new__" : (groupId ?? "none")}
+                onValueChange={(v: string | null) => {
+                  if (!v) return;
+                  if (v === "__new__") {
                     setShowNewGroup(true);
                     setGroupId(null);
                   } else {
                     setShowNewGroup(false);
-                    setGroupId(e.target.value || null);
+                    setGroupId(v === "none" ? null : v);
                   }
                 }}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">No group</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-                <option value="__new__">+ New group…</option>
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v: unknown) => {
+                      const val = String(v);
+                      if (val === "__new__") return "+ New group…";
+                      if (val === "none") return "No group";
+                      return groups.find((g) => g.id === val)?.name ?? "No group";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No group</SelectItem>
+                  {groups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__new__">+ New group…</SelectItem>
+                </SelectContent>
+              </Select>
               {showNewGroup && (
                 <div className="mt-2 flex gap-2">
                   <Input

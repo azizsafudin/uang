@@ -57,7 +57,7 @@ export function SetBalanceDialog({ accountId, currency, mode, onDone }: Props) {
           <Button variant={mode === "set" ? "default" : "outline"} />
         }
       >
-        {mode === "set" ? "Set balance…" : "Record revaluation…"}
+        {mode === "set" ? "Set balance" : "Record revaluation"}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
