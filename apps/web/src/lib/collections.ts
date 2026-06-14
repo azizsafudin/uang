@@ -324,3 +324,60 @@ export const membersCollection = createCollection(
     },
   })
 );
+
+// ---------------------------------------------------------------------------
+// goalsCollection — financial goals
+// ---------------------------------------------------------------------------
+
+export type GoalRow = RowOf<typeof api.goals.get>;
+type GoalApi = ReturnType<typeof api.goals>;
+
+export const goalsCollection = createCollection(
+  queryCollectionOptions<GoalRow, Error, ["goals"], string>({
+    queryKey: ["goals"],
+    queryFn: async (): Promise<Array<GoalRow>> => {
+      const { data, error } = await api.goals.get();
+      if (error) throw new Error(String(error));
+      return Array.isArray(data) ? data : [];
+    },
+    queryClient,
+    getKey: (g) => g.id,
+    onInsert: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as GoalRow | undefined;
+      if (!m) return;
+      const { error } = await api.goals.post({
+        id: m.id,
+        name: m.name,
+        term: m.term,
+        targetAmountMinor: m.targetAmountMinor,
+        currency: m.currency,
+        targetDate: m.targetDate,
+        ownerScope: m.ownerScope,
+        anchorDate: m.anchorDate ?? null,
+        sortOrder: m.sortOrder,
+      });
+      if (error) throw new Error(String(error));
+    },
+    onUpdate: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as GoalRow | undefined;
+      if (!m) return;
+      const { error } = await api.goals({ id: m.id }).patch({
+        name: m.name,
+        term: m.term,
+        targetAmountMinor: m.targetAmountMinor,
+        currency: m.currency,
+        targetDate: m.targetDate,
+        ownerScope: m.ownerScope,
+        anchorDate: m.anchorDate ?? null,
+        sortOrder: m.sortOrder,
+      });
+      if (error) throw new Error(String(error));
+    },
+    onDelete: async ({ transaction }) => {
+      const id = (transaction.mutations[0]?.original as GoalRow | undefined)?.id;
+      if (!id) return;
+      const { error } = await api.goals({ id }).delete();
+      if (error) throw new Error(String(error));
+    },
+  })
+);
