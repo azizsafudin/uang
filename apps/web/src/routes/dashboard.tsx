@@ -1,33 +1,40 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLiveQuery } from "@tanstack/react-db";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { signOut } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/components/money";
-import { subtypeLabel } from "@/components/labels";
+import { cn } from "@/lib/utils";
 import { AccountForm } from "@/components/account-form";
+import { AccountRow } from "@/components/account-row";
+import { AccountGroupRow } from "@/components/account-group-row";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import { NetWorthToggle } from "@/components/net-worth-toggle";
 import { NetWorthChart } from "@/components/net-worth-chart";
-import { OwnersBadge } from "@/components/owners-badge";
+import { groupsCollection, newId } from "@/lib/collections";
+
+type AccountValuation = {
+  id: string;
+  name: string;
+  class: string;
+  subtype: string;
+  currency: string;
+  balanceMinor: number;
+  baseMinor: number;
+  missingRate: boolean;
+  ownerIds: string[];
+  shared: boolean;
+  groupId: string | null;
+  sortOrder: number;
+};
 
 type NetWorth = {
   baseCurrency: string;
   totalBaseMinor: number;
-  accounts: Array<{
-    id: string;
-    name: string;
-    class: string;
-    subtype: string;
-    currency: string;
-    balanceMinor: number;
-    baseMinor: number;
-    missingRate: boolean;
-    ownerIds: string[];
-    shared: boolean;
-  }>;
+  accounts: AccountValuation[];
 };
 
 async function fetchNw(owner: string): Promise<NetWorth> {
@@ -36,7 +43,7 @@ async function fetchNw(owner: string): Promise<NetWorth> {
   return data as unknown as NetWorth;
 }
 
-const GROUPS = [
+const CLASS_SECTIONS = [
   { cls: "asset", label: "Assets" },
   { cls: "liability", label: "Liabilities" },
 ] as const;
@@ -44,10 +51,13 @@ const GROUPS = [
 export function DashboardPage() {
   const nav = useNavigate();
   const [owner, setOwner] = useState("household");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [newGroupSection, setNewGroupSection] = useState<"asset" | "liability" | null>(null);
+  const [newGroupName, setNewGroupName] = useState("");
 
   // The account list + group totals always reflect the whole household, so the
   // list never changes when you toggle the headline.
-  const { data: listData, isLoading } = useQuery({
+  const { data: listData } = useQuery({
     queryKey: ["networth", "household"],
     queryFn: () => fetchNw("household"),
   });
@@ -58,12 +68,40 @@ export function DashboardPage() {
     queryFn: () => fetchNw(owner),
   });
 
+  const { data: allGroups } = useLiveQuery(groupsCollection);
+
   const base = listData?.baseCurrency ?? "";
   const accounts = listData?.accounts ?? [];
-  const groupTotal = (cls: string) =>
-    accounts
+
+  function toggleGroup(groupId: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }
+
+  async function createGroup(cls: "asset" | "liability") {
+    if (!newGroupName.trim()) return;
+    const id = newId();
+    await groupsCollection.insert({
+      id,
+      name: newGroupName.trim(),
+      class: cls,
+      sortOrder: 0,
+      createdAt: Math.floor(Date.now() / 1000),
+    });
+    setNewGroupSection(null);
+    setNewGroupName("");
+    setExpandedGroups((prev) => new Set(prev).add(id));
+  }
+
+  function sectionTotal(cls: string) {
+    return accounts
       .filter((a) => a.class === cls && !a.missingRate)
       .reduce((sum, a) => sum + a.baseMinor, 0);
+  }
 
   return (
     <AppShell
@@ -116,65 +154,132 @@ export function DashboardPage() {
       </div>
 
       <div className="mt-9 space-y-8">
-        {GROUPS.map(({ cls, label }) => {
-          const rows = accounts.filter((a) => a.class === cls);
+        {CLASS_SECTIONS.map(({ cls, label }) => {
+          const sectionAccounts = accounts
+            .filter((a) => a.class === cls)
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+
+          const sectionGroups = (allGroups ?? [])
+            .filter((g) => g.class === cls)
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+
+          type ListItem =
+            | { type: "group"; groupId: string }
+            | { type: "account"; account: AccountValuation };
+
+          const items: ListItem[] = [];
+          for (const g of sectionGroups) {
+            items.push({ type: "group", groupId: g.id });
+          }
+          for (const a of sectionAccounts.filter((a) => !a.groupId)) {
+            items.push({ type: "account", account: a });
+          }
+
           return (
             <section key={cls}>
-              <div className="mb-3 flex items-baseline justify-between">
+              <div className="mb-3 flex items-center justify-between">
                 <Eyebrow>{label}</Eyebrow>
-                {listData && rows.length > 0 && (
-                  <span className="font-heading text-sm tabular-nums text-muted-foreground">
-                    {formatMoney(groupTotal(cls), base)}
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {listData && sectionAccounts.length > 0 && (
+                    <span className="font-heading text-sm tabular-nums text-muted-foreground">
+                      {formatMoney(sectionTotal(cls), base)}
+                    </span>
+                  )}
+                  {newGroupSection === cls ? (
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        autoFocus
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        placeholder="Group name"
+                        className="h-7 w-32 text-xs"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void createGroup(cls);
+                          if (e.key === "Escape") {
+                            setNewGroupSection(null);
+                            setNewGroupName("");
+                          }
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => void createGroup(cls)}
+                        disabled={!newGroupName.trim()}
+                      >
+                        Create
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setNewGroupSection(null);
+                          setNewGroupName("");
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs text-muted-foreground"
+                      onClick={() => setNewGroupSection(cls)}
+                    >
+                      + New group
+                    </Button>
+                  )}
+                </div>
               </div>
 
-              {rows.length === 0 ? (
+              {items.length === 0 ? (
                 <p className="text-sm text-muted-foreground">None yet.</p>
               ) : (
                 <div className="overflow-hidden rounded-xl border border-border bg-card">
-                  {rows.map((a, i) => (
-                    <Link
-                      key={a.id}
-                      data-testid="account-row"
-                      to="/accounts/$id"
-                      params={{ id: a.id }}
-                      className={cn(
-                        "flex items-center justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-accent",
-                        i > 0 && "border-t border-border/70",
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{a.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {subtypeLabel(a.subtype)} · {a.currency}
-                          {a.missingRate && (
-                            <span className="ml-1.5 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[0.65rem] font-medium text-destructive">
-                              no FX rate
-                            </span>
-                          )}
-                        </p>
-                        <div className="mt-1">
-                          <OwnersBadge ownerIds={a.ownerIds} />
+                  {items.map((item) => {
+                    if (item.type === "group") {
+                      const g = sectionGroups.find((g) => g.id === item.groupId)!;
+                      const members = sectionAccounts.filter((a) => a.groupId === g.id);
+                      const subtotal = members
+                        .filter((a) => !a.missingRate)
+                        .reduce((sum, a) => sum + a.baseMinor, 0);
+                      const expanded = expandedGroups.has(g.id);
+
+                      return (
+                        <div key={g.id}>
+                          <AccountGroupRow
+                            name={g.name}
+                            memberCount={members.length}
+                            subtotalMinor={subtotal}
+                            baseCurrency={base}
+                            expanded={expanded}
+                            onToggle={() => toggleGroup(g.id)}
+                          />
+                          {expanded &&
+                            members.map((a, i) => (
+                              <div key={a.id} className="border-t border-border/70 pl-4">
+                                <AccountRow
+                                  account={a}
+                                  baseCurrency={base}
+                                  isLast={i === members.length - 1}
+                                />
+                              </div>
+                            ))}
                         </div>
-                      </div>
-                      <div className="shrink-0 text-right tabular-nums">
-                        <p
-                          className={cn(
-                            "font-medium",
-                            a.balanceMinor < 0 && "text-destructive",
-                          )}
-                        >
-                          {formatMoney(a.balanceMinor, a.currency)}
-                        </p>
-                        {a.currency !== base && !a.missingRate && (
-                          <p className="text-xs text-muted-foreground">
-                            {formatMoney(a.baseMinor, base)}
-                          </p>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
+                      );
+                    }
+
+                    return (
+                      <AccountRow
+                        key={item.account.id}
+                        account={item.account}
+                        baseCurrency={base}
+                        isLast={false}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </section>
