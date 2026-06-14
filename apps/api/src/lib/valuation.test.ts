@@ -1,7 +1,8 @@
 import { expect, test, beforeEach } from "bun:test";
 import { resetDb } from "./test-helpers";
 import { db } from "../db/client";
-import { settings, accounts, entries, fxRates, accountOwners } from "../db/schema";
+import { settings, accounts, entries, fxRates, accountOwners, instruments, lots, prices } from "../db/schema";
+import { SCALE } from "@uang/shared";
 import { createId, nowEpoch } from "./ids";
 import { accountBalanceMinor, netWorth } from "./valuation";
 
@@ -25,6 +26,29 @@ async function setOwnersDirect(accountId: string, userIds: string[]) {
   for (const userId of userIds) {
     await db.insert(accountOwners).values({ accountId, userId });
   }
+}
+async function addHoldingsAccount(name: string) {
+  const id = createId();
+  await db.insert(accounts).values({
+    id, name, class: "asset", subtype: "investment", currency: "USD",
+    valuationMode: "holdings", isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "u",
+  });
+  return id;
+}
+async function addInstrument(currency: string) {
+  const id = createId();
+  await db.insert(instruments).values({ id, symbol: "X", isin: null, name: "X", kind: "stock", currency, createdAt: nowEpoch() });
+  return id;
+}
+async function addPrice(instrumentId: string, date: string, priceMajor: number) {
+  await db.insert(prices).values({ id: createId(), instrumentId, date, priceScaled: Math.round(priceMajor * Number(SCALE)), source: "manual", createdAt: nowEpoch() });
+}
+async function addLot(accountId: string, instrumentId: string, unitsMajor: number, costMajor: number, tradeDate: string) {
+  await db.insert(lots).values({
+    id: createId(), accountId, instrumentId,
+    unitsScaled: Math.round(unitsMajor * Number(SCALE)), unitCostScaled: Math.round(costMajor * Number(SCALE)),
+    feesMinor: 0, tradeDate, note: null, createdAt: nowEpoch(), createdBy: "u",
+  });
 }
 
 beforeEach(resetDb);
@@ -127,4 +151,33 @@ test("netWorth still supports asOf via the options object", async () => {
   await setOwnersDirect(a, ["u1"]);
   expect((await netWorth({ asOf: "2026-02-01" })).totalBaseMinor).toBe(0);
   expect((await netWorth({ asOf: "2026-03-01" })).totalBaseMinor).toBe(50000);
+});
+
+test("netWorth values a holdings account and sums it with ledger accounts", async () => {
+  await seedBase("USD");
+  const cash = await addAccount({ name: "Cash", cls: "asset", currency: "USD" });
+  await addEntry(cash, 100000, "2026-01-01");
+  const broker = await addHoldingsAccount("Broker");
+  const inst = await addInstrument("USD");
+  await addPrice(inst, "2026-01-01", 50);
+  await addLot(broker, inst, 10, 40, "2026-01-01");
+
+  const nw = await netWorth();
+  expect(nw.totalBaseMinor).toBe(150000); // 100000 + 50000
+  const b = nw.accounts.find((a) => a.name === "Broker")!;
+  expect(b.baseMinor).toBe(50000);
+  expect(b.balanceMinor).toBe(50000); // holdings: balanceMinor == base total
+  expect(b.currency).toBe("USD");      // holdings report in base currency
+  expect(b.missingRate).toBe(false);
+});
+
+test("netWorth holdings respects asOf (price added later does not affect earlier date)", async () => {
+  await seedBase("USD");
+  const broker = await addHoldingsAccount("Broker");
+  const inst = await addInstrument("USD");
+  await addPrice(inst, "2026-05-01", 50);
+  await addLot(broker, inst, 10, 40, "2026-01-01");
+
+  expect((await netWorth({ asOf: "2026-03-01" })).totalBaseMinor).toBe(0);
+  expect((await netWorth({ asOf: "2026-05-01" })).totalBaseMinor).toBe(50000);
 });
