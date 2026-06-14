@@ -21,6 +21,12 @@ export type AccountValuation = {
   id: string; name: string; class: string; subtype: string; currency: string;
   balanceMinor: number; baseMinor: number; missingRate: boolean;
   ownerIds: string[]; shared: boolean;
+  growthRateBps: number;
+  accessibleFromAge: number;
+  earlyWithdrawal: "none" | "penalty";
+  earlyHaircutBps: number;
+  illiquid: boolean;
+  liquidationAge: number | null;
 };
 
 export type NetWorthOpts = { asOf?: string; owner?: string };
@@ -79,6 +85,12 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
     out.push({
       id: a.id, name: a.name, class: a.class, subtype: a.subtype, currency,
       balanceMinor, baseMinor, missingRate, ownerIds, shared,
+      growthRateBps: a.growthRateBps,
+      accessibleFromAge: a.accessibleFromAge,
+      earlyWithdrawal: a.earlyWithdrawal,
+      earlyHaircutBps: a.earlyHaircutBps,
+      illiquid: a.illiquid === 1,
+      liquidationAge: a.liquidationAge ?? null,
     });
   }
   return { baseCurrency: base, totalBaseMinor: fromBig(total), accounts: out };

@@ -181,3 +181,25 @@ test("netWorth holdings respects asOf (price added later does not affect earlier
   expect((await netWorth({ asOf: "2026-03-01" })).totalBaseMinor).toBe(0);
   expect((await netWorth({ asOf: "2026-05-01" })).totalBaseMinor).toBe(50000);
 });
+
+test("netWorth exposes per-account projection config", async () => {
+  // resetDb is registered in this file's existing beforeEach.
+  await db.insert(settings).values({ id: 1, householdName: "H", baseCurrency: "USD", createdAt: nowEpoch() });
+  const id = createId();
+  await db.insert(accounts).values({
+    id, name: "SRS", class: "asset", subtype: "investment", currency: "USD",
+    valuationMode: "ledger", isArchived: 0, sortOrder: 0,
+    growthRateBps: 800, accessibleFromAge: 62, earlyWithdrawal: "penalty",
+    earlyHaircutBps: 500, illiquid: 0, liquidationAge: null,
+    createdAt: nowEpoch(), createdBy: "seed",
+  });
+
+  const nw = await netWorth();
+  const a = nw.accounts.find((x) => x.id === id)!;
+  expect(a.growthRateBps).toBe(800);
+  expect(a.accessibleFromAge).toBe(62);
+  expect(a.earlyWithdrawal).toBe("penalty");
+  expect(a.earlyHaircutBps).toBe(500);
+  expect(a.illiquid).toBe(false);
+  expect(a.liquidationAge).toBeNull();
+});
