@@ -70,6 +70,9 @@ export function DashboardPage() {
       actions={
         <>
           <AccountForm defaultCurrency={base || undefined} />
+          <Link to="/goals" className="text-sm font-medium text-primary hover:underline">
+            Goals →
+          </Link>
           <Link to="/projections" className="text-sm font-medium text-primary hover:underline">
             Projections →
           </Link>
