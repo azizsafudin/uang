@@ -26,6 +26,14 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Format a YYYY-MM-DD day for display. Defensive: never renders "Invalid Date" —
+// if the value isn't a parseable date it falls back to the raw string.
+function formatDay(value: unknown, opts: Intl.DateTimeFormatOptions): string {
+  const s = String(value ?? "");
+  const d = new Date(`${s}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString(undefined, opts);
+}
+
 // Map a non-custom preset to a {from, to} range (to = today).
 function presetRange(preset: Exclude<Preset, "Custom">): { from: string; to: string } {
   const today = new Date();
@@ -124,21 +132,14 @@ export function NetWorthChart({ owner }: { owner: string }) {
               tickMargin={8}
               minTickGap={32}
               tickFormatter={(v: string) =>
-                new Date(`${v}T00:00:00Z`).toLocaleDateString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                })
+                formatDay(v, { month: "short", day: "numeric" })
               }
             />
             <ChartTooltip
               content={
                 <ChartTooltipContent
                   labelFormatter={(label) =>
-                    new Date(`${String(label)}T00:00:00Z`).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })
+                    formatDay(label, { year: "numeric", month: "short", day: "numeric" })
                   }
                   formatter={(value) => formatMoney(Number(value), base)}
                 />
