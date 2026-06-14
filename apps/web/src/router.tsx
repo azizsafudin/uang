@@ -15,8 +15,37 @@ import { SettingsPage } from "./routes/settings";
 import { ProjectionsPage } from "./routes/projections";
 import { GoalsPage } from "./routes/goals";
 import { GoalDetailPage } from "./routes/goal-detail";
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
+import { AppSidebar } from "@/components/app-sidebar";
+import { AppBreadcrumb } from "@/components/app-breadcrumb";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
+
+// Pathless layout route: renders the sidebar shell once around every
+// authenticated route. Its id ("app") prefixes child route ids — hence
+// useParams reads from "/app/accounts/$id".
+const appLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: "app",
+  beforeLoad: requireInitializedAndAuthed,
+  component: () => (
+    <TooltipProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 bg-background/95 px-4 backdrop-blur">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-1 h-4" />
+            <AppBreadcrumb />
+          </header>
+          <Outlet />
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
+  ),
+});
 
 const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -40,56 +69,52 @@ const loginRoute = createRoute({
 });
 
 const dashboardRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => appLayoutRoute,
   path: "/",
   component: DashboardPage,
-  beforeLoad: requireInitializedAndAuthed,
 });
 
 const accountDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => appLayoutRoute,
   path: "/accounts/$id",
   component: AccountDetailPage,
-  beforeLoad: requireInitializedAndAuthed,
 });
 
 const settingsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => appLayoutRoute,
   path: "/settings",
   component: SettingsPage,
-  beforeLoad: requireInitializedAndAuthed,
 });
 
 const projectionsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => appLayoutRoute,
   path: "/projections",
   component: ProjectionsPage,
-  beforeLoad: requireInitializedAndAuthed,
 });
 
 const goalsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => appLayoutRoute,
   path: "/goals",
   component: GoalsPage,
-  beforeLoad: requireInitializedAndAuthed,
 });
 
 const goalDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => appLayoutRoute,
   path: "/goals/$id",
   component: GoalDetailPage,
-  beforeLoad: requireInitializedAndAuthed,
 });
 
 const routeTree = rootRoute.addChildren([
   onboardingRoute,
   loginRoute,
-  dashboardRoute,
-  accountDetailRoute,
-  settingsRoute,
-  projectionsRoute,
-  goalsRoute,
-  goalDetailRoute,
+  appLayoutRoute.addChildren([
+    dashboardRoute,
+    accountDetailRoute,
+    settingsRoute,
+    projectionsRoute,
+    goalsRoute,
+    goalDetailRoute,
+  ]),
 ]);
 
 export const router = createRouter({ routeTree });

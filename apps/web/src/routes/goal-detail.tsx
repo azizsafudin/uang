@@ -39,7 +39,7 @@ async function fetchProjection(id: string): Promise<ProjectionResponse> {
 }
 
 export function GoalDetailPage() {
-  const { id } = useParams({ from: "/goals/$id" });
+  const { id } = useParams({ from: "/app/goals/$id" });
   const nav = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
   const { confirm, dialog } = useDestructiveAction();

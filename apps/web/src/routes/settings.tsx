@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { SCALE } from "@uang/shared";
 import { api } from "@/lib/api";
 import { fxCollection, membersCollection, newId } from "@/lib/collections";
@@ -167,15 +166,7 @@ export function SettingsPage() {
   }
 
   return (
-    <AppShell
-      actions={
-        <Link to="/">
-          <Button variant="ghost" size="sm">
-            ← Back
-          </Button>
-        </Link>
-      }
-    >
+    <AppShell>
       <h1 className="mb-6 font-heading text-3xl tracking-tight">Settings</h1>
 
       <div className="space-y-5">

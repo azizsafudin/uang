@@ -1,14 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { signOut } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/components/money";
 import { cn } from "@/lib/utils";
 import { AccountForm } from "@/components/account-form";
 import { AppShell, Eyebrow } from "@/components/app-layout";
-import { Button } from "@/components/ui/button";
 import { NetWorthToggle } from "@/components/net-worth-toggle";
 import { NetWorthChart } from "@/components/net-worth-chart";
 import { DashboardSection, type AccountValuation } from "@/components/dashboard-section";
@@ -32,7 +29,6 @@ const CLASS_SECTIONS = [
 ] as const;
 
 export function DashboardPage() {
-  const nav = useNavigate();
   const [owner, setOwner] = useState("household");
 
   // The account list + group totals always reflect the whole household, so the
@@ -54,34 +50,7 @@ export function DashboardPage() {
   const accounts = listData?.accounts ?? [];
 
   return (
-    <AppShell
-      actions={
-        <>
-          <AccountForm defaultCurrency={base || undefined} />
-          <Link to="/goals" className="text-sm font-medium text-primary hover:underline">
-            Goals →
-          </Link>
-          <Link to="/projections" className="text-sm font-medium text-primary hover:underline">
-            Projections →
-          </Link>
-          <Link to="/settings">
-            <Button variant="ghost" size="sm">
-              Settings
-            </Button>
-          </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              await signOut();
-              await nav({ to: "/login" });
-            }}
-          >
-            Sign out
-          </Button>
-        </>
-      }
-    >
+    <AppShell actions={<AccountForm defaultCurrency={base || undefined} />}>
       <div className="mb-4">
         <NetWorthToggle value={owner} onChange={setOwner} />
       </div>
