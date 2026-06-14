@@ -96,7 +96,7 @@ export function GoalDetailPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+          <div className="grid gap-4 md:grid-cols-[220px_1fr]">
             <section className="rounded-2xl border border-border bg-card p-4">
               <GoalDonut
                 sources={p.sources}
@@ -112,37 +112,6 @@ export function GoalDetailPage() {
                   <dd>{p.requiredMonthlyMinor > 0 ? `${formatMoney(p.requiredMonthlyMinor, base)}/mo` : "—"}</dd>
                 </div>
               </dl>
-
-              {/* Funding-source breakdown, swatches matching the donut slices. */}
-              <div className="mt-4 border-t border-border/70 pt-3">
-                <Eyebrow className="mb-2">Sources</Eyebrow>
-                {p.sources.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No accounts fund this goal yet.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {p.sources.map((s, i) => (
-                      <div key={s.accountId} className="flex items-center gap-2 text-sm">
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: sourceColor(i) }} />
-                        <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                        <span className="tabular-nums">{formatMoney(s.allocatedMinor, base)}</span>
-                        <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">
-                          {p.targetMinor > 0 ? Math.round((s.allocatedMinor * 100) / p.targetMinor) : 0}%
-                        </span>
-                      </div>
-                    ))}
-                    {p.targetMinor > p.allocatedMinor && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: UNFUNDED_COLOR }} />
-                        <span className="min-w-0 flex-1 truncate">Unfunded</span>
-                        <span className="tabular-nums">{formatMoney(p.targetMinor - p.allocatedMinor, base)}</span>
-                        <span className="w-9 shrink-0 text-right tabular-nums">
-                          {p.targetMinor > 0 ? Math.round(((p.targetMinor - p.allocatedMinor) * 100) / p.targetMinor) : 0}%
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
             </section>
 
             <section className="rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5">
@@ -155,6 +124,56 @@ export function GoalDetailPage() {
               />
             </section>
           </div>
+
+          {/* Funding-source breakdown — full width below both cards. Swatches +
+              proportion bars match the donut slice colors. */}
+          <section className="mt-4 rounded-2xl border border-border bg-card p-4 md:p-6">
+            <Eyebrow className="mb-4">Funding sources</Eyebrow>
+            {p.sources.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No accounts fund this goal yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {p.sources.map((s, i) => {
+                  const pct = p.targetMinor > 0 ? Math.round((s.allocatedMinor * 100) / p.targetMinor) : 0;
+                  return (
+                    <div key={s.accountId} className="space-y-1.5">
+                      <div className="flex items-baseline gap-3">
+                        <span className="h-3 w-3 shrink-0 self-center rounded-full" style={{ background: sourceColor(i) }} />
+                        <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
+                        <span className="tabular-nums">{formatMoney(s.allocatedMinor, base)}</span>
+                        <span className="w-12 shrink-0 text-right text-sm tabular-nums text-muted-foreground">{pct}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: sourceColor(i) }} />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {p.targetMinor > p.allocatedMinor && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline gap-3 text-muted-foreground">
+                      <span className="h-3 w-3 shrink-0 self-center rounded-full" style={{ background: UNFUNDED_COLOR }} />
+                      <span className="min-w-0 flex-1 truncate font-medium">Unfunded</span>
+                      <span className="tabular-nums">{formatMoney(p.targetMinor - p.allocatedMinor, base)}</span>
+                      <span className="w-12 shrink-0 text-right text-sm tabular-nums">
+                        {p.targetMinor > 0 ? Math.round(((p.targetMinor - p.allocatedMinor) * 100) / p.targetMinor) : 0}%
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${p.targetMinor > 0 ? Math.min(100, Math.round(((p.targetMinor - p.allocatedMinor) * 100) / p.targetMinor)) : 0}%`,
+                          background: UNFUNDED_COLOR,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
         </>
       )}
     </AppShell>
