@@ -23,9 +23,12 @@ import { AppBreadcrumb } from "@/components/app-breadcrumb";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
 
+// Pathless layout route: renders the sidebar shell once around every
+// authenticated route. Its id ("app") prefixes child route ids — hence
+// useParams reads from "/app/accounts/$id".
 const appLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
-  id: "app-shell",
+  id: "app",
   beforeLoad: requireInitializedAndAuthed,
   component: () => (
     <TooltipProvider>

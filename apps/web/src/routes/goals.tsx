@@ -142,16 +142,7 @@ export function GoalsPage() {
   });
 
   return (
-    <AppShell
-      actions={
-        <>
-          <GoalForm defaultCurrency={base || undefined} />
-          <Link to="/">
-            <Button variant="ghost" size="sm">← Back</Button>
-          </Link>
-        </>
-      }
-    >
+    <AppShell actions={<GoalForm defaultCurrency={base || undefined} />}>
       <div className="mb-6 flex items-baseline justify-between">
         <h1 className="font-heading text-3xl tracking-tight">Goals</h1>
         {analysisQ.data && analysisQ.data.unallocatedMinor !== 0 && (

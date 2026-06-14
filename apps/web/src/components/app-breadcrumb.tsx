@@ -9,12 +9,15 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
-type Crumb = { label: string; to?: "/" };
+type Crumb = { label: string; to?: "/" | "/goals" };
 
 function crumbsFor(pathname: string): Crumb[] {
   if (pathname === "/") return [{ label: "Dashboard" }];
   if (pathname.startsWith("/projections")) return [{ label: "Projections" }];
   if (pathname.startsWith("/settings")) return [{ label: "Settings" }];
+  if (pathname.startsWith("/goals/"))
+    return [{ label: "Goals", to: "/goals" }, { label: "Goal" }];
+  if (pathname.startsWith("/goals")) return [{ label: "Goals" }];
   if (pathname.startsWith("/accounts/"))
     return [{ label: "Dashboard", to: "/" }, { label: "Account" }];
   return [{ label: "uang." }];
