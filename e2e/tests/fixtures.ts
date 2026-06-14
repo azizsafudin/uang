@@ -1,7 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { rmSync } from "node:fs";
 import path from "node:path";
 
 // Repo root = two levels up from e2e/tests/.
@@ -29,8 +28,6 @@ export class Backend {
   webURL: string;
   private web?: ChildProcess;
   private api?: ChildProcess;
-  private dbFiles: string[] = [];
-  private seq = 0;
 
   constructor(workerIndex: number) {
     this.apiPort = 3100 + portOffset + workerIndex;
@@ -52,20 +49,20 @@ export class Backend {
     await waitFor(async () => (await fetch(this.webURL)).ok, 60_000, "web dev server");
   }
 
-  // Restart the API on a brand-new ephemeral DB file. Each test calls this for a clean slate.
+  // Restart the API on a brand-new in-memory DB. Each test calls this for a clean slate:
+  // killing the process discards the `:memory:` database, and the new process migrates
+  // a fresh one on boot. Nothing touches disk, so there are no files to track or clean up.
   async freshDb() {
     if (this.api) {
       this.api.kill("SIGKILL");
       this.api = undefined;
       await new Promise((r) => setTimeout(r, 200));
     }
-    const db = path.join("/tmp", `uang-e2e-${this.apiPort}-${this.seq++}.db`);
-    this.dbFiles.push(db);
     this.api = spawn("bun", ["apps/api/src/index.ts"], {
       cwd: repoRoot,
       env: {
         ...process.env,
-        DATABASE_URL: `file:${db}`,
+        DATABASE_URL: ":memory:",
         PORT: String(this.apiPort),
         BETTER_AUTH_SECRET: TEST_SECRET,
         WEB_ORIGIN: this.webURL,
@@ -79,15 +76,6 @@ export class Backend {
   dispose() {
     this.api?.kill("SIGKILL");
     this.web?.kill("SIGKILL");
-    for (const f of this.dbFiles) {
-      for (const suffix of ["", "-wal", "-shm"]) {
-        try {
-          rmSync(f + suffix, { force: true });
-        } catch {
-          /* best effort */
-        }
-      }
-    }
   }
 }
 

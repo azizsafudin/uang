@@ -6,7 +6,10 @@ export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : 2,
+  // Default to 1 worker: each worker boots its own web+API stack, so a single worker
+  // reuses one warm web server across specs (one Vite cold-compile total, no boot
+  // contention). Override with E2E_WORKERS=N for parallelism if your machine allows.
+  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : 1,
   // Each worker boots a real web+API stack; the FIRST navigation pays a one-time Vite
   // cold-compile (~15-20s). Generous nav/action timeouts let that land on the first
   // attempt; one retry is a backstop for genuine boot contention.
