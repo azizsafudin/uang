@@ -3,7 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { createApp } from "../app";
 import { runMigrations } from "../db/migrate";
 import { db } from "../db/client";
-import { settings, user, accounts, entries, fxRates } from "../db/schema";
+import { settings, user, accounts, accountOwners, entries, fxRates } from "../db/schema";
 import { auth } from "../auth";
 import { onboarding } from "../routes/onboarding";
 import { isInitialized } from "./settings";
@@ -11,6 +11,7 @@ import { isInitialized } from "./settings";
 // Reset all app + settings tables (NOT better-auth tables unless asked) for a clean test.
 export async function resetDb() {
   await runMigrations();
+  await db.delete(accountOwners);
   await db.delete(entries);
   await db.delete(accounts);
   await db.delete(fxRates);
