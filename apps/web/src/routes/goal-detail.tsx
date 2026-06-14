@@ -29,6 +29,7 @@ type ProjectionResponse = {
   onTrack: boolean;
   reachDate: string | null;
   spendType: "none" | "once" | "monthly" | "percent";
+  spendAmountMinor: number | null;
   annualIncomeMinor: number | null;
   sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
   series: GoalProjectionPoint[];
@@ -50,7 +51,7 @@ export function GoalDetailPage() {
   const row = rows.find((g) => g.id === id);
 
   const projQ = useQuery({
-    queryKey: ["goals", "projection", id, row?.targetAmountMinor, row?.targetDate, row?.monthlyContributionMinor],
+    queryKey: ["goals", "projection", id, row?.targetAmountMinor, row?.targetDate, row?.monthlyContributionMinor, row?.spendType, row?.spendAmountMinor, row?.spendRateBps],
     queryFn: () => fetchProjection(id),
   });
   const p = projQ.data;
@@ -154,7 +155,7 @@ export function GoalDetailPage() {
                       </span>
                       <span>
                         {p.spendType === "once"
-                          ? `${formatMoney(p.targetMinor, base)} once${p.goal.targetDate ? ` · ${formatDate(p.goal.targetDate)}` : ""}`
+                          ? `${formatMoney(p.spendAmountMinor ?? p.targetMinor, base)} once${p.goal.targetDate ? ` · ${formatDate(p.goal.targetDate)}` : ""}`
                           : p.annualIncomeMinor !== null
                             ? `≈ ${formatMoney(p.annualIncomeMinor, base)}/yr`
                             : "—"}

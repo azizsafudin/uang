@@ -128,7 +128,7 @@ export function GoalsPage() {
   // Refetch the analysis whenever any goal's funding-relevant fields change (not
   // just the count), so editing a target amount/date updates progress + on-track.
   const goalsSignature = rows
-    .map((g) => `${g.id}:${g.targetAmountMinor}:${g.targetDate}:${g.ownerScope}:${g.monthlyContributionMinor}`)
+    .map((g) => `${g.id}:${g.targetAmountMinor}:${g.targetDate}:${g.ownerScope}:${g.monthlyContributionMinor}:${g.spendType}:${g.spendAmountMinor}:${g.spendRateBps}`)
     .sort()
     .join("|");
   const analysisQ = useQuery({ queryKey: ["goals", "analysis", goalsSignature], queryFn: fetchAnalysis });

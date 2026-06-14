@@ -87,6 +87,10 @@ function annualIncomeMinorFor(
 ): number | null {
   if (spendType === "monthly") return (spendAmountMinor ?? 0) * 12;
   if (spendType === "percent" && balanceAtTargetMinor !== null) {
+    // Approximate annual income = rate% of the balance at the target date. For a
+    // dated percent goal the sim already takes the first withdrawal in the target
+    // month, so this reads the post-first-withdrawal balance — a slight understate,
+    // adequate for the "≈ …/yr" display label.
     return fromBig(roundDiv(toBig(balanceAtTargetMinor) * toBig(spendRateBps ?? 0), 10_000n));
   }
   return null;
@@ -248,6 +252,7 @@ export type GoalProjectionResult = {
   onTrack: boolean;
   reachDate: string | null; // YYYY-MM-DD the plan first reaches target (null = not within ~100y)
   spendType: SpendType;
+  spendAmountMinor: number | null;   // 'once' lump / 'monthly' flat (for display); null otherwise
   annualIncomeMinor: number | null;
   sources: GoalSource[];
   series: GoalProjectionPoint[];
@@ -368,6 +373,7 @@ export async function goalProjection(
     onTrack,
     reachDate: reachMonths === null ? null : addMonthsISO(todayISO, reachMonths),
     spendType: goal.spendType,
+    spendAmountMinor: goal.spendAmountMinor,
     annualIncomeMinor: annualIncomeMinorFor(goal.spendType, goal.spendAmountMinor, goal.spendRateBps, balanceAtTarget),
     sources,
     series,
