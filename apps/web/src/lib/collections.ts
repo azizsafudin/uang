@@ -7,76 +7,38 @@ import { queryCollectionOptions } from "@tanstack/query-db-collection";
 import { queryClient } from "./query";
 import { api } from "./api";
 
+// Client-generated row id. TanStack DB requires every optimistic insert to
+// yield a defined key via getKey (it throws UndefinedKeyError otherwise). We
+// send this id to the server, which persists it as-is, so the optimistic row's
+// key equals the final server key — no temp→real key swap on refetch. Matches
+// the server's randomUUID() id format.
+export const newId = (): string => crypto.randomUUID();
+
 // ---------------------------------------------------------------------------
-// Types
+// Types — inferred from the API (Eden/Elysia) GET responses. The server schema
+// is the single source of truth; do not hand-maintain these row shapes.
 // ---------------------------------------------------------------------------
 
-export type AccountRow = {
-  id: string;
-  name: string;
-  class: string;
-  subtype: string;
-  currency: string;
-  institution: string | null;
-  isArchived: number;
-  sortOrder: number;
-  valuationMode: string;
-  balanceMinor: number;
-  createdAt: number;
-  createdBy: string;
-  ownerIds: string[];
-};
+// Element type of a GET endpoint's `data` array. Eden folds the auth guard's
+// `{ error }` 401 body into `data`, so we Extract the array branch before indexing.
+type RowOf<G extends (...args: never[]) => Promise<{ data: unknown }>> =
+  Extract<NonNullable<Awaited<ReturnType<G>>["data"]>, readonly unknown[]>[number];
 
-export type FxRow = {
-  id: string;
-  currency: string;
-  date: string;
-  rateScaled: number;
-  createdAt: number;
-};
+// Sub-routes hanging off the parameterised /accounts/:id and /instruments/:id calls.
+type AccountApi = ReturnType<typeof api.accounts>;
+type InstrumentApi = ReturnType<typeof api.instruments>;
 
-export type EntryRow = {
-  id: string;
-  accountId: string;
-  date: string;
-  amountMinor: number;
-  kind: string;
-  note: string | null;
-  createdAt: number;
-  createdBy: string;
+export type AccountRow = RowOf<typeof api.accounts.get> & {
+  // Insert-only hints consumed by POST /accounts (it creates an opening entry);
+  // never returned by GET.
+  openingBalanceMinor?: number;
+  openingDate?: string;
 };
-
-export type InstrumentRow = {
-  id: string;
-  symbol: string | null;
-  isin: string | null;
-  name: string;
-  kind: string;
-  currency: string;
-  createdAt: number;
-};
-
-export type LotRow = {
-  id: string;
-  accountId: string;
-  instrumentId: string;
-  unitsScaled: number;
-  unitCostScaled: number;
-  feesMinor: number;
-  tradeDate: string;
-  note: string | null;
-  createdAt: number;
-  createdBy: string;
-};
-
-export type PriceRow = {
-  id: string;
-  instrumentId: string;
-  date: string;
-  priceScaled: number;
-  source: string;
-  createdAt: number;
-};
+export type FxRow = RowOf<typeof api.fx.get>;
+export type InstrumentRow = RowOf<typeof api.instruments.get>;
+export type EntryRow = RowOf<AccountApi["entries"]["get"]>;
+export type LotRow = RowOf<AccountApi["lots"]["get"]>;
+export type PriceRow = RowOf<InstrumentApi["prices"]["get"]>;
 
 // ---------------------------------------------------------------------------
 // accountsCollection
@@ -88,20 +50,39 @@ export const accountsCollection = createCollection(
     queryFn: async (): Promise<Array<AccountRow>> => {
       const { data, error } = await api.accounts.get();
       if (error) throw new Error(String(error));
-      return (data as unknown as AccountRow[]) ?? [];
+      return Array.isArray(data) ? data : [];
     },
     queryClient,
     getKey: (a) => a.id,
     onInsert: async ({ transaction }) => {
       const m = transaction.mutations[0]?.modified as AccountRow | undefined;
       if (!m) return;
-      const { id: _id, balanceMinor: _bal, createdAt: _ca, createdBy: _cb, ...body } = m;
-      await api.accounts.post(body as any);
+      // Send the client-generated id; server fills balanceMinor/createdAt/createdBy.
+      const { error } = await api.accounts.post({
+        id: m.id,
+        name: m.name,
+        class: m.class,
+        subtype: m.subtype,
+        currency: m.currency,
+        valuationMode: m.valuationMode,
+        institution: m.institution ?? undefined,
+        sortOrder: m.sortOrder,
+        ownerIds: m.ownerIds,
+        openingBalanceMinor: m.openingBalanceMinor,
+        openingDate: m.openingDate,
+      });
+      if (error) throw new Error(String(error));
     },
     onUpdate: async ({ transaction }) => {
       const m = transaction.mutations[0]?.modified as AccountRow | undefined;
       if (!m) return;
-      await api.accounts({ id: m.id }).patch(m as any);
+      const { error } = await api.accounts({ id: m.id }).patch({
+        name: m.name,
+        institution: m.institution ?? undefined,
+        sortOrder: m.sortOrder,
+        isArchived: m.isArchived === 1,
+      });
+      if (error) throw new Error(String(error));
     },
   })
 );
@@ -116,14 +97,20 @@ export const fxCollection = createCollection(
     queryFn: async (): Promise<Array<FxRow>> => {
       const { data, error } = await api.fx.get();
       if (error) throw new Error(String(error));
-      return (data as unknown as FxRow[]) ?? [];
+      return Array.isArray(data) ? data : [];
     },
     queryClient,
     getKey: (r) => r.id,
     onInsert: async ({ transaction }) => {
       const m = transaction.mutations[0]?.modified as FxRow | undefined;
       if (!m) return;
-      await api.fx.post(m as any);
+      const { error } = await api.fx.post({
+        id: m.id,
+        currency: m.currency,
+        date: m.date,
+        rateScaled: m.rateScaled,
+      });
+      if (error) throw new Error(String(error));
     },
     onDelete: async ({ transaction }) => {
       const id = (transaction.mutations[0]?.original as FxRow | undefined)?.id;
@@ -143,15 +130,21 @@ export const instrumentsCollection = createCollection(
     queryFn: async (): Promise<Array<InstrumentRow>> => {
       const { data, error } = await api.instruments.get();
       if (error) throw new Error(String(error));
-      return (data as unknown as InstrumentRow[]) ?? [];
+      return Array.isArray(data) ? data : [];
     },
     queryClient,
     getKey: (i) => i.id,
     onInsert: async ({ transaction }) => {
       const m = transaction.mutations[0]?.modified as InstrumentRow | undefined;
       if (!m) return;
-      const { id: _id, createdAt: _ca, ...body } = m;
-      await api.instruments.post(body as any);
+      const { error } = await api.instruments.post({
+        name: m.name,
+        kind: m.kind,
+        currency: m.currency,
+        symbol: m.symbol ?? undefined,
+        isin: m.isin ?? undefined,
+      });
+      if (error) throw new Error(String(error));
     },
   })
 );
@@ -170,7 +163,7 @@ function _makeEntriesCollection(accountId: string) {
       queryFn: async (): Promise<Array<EntryRow>> => {
         const { data, error } = await api.accounts({ id: accountId }).entries.get();
         if (error) throw new Error(String(error));
-        return (data as unknown as EntryRow[]) ?? [];
+        return Array.isArray(data) ? data : [];
       },
       queryClient,
       getKey: (e) => e.id,
@@ -204,20 +197,37 @@ function _makeLotsCollection(accountId: string) {
       queryFn: async (): Promise<Array<LotRow>> => {
         const { data, error } = await api.accounts({ id: accountId }).lots.get();
         if (error) throw new Error(String(error));
-        return (data as unknown as LotRow[]) ?? [];
+        return Array.isArray(data) ? data : [];
       },
       queryClient,
       getKey: (l) => l.id,
       onInsert: async ({ transaction }) => {
         const m = transaction.mutations[0]?.modified as LotRow | undefined;
         if (!m) return;
-        const { id: _id, accountId: _aid, createdAt: _ca, createdBy: _cb, ...body } = m;
-        await api.accounts({ id: accountId }).lots.post(body as any);
+        // Send the client-generated id; accountId is in the URL, createdAt/createdBy are server-set.
+        const { error } = await api.accounts({ id: accountId }).lots.post({
+          id: m.id,
+          instrumentId: m.instrumentId,
+          unitsScaled: m.unitsScaled,
+          unitCostScaled: m.unitCostScaled,
+          feesMinor: m.feesMinor,
+          tradeDate: m.tradeDate,
+          note: m.note ?? undefined,
+        });
+        if (error) throw new Error(String(error));
       },
       onUpdate: async ({ transaction }) => {
         const m = transaction.mutations[0]?.modified as LotRow | undefined;
         if (!m) return;
-        await api.lots({ id: m.id }).patch(m as any);
+        const { error } = await api.lots({ id: m.id }).patch({
+          instrumentId: m.instrumentId,
+          unitsScaled: m.unitsScaled,
+          unitCostScaled: m.unitCostScaled,
+          feesMinor: m.feesMinor,
+          tradeDate: m.tradeDate,
+          note: m.note ?? undefined,
+        });
+        if (error) throw new Error(String(error));
       },
       onDelete: async ({ transaction }) => {
         const id = (transaction.mutations[0]?.original as LotRow | undefined)?.id;
@@ -247,14 +257,15 @@ function _makePricesCollection(instrumentId: string) {
       queryFn: async (): Promise<Array<PriceRow>> => {
         const { data, error } = await api.instruments({ id: instrumentId }).prices.get();
         if (error) throw new Error(String(error));
-        return (data as unknown as PriceRow[]) ?? [];
+        return Array.isArray(data) ? data : [];
       },
       queryClient,
       getKey: (p) => p.id,
       onInsert: async ({ transaction }) => {
         const m = transaction.mutations[0]?.modified as PriceRow | undefined;
         if (!m) return;
-        await api.instruments({ id: instrumentId }).prices.post({ date: m.date, priceScaled: m.priceScaled } as any);
+        const { error } = await api.instruments({ id: instrumentId }).prices.post({ id: m.id, date: m.date, priceScaled: m.priceScaled });
+        if (error) throw new Error(String(error));
       },
       onDelete: async ({ transaction }) => {
         const id = (transaction.mutations[0]?.original as PriceRow | undefined)?.id;

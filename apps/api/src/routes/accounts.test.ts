@@ -43,6 +43,39 @@ test("create then list accounts, with optional opening balance", async () => {
   expect(body[0].balanceMinor).toBe(100000); // opening entry applied
 });
 
+test("persists a client-supplied id, and rejects a duplicate with 409", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+
+  const body = JSON.stringify({
+    id: "client-chosen-id-1",
+    name: "Savings",
+    class: "asset",
+    subtype: "bank",
+    currency: "USD",
+  });
+  const post = (b: string) =>
+    app.handle(
+      new Request("http://localhost/accounts", {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie },
+        body: b,
+      }),
+    );
+
+  const first = await post(body);
+  expect(first.status).toBe(200);
+  expect((await first.json()).id).toBe("client-chosen-id-1");
+
+  const list = await app.handle(new Request("http://localhost/accounts", { headers: { cookie } }));
+  expect((await list.json())[0].id).toBe("client-chosen-id-1");
+
+  // Same id again → conflict, not a 500 and not an overwrite.
+  const dup = await post(body);
+  expect(dup.status).toBe(409);
+  expect((await dup.json()).error).toBe("duplicate_id");
+});
+
 test("accepts holdings valuation mode", async () => {
   const app = makeApp(accountsRoutes);
   const { cookie } = await initAndLogin({ app });

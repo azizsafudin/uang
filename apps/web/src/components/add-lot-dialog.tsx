@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
 import { SCALE, currencyDecimals } from "@uang/shared";
-import { instrumentsCollection, lotsCollection } from "@/lib/collections";
+import { instrumentsCollection, lotsCollection, newId, type InstrumentRow } from "@/lib/collections";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,12 +43,12 @@ export function AddLotDialog({ accountId }: { accountId: string }) {
     if (instrumentId === NEW) {
       const { data, error } = await api.instruments.post({
         name: ni.name,
-        kind: ni.kind as any,
+        kind: ni.kind as InstrumentRow["kind"],
         currency: ni.currency.toUpperCase(),
         symbol: ni.symbol || undefined,
       });
-      if (error) throw new Error(String(error));
-      id = (data as any).id;
+      if (error || !data || !("id" in data)) throw new Error(String(error ?? "instrument create failed"));
+      id = data.id;
       await instrumentsCollection.utils.refetch();
     }
     const units = parseFloat(f.units);
@@ -56,13 +56,17 @@ export function AddLotDialog({ accountId }: { accountId: string }) {
     const fees = parseFloat(f.fees);
     const dec = currencyDecimals(selectedCurrency.toUpperCase());
     await lotsCollection(accountId).insert({
+      id: newId(),
+      accountId,
       instrumentId: id,
       unitsScaled: Math.round(units * Number(SCALE)),
       unitCostScaled: Math.round(unitCost * Number(SCALE)),
       feesMinor: Number.isNaN(fees) ? 0 : Math.round(fees * 10 ** dec),
       tradeDate: f.tradeDate,
       note: f.note || null,
-    } as any);
+      createdAt: Math.floor(Date.now() / 1000),
+      createdBy: "",
+    });
     await qc.invalidateQueries({ queryKey: ["holdings", accountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
     setOpen(false);

@@ -10,10 +10,10 @@ export const settings = sqliteTable("settings", {
 export const accounts = sqliteTable("accounts", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  class: text("class").notNull(), // 'asset' | 'liability'
+  class: text("class").$type<"asset" | "liability">().notNull(),
   subtype: text("subtype").notNull(),
   currency: text("currency").notNull(),
-  valuationMode: text("valuation_mode").notNull(), // 'ledger' | 'holdings'
+  valuationMode: text("valuation_mode").$type<"ledger" | "holdings">().notNull(),
   institution: text("institution"),
   isArchived: integer("is_archived").notNull().default(0),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -37,7 +37,7 @@ export const instruments = sqliteTable("instruments", {
   symbol: text("symbol"),
   isin: text("isin"),
   name: text("name").notNull(),
-  kind: text("kind").notNull(), // 'stock'|'etf'|'fund'|'other'
+  kind: text("kind").$type<"stock" | "etf" | "fund" | "other">().notNull(),
   currency: text("currency").notNull(),
   createdAt: integer("created_at").notNull(),
 });

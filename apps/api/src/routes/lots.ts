@@ -4,6 +4,7 @@ import { lots, instruments, settings } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
+import { isUniqueViolation } from "../lib/db-errors";
 import { holdingsAccountValuation } from "../lib/holdings";
 
 export const lotsRoutes = new Elysia()
@@ -19,23 +20,32 @@ export const lotsRoutes = new Elysia()
         set.status = 422;
         return { error: "unknown_instrument" };
       }
-      const id = createId();
-      await db.insert(lots).values({
-        id,
-        accountId: params.id,
-        instrumentId: body.instrumentId,
-        unitsScaled: body.unitsScaled,
-        unitCostScaled: body.unitCostScaled,
-        feesMinor: body.feesMinor ?? 0,
-        tradeDate: body.tradeDate,
-        note: body.note ?? null,
-        createdAt: nowEpoch(),
-        createdBy: userId!,
-      });
+      const id = body.id ?? createId();
+      try {
+        await db.insert(lots).values({
+          id,
+          accountId: params.id,
+          instrumentId: body.instrumentId,
+          unitsScaled: body.unitsScaled,
+          unitCostScaled: body.unitCostScaled,
+          feesMinor: body.feesMinor ?? 0,
+          tradeDate: body.tradeDate,
+          note: body.note ?? null,
+          createdAt: nowEpoch(),
+          createdBy: userId!,
+        });
+      } catch (e) {
+        if (isUniqueViolation(e)) {
+          set.status = 409;
+          return { error: "duplicate_id" };
+        }
+        throw e;
+      }
       return { id };
     },
     {
       body: t.Object({
+        id: t.Optional(t.String()),
         instrumentId: t.String(),
         unitsScaled: t.Number(),
         unitCostScaled: t.Number(),

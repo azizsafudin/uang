@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { SCALE } from "@uang/shared";
-import { pricesCollection } from "@/lib/collections";
+import { pricesCollection, newId } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,9 +34,13 @@ export function UpdatePrice({
     const p = parseFloat(price);
     if (Number.isNaN(p)) return;
     await pricesCollection(instrumentId).insert({
+      id: newId(),
+      instrumentId,
       date,
       priceScaled: Math.round(p * Number(SCALE)),
-    } as any);
+      source: "manual",
+      createdAt: Math.floor(Date.now() / 1000),
+    });
     await qc.invalidateQueries({ queryKey: ["holdings", accountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
     setOpen(false);

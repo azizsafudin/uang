@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { currencyDecimals } from "@uang/shared";
 import { SUBTYPES, subtypeLabel, classLabel } from "@/components/labels";
-import { accountsCollection } from "@/lib/collections";
+import { accountsCollection, newId, type AccountRow } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,20 +46,29 @@ export function AccountForm() {
     e.preventDefault();
     const openingMajor = parseFloat(f.openingBalance);
     const currency = f.currency.toUpperCase();
-    const body: Record<string, unknown> = {
+    // A complete optimistic row; the server fills balanceMinor/createdAt/createdBy
+    // and reconciles by id on refetch.
+    const row: AccountRow = {
+      id: newId(),
       name: f.name,
-      class: f.class,
+      class: f.class as AccountRow["class"],
       subtype: f.subtype,
       currency,
-      valuationMode: f.valuationMode,
+      valuationMode: f.valuationMode as AccountRow["valuationMode"],
+      institution: null,
+      isArchived: 0,
+      sortOrder: 0,
+      balanceMinor: 0,
+      createdAt: Math.floor(Date.now() / 1000),
+      createdBy: meId ?? "",
       ownerIds: owners.length > 0 ? owners : meId ? [meId] : [],
     };
     if (f.valuationMode === "ledger" && !Number.isNaN(openingMajor) && openingMajor !== 0) {
       const dec = currencyDecimals(currency);
-      body.openingBalanceMinor = Math.round(openingMajor * 10 ** dec);
-      body.openingDate = f.openingDate;
+      row.openingBalanceMinor = Math.round(openingMajor * 10 ** dec);
+      row.openingDate = f.openingDate;
     }
-    await accountsCollection.insert(body as any);
+    await accountsCollection.insert(row);
     await qc.invalidateQueries({ queryKey: ["networth"] });
     setOpen(false);
     setF((prev) => ({ ...prev, name: "", openingBalance: "" }));

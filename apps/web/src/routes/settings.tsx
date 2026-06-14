@@ -4,21 +4,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { SCALE } from "@uang/shared";
 import { api } from "@/lib/api";
-import { fxCollection } from "@/lib/collections";
+import { fxCollection, newId } from "@/lib/collections";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-
-type FxRate = {
-  id: string;
-  currency: string;
-  date: string;
-  rateScaled: number;
-  createdAt: number;
-};
 
 type User = { id: string; email: string; name: string; isAdmin: boolean };
 
@@ -70,10 +62,12 @@ export function SettingsPage() {
     const rate = parseFloat(fx.rate);
     if (Number.isNaN(rate)) return;
     await fxCollection.insert({
+      id: newId(),
       currency: fx.currency.toUpperCase(),
       date: fx.date,
       rateScaled: Math.round(rate * Number(SCALE)),
-    } as FxRate);
+      createdAt: Math.floor(Date.now() / 1000),
+    });
     setFx((prev) => ({ ...prev, currency: "", rate: "" }));
   }
 

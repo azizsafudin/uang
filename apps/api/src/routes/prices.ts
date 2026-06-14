@@ -4,6 +4,7 @@ import { prices } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
+import { isUniqueViolation } from "../lib/db-errors";
 
 export const pricesRoutes = new Elysia()
   .use(authGuard)
@@ -12,26 +13,35 @@ export const pricesRoutes = new Elysia()
   )
   .post(
     "/instruments/:id/prices",
-    async ({ params, body }: any) => {
-      const id = createId();
-      await db
-        .insert(prices)
-        .values({
-          id,
-          instrumentId: params.id,
-          date: body.date,
-          priceScaled: body.priceScaled,
-          source: "manual",
-          createdAt: nowEpoch(),
-        })
-        .onConflictDoUpdate({
-          target: [prices.instrumentId, prices.date],
-          set: { priceScaled: body.priceScaled },
-        });
+    async ({ params, body, set }: any) => {
+      const id = body.id ?? createId();
+      try {
+        await db
+          .insert(prices)
+          .values({
+            id,
+            instrumentId: params.id,
+            date: body.date,
+            priceScaled: body.priceScaled,
+            source: "manual",
+            createdAt: nowEpoch(),
+          })
+          .onConflictDoUpdate({
+            target: [prices.instrumentId, prices.date],
+            set: { priceScaled: body.priceScaled },
+          });
+      } catch (e) {
+        if (isUniqueViolation(e)) {
+          set.status = 409;
+          return { error: "duplicate_id" };
+        }
+        throw e;
+      }
       return { ok: true };
     },
     {
       body: t.Object({
+        id: t.Optional(t.String()),
         date: t.String(),
         priceScaled: t.Number(),
       }),

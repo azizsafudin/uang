@@ -4,6 +4,7 @@ import { accounts, entries } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
+import { isUniqueViolation } from "../lib/db-errors";
 import { accountBalanceMinor } from "../lib/valuation";
 import { getAllOwnerSets, setOwners, allUsersExist } from "../lib/owners";
 
@@ -31,20 +32,28 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         return { error: "invalid_owner_ids" };
       }
 
-      const id = createId();
-      await db.insert(accounts).values({
-        id,
-        name: body.name,
-        class: body.class,
-        subtype: body.subtype,
-        currency: body.currency.toUpperCase(),
-        valuationMode: body.valuationMode === "holdings" ? "holdings" : "ledger",
-        institution: body.institution ?? null,
-        isArchived: 0,
-        sortOrder: body.sortOrder ?? 0,
-        createdAt: nowEpoch(),
-        createdBy: userId!,
-      });
+      const id = body.id ?? createId();
+      try {
+        await db.insert(accounts).values({
+          id,
+          name: body.name,
+          class: body.class,
+          subtype: body.subtype,
+          currency: body.currency.toUpperCase(),
+          valuationMode: body.valuationMode === "holdings" ? "holdings" : "ledger",
+          institution: body.institution ?? null,
+          isArchived: 0,
+          sortOrder: body.sortOrder ?? 0,
+          createdAt: nowEpoch(),
+          createdBy: userId!,
+        });
+      } catch (e) {
+        if (isUniqueViolation(e)) {
+          set.status = 409;
+          return { error: "duplicate_id" };
+        }
+        throw e;
+      }
       await setOwners(id, ownerIds);
       // Holdings accounts derive value from lots, never an opening ledger entry.
       if (body.valuationMode !== "holdings" && typeof body.openingBalanceMinor === "number" && body.openingBalanceMinor !== 0) {
@@ -63,6 +72,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
     },
     {
       body: t.Object({
+        id: t.Optional(t.String()),
         name: t.String({ minLength: 1 }),
         class: t.Union([t.Literal("asset"), t.Literal("liability")]),
         subtype: t.String({ minLength: 1 }),

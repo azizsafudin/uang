@@ -17,7 +17,7 @@ async function addUser(id: string) {
   await db.insert(user).values({
     id, name: `U${id}`, email: `${id}@t.com`, emailVerified: true,
     createdAt: new Date(), updatedAt: new Date(),
-  } as any);
+  });
 }
 
 async function addAccount(createdBy: string) {
