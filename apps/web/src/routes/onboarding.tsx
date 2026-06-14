@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/lib/api";
+import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,9 @@ export function OnboardingPage() {
     setError(null);
     const { error } = await api.onboarding.init.post(form);
     if (error) { setError("Could not initialize. Is it already set up?"); return; }
-    await nav({ to: "/login" });
+    // Sign in with the credentials just provided, then go straight to the dashboard.
+    const signedIn = await signIn.email({ email: form.email, password: form.password });
+    await nav({ to: signedIn.error ? "/login" : "/" });
   }
 
   return (
