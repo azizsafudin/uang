@@ -1,7 +1,7 @@
-import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
-// One consistent column width + chrome for every signed-in page.
+// Content column for every signed-in page. The sidebar + chrome live in the
+// layout route; this just sets the width and an optional page-header actions row.
 export function AppShell({
   actions,
   children,
@@ -10,21 +10,11 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/70">
-        <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between px-5 md:px-6">
-          <Link
-            to="/"
-            className="font-heading text-xl leading-none tracking-tight text-foreground"
-          >
-            uang<span className="text-gold">.</span>
-          </Link>
-          <div className="flex items-center gap-1.5">{actions}</div>
-        </div>
-      </header>
-      <main className="mx-auto w-full max-w-3xl px-5 py-8 md:px-6 md:py-10">
-        {children}
-      </main>
+    <div className="mx-auto w-full max-w-5xl px-5 py-8 md:px-6 md:py-10">
+      {actions ? (
+        <div className="mb-6 flex items-center justify-end gap-1.5">{actions}</div>
+      ) : null}
+      {children}
     </div>
   );
 }
