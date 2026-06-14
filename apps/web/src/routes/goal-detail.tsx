@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { goalsCollection } from "@/lib/collections";
 import { formatMoney } from "@/components/money";
@@ -58,13 +58,7 @@ export function GoalDetailPage() {
   const base = p?.baseCurrency ?? "";
 
   return (
-    <AppShell
-      actions={
-        <Link to="/goals">
-          <Button variant="ghost" size="sm">← Goals</Button>
-        </Link>
-      }
-    >
+    <AppShell>
       {!p ? (
         <div className="h-[420px] animate-pulse rounded-2xl bg-muted/40" />
       ) : (
