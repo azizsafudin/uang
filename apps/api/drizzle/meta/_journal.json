@@ -22,6 +22,13 @@
       "when": 1781426267961,
       "tag": "0002_young_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1781438129996,
+      "tag": "0003_mushy_radioactive_man",
+      "breakpoints": true
     }
   ]
 }

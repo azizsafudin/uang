@@ -4,6 +4,9 @@ export const settings = sqliteTable("settings", {
   id: integer("id").primaryKey(), // always 1
   householdName: text("household_name").notNull(),
   baseCurrency: text("base_currency").notNull(),
+  // Projection assumptions (slice 2). Both editable in Settings.
+  contributionGrowthRateBps: integer("contribution_growth_rate_bps").notNull().default(800),
+  projectionEndAge: integer("projection_end_age").notNull().default(90),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -93,6 +96,23 @@ export const accountOwners = sqliteTable("account_owners", {
 export const memberProfiles = sqliteTable("member_profiles", {
   userId: text("user_id").primaryKey(), // FK -> user.id
   birthYear: integer("birth_year"),
+});
+
+// Financial goals. term drives grouping/sort; eligibility derives from targetDate.
+// ownerScope is 'household' or a userId. anchorDate is the optional on-track
+// baseline (null => anchor at createdAt).
+export const goals = sqliteTable("goals", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  term: text("term").$type<"short" | "long">().notNull(),
+  targetAmountMinor: integer("target_amount_minor").notNull(),
+  currency: text("currency").notNull(),
+  targetDate: text("target_date").notNull(), // YYYY-MM-DD
+  ownerScope: text("owner_scope").notNull().default("household"),
+  anchorDate: text("anchor_date"), // YYYY-MM-DD | null
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  createdBy: text("created_by").notNull(),
 });
 
 export * from "./auth-schema";
