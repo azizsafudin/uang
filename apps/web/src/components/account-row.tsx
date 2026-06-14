@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { GripVertical } from "lucide-react";
 import { formatMoney } from "@/components/money";
 import { subtypeLabel } from "@/components/labels";
 import { cn } from "@/lib/utils";
@@ -39,7 +40,7 @@ export function AccountRow({ account, baseCurrency, isLast, dragHandleProps, isD
     <div
       data-testid="account-row"
       className={cn(
-        "group relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent",
+        "group relative flex items-center gap-2 pl-2 pr-4 py-3 transition-colors hover:bg-accent",
         !isLast && "border-b border-border/70",
         isDragging && "opacity-50",
       )}
@@ -47,10 +48,10 @@ export function AccountRow({ account, baseCurrency, isLast, dragHandleProps, isD
       {dragHandleProps && (
         <span
           {...dragHandleProps}
-          className="absolute left-1 top-1/2 -translate-y-1/2 cursor-grab touch-none text-border opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+          className="shrink-0 cursor-grab touch-none text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
           aria-label="Drag to reorder"
         >
-          ⠿
+          <GripVertical size={14} />
         </span>
       )}
 

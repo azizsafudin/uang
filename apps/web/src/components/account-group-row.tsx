@@ -1,3 +1,4 @@
+import { GripVertical } from "lucide-react";
 import { formatMoney } from "@/components/money";
 import { cn } from "@/lib/utils";
 
@@ -23,42 +24,45 @@ export function AccountGroupRow({
   isDragging,
 }: Props) {
   return (
-    <button
-      onClick={onToggle}
+    <div
       className={cn(
-        "group relative flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors",
+        "flex w-full items-center gap-2 pl-2 pr-4 py-2.5 transition-colors",
         "bg-[color-mix(in_oklab,var(--color-primary)_6%,var(--color-card))]",
-        "hover:bg-[color-mix(in_oklab,var(--color-primary)_10%,var(--color-card))]",
         isDragging && "opacity-50",
       )}
     >
       {dragHandleProps && (
         <span
           {...dragHandleProps}
-          className="absolute left-1 top-1/2 -translate-y-1/2 cursor-grab touch-none text-border opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+          className="shrink-0 cursor-grab touch-none text-primary/50 transition-colors hover:text-primary active:cursor-grabbing"
           onClick={(e) => e.stopPropagation()}
-          aria-label="Drag to reorder"
+          aria-label="Drag group"
         >
-          ⠿
+          <GripVertical size={14} />
         </span>
       )}
 
-      <span
-        className={cn(
-          "text-[9px] text-primary transition-transform duration-150",
-          expanded ? "rotate-90" : "rotate-0",
-        )}
+      <button
+        onClick={onToggle}
+        className="flex flex-1 items-center gap-3 text-left min-w-0"
       >
-        ▶
-      </span>
+        <span
+          className={cn(
+            "text-[9px] text-primary transition-transform duration-150",
+            expanded ? "rotate-90" : "rotate-0",
+          )}
+        >
+          ▶
+        </span>
 
-      <span className="flex-1 text-sm font-semibold text-primary">{name}</span>
-      <span className="text-xs text-muted-foreground">
-        {memberCount} {memberCount === 1 ? "account" : "accounts"}
-      </span>
-      <span className="font-heading text-sm tabular-nums font-semibold text-primary">
-        {formatMoney(subtotalMinor, baseCurrency)}
-      </span>
-    </button>
+        <span className="flex-1 truncate text-sm font-semibold text-primary">{name}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {memberCount} {memberCount === 1 ? "account" : "accounts"}
+        </span>
+        <span className="shrink-0 font-heading text-sm tabular-nums font-semibold text-primary">
+          {formatMoney(subtotalMinor, baseCurrency)}
+        </span>
+      </button>
+    </div>
   );
 }
