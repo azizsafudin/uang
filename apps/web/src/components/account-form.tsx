@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { currencyDecimals } from "@uang/shared";
+import { SUBTYPES, subtypeLabel, classLabel } from "@/components/labels";
 import { accountsCollection } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,16 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const SUBTYPES = [
-  "cash",
-  "bank",
-  "investment",
-  "property",
-  "loan",
-  "credit_card",
-  "other",
-];
 
 export function AccountForm() {
   const qc = useQueryClient();
@@ -89,8 +80,10 @@ export function AccountForm() {
                 value={f.class}
                 onValueChange={(v: string | null) => v && set("class", v)}
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v: unknown) => classLabel(String(v))}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="asset">Asset</SelectItem>
@@ -104,13 +97,15 @@ export function AccountForm() {
                 value={f.subtype}
                 onValueChange={(v: string | null) => v && set("subtype", v)}
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(v: unknown) => subtypeLabel(String(v))}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {SUBTYPES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {subtypeLabel(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>

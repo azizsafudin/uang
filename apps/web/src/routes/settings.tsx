@@ -5,10 +5,10 @@ import { Link } from "@tanstack/react-router";
 import { SCALE } from "@uang/shared";
 import { api } from "@/lib/api";
 import { fxCollection } from "@/lib/collections";
+import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -20,16 +20,33 @@ type FxRate = {
   createdAt: number;
 };
 
-type User = {
-  id: string;
-  email: string;
-  name: string;
-  isAdmin: boolean;
-};
+type User = { id: string; email: string; name: string; isAdmin: boolean };
+
+function Section({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 md:p-6">
+      <Eyebrow className="mb-2.5">{eyebrow}</Eyebrow>
+      <h2 className="font-heading text-xl tracking-tight">{title}</h2>
+      {description && (
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      )}
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
 
 export function SettingsPage() {
   const qc = useQueryClient();
-
   const { data: fxRates } = useLiveQuery(fxCollection);
 
   const usersQ = useQuery({
@@ -46,11 +63,7 @@ export function SettingsPage() {
     date: new Date().toISOString().slice(0, 10),
     rate: "",
   });
-  const [invite, setInvite] = useState({
-    email: "",
-    name: "",
-    password: "",
-  });
+  const [invite, setInvite] = useState({ email: "", name: "", password: "" });
 
   async function addFx(e: React.FormEvent) {
     e.preventDefault();
@@ -72,25 +85,33 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen p-6 md:p-8 max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Settings</h1>
+    <AppShell
+      actions={
         <Link to="/">
-          <Button variant="outline">← Back</Button>
+          <Button variant="ghost" size="sm">
+            ← Back
+          </Button>
         </Link>
-      </div>
+      }
+    >
+      <h1 className="mb-6 font-heading text-3xl tracking-tight">Settings</h1>
 
-      <Card>
-        <CardHeader>
-          <h2 className="font-medium">Exchange rates (to base currency)</h2>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <form onSubmit={addFx} className="grid grid-cols-4 gap-2 items-end">
+      <div className="space-y-5">
+        <Section
+          eyebrow="Currencies"
+          title="Exchange rates"
+          description="Set the value of one unit of each foreign currency in your base currency. The latest rate on or before a date is used."
+        >
+          <form
+            onSubmit={addFx}
+            className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4"
+          >
             <div>
               <Label>Currency</Label>
               <Input
                 value={fx.currency}
                 maxLength={3}
+                placeholder="MYR"
                 onChange={(e) =>
                   setFx((p) => ({ ...p, currency: e.target.value }))
                 }
@@ -102,9 +123,7 @@ export function SettingsPage() {
               <Input
                 type="date"
                 value={fx.date}
-                onChange={(e) =>
-                  setFx((p) => ({ ...p, date: e.target.value }))
-                }
+                onChange={(e) => setFx((p) => ({ ...p, date: e.target.value }))}
                 required
               />
             </div>
@@ -113,50 +132,51 @@ export function SettingsPage() {
               <Input
                 type="number"
                 step="any"
+                placeholder="0.22"
                 value={fx.rate}
-                onChange={(e) =>
-                  setFx((p) => ({ ...p, rate: e.target.value }))
-                }
+                onChange={(e) => setFx((p) => ({ ...p, rate: e.target.value }))}
                 required
               />
             </div>
-            <Button type="submit">Add</Button>
+            <Button type="submit">Add rate</Button>
           </form>
-          <div className="space-y-1">
-            {(fxRates ?? []).map((r) => (
-              <div
-                key={r.id}
-                className="flex justify-between text-sm items-center"
-              >
-                <span>
-                  {r.currency} @ {r.date}
-                </span>
-                <span className="tabular-nums flex items-center gap-2">
-                  {(r.rateScaled / Number(SCALE)).toString()}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      await fxCollection.delete(r.id);
-                    }}
-                  >
-                    ✕
-                  </Button>
-                </span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <h2 className="font-medium">Household members</h2>
-        </CardHeader>
-        <CardContent className="space-y-3">
+          {(fxRates ?? []).length > 0 && (
+            <div className="mt-4 overflow-hidden rounded-lg border border-border">
+              {(fxRates ?? []).map((r, i) => (
+                <div
+                  key={r.id}
+                  className={`flex items-center justify-between px-3 py-2 text-sm ${i > 0 ? "border-t border-border/70" : ""}`}
+                >
+                  <span className="font-medium">
+                    {r.currency}{" "}
+                    <span className="text-muted-foreground">@ {r.date}</span>
+                  </span>
+                  <span className="flex items-center gap-2 tabular-nums">
+                    {r.rateScaled / Number(SCALE)}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => fxCollection.delete(r.id)}
+                    >
+                      ✕
+                    </Button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Section
+          eyebrow="Access"
+          title="Household members"
+          description="Everyone you add shares all accounts and data, and can sign in with their own credentials."
+        >
           <form
             onSubmit={addUser}
-            className="grid grid-cols-4 gap-2 items-end"
+            className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4"
           >
             <div>
               <Label>Name</Label>
@@ -193,31 +213,35 @@ export function SettingsPage() {
             </div>
             <Button type="submit">Invite</Button>
           </form>
-          <div className="space-y-1">
-            {(usersQ.data ?? []).map((u) => (
-              <div key={u.id} className="flex justify-between text-sm">
+
+          <div className="mt-4 overflow-hidden rounded-lg border border-border">
+            {(usersQ.data ?? []).map((u, i) => (
+              <div
+                key={u.id}
+                className={`flex items-center justify-between px-3 py-2 text-sm ${i > 0 ? "border-t border-border/70" : ""}`}
+              >
                 <span>
-                  {u.name} · {u.email}
+                  <span className="font-medium">{u.name}</span>{" "}
+                  <span className="text-muted-foreground">{u.email}</span>
                 </span>
-                <span className="text-muted-foreground">
-                  {u.isAdmin ? "admin" : "member"}
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {u.isAdmin ? "Admin" : "Member"}
                 </span>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </Section>
 
-      <Card>
-        <CardHeader>
-          <h2 className="font-medium">Backup</h2>
-        </CardHeader>
-        <CardContent>
+        <Section
+          eyebrow="Backup"
+          title="Export your data"
+          description="Download the full database as a SQLite file. Open it anywhere, or keep it as a backup."
+        >
           <a href={`${API_URL}/export`}>
             <Button variant="outline">Export database (.db)</Button>
           </a>
-        </CardContent>
-      </Card>
-    </div>
+        </Section>
+      </div>
+    </AppShell>
   );
 }

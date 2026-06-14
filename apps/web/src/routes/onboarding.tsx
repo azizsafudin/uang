@@ -9,36 +9,100 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function OnboardingPage() {
   const nav = useNavigate();
-  const [form, setForm] = useState({ householdName: "", baseCurrency: "MYR", name: "", email: "", password: "" });
+  const [form, setForm] = useState({
+    householdName: "",
+    baseCurrency: "MYR",
+    name: "",
+    email: "",
+    password: "",
+  });
   const [error, setError] = useState<string | null>(null);
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm({ ...form, [k]: e.target.value });
+  const set =
+    (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm({ ...form, [k]: e.target.value });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const { error } = await api.onboarding.init.post(form);
-    if (error) { setError("Could not initialize. Is it already set up?"); return; }
+    if (error) {
+      setError("Could not initialize. Is it already set up?");
+      return;
+    }
     // Sign in with the credentials just provided, then go straight to the dashboard.
-    const signedIn = await signIn.email({ email: form.email, password: form.password });
+    const signedIn = await signIn.email({
+      email: form.email,
+      password: form.password,
+    });
     await nav({ to: signedIn.error ? "/login" : "/" });
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background p-4">
+      <div className="text-center">
+        <p className="font-heading text-3xl tracking-tight">
+          uang<span className="text-gold">.</span>
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Track what you own, owe, and where you stand.
+        </p>
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Set up your household</CardTitle>
+          <CardTitle className="font-heading text-xl tracking-tight">
+            Set up your household
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-3">
-            <div><Label>Household name</Label><Input value={form.householdName} onChange={set("householdName")} required /></div>
-            <div><Label>Base currency (ISO)</Label><Input value={form.baseCurrency} onChange={set("baseCurrency")} maxLength={3} required /></div>
-            <div><Label>Your name</Label><Input value={form.name} onChange={set("name")} required /></div>
-            <div><Label>Email</Label><Input type="email" value={form.email} onChange={set("email")} required /></div>
-            <div><Label>Password</Label><Input type="password" value={form.password} onChange={set("password")} minLength={8} required /></div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" className="w-full">Create household</Button>
+            <div>
+              <Label>Household name</Label>
+              <Input
+                value={form.householdName}
+                onChange={set("householdName")}
+                placeholder="The Safudins"
+                required
+              />
+            </div>
+            <div>
+              <Label>Base currency</Label>
+              <Input
+                value={form.baseCurrency}
+                onChange={set("baseCurrency")}
+                maxLength={3}
+                required
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                The currency everything rolls up to (ISO code, e.g. MYR, USD).
+              </p>
+            </div>
+            <div className="border-t border-border/70 pt-3">
+              <Label>Your name</Label>
+              <Input value={form.name} onChange={set("name")} required />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={set("email")}
+                required
+              />
+            </div>
+            <div>
+              <Label>Password</Label>
+              <Input
+                type="password"
+                value={form.password}
+                onChange={set("password")}
+                minLength={8}
+                required
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" className="w-full">
+              Create household
+            </Button>
           </form>
         </CardContent>
       </Card>

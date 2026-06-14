@@ -2,41 +2,39 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { formatMoney } from "@/components/money";
+import { subtypeLabel, classLabel, kindLabel } from "@/components/labels";
 import { SetBalanceDialog } from "@/components/set-balance-dialog";
+import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { accountsCollection, entriesCollection } from "@/lib/collections";
+import { cn } from "@/lib/utils";
+
+const BackButton = () => (
+  <Link to="/">
+    <Button variant="ghost" size="sm">
+      ← Back
+    </Button>
+  </Link>
+);
 
 export function AccountDetailPage() {
   const { id } = useParams({ from: "/accounts/$id" });
   const qc = useQueryClient();
 
-  const { data: accounts, isLoading: accountsLoading } = useLiveQuery(accountsCollection);
-
+  const { data: accounts, isLoading: accountsLoading } =
+    useLiveQuery(accountsCollection);
   const collection = entriesCollection(id);
   const { data: entries } = useLiveQuery(collection);
 
   const account = (accounts ?? []).find((a) => a.id === id);
 
-  if (accountsLoading) {
+  if (accountsLoading || !account) {
     return (
-      <div className="p-8">
-        <Link to="/">
-          <Button variant="outline">← Back</Button>
-        </Link>
-        <p className="mt-4 text-muted-foreground">Loading…</p>
-      </div>
-    );
-  }
-
-  if (!account) {
-    return (
-      <div className="p-8">
-        <Link to="/">
-          <Button variant="outline">← Back</Button>
-        </Link>
-        <p className="mt-4">Account not found.</p>
-      </div>
+      <AppShell actions={<BackButton />}>
+        <p className="text-muted-foreground">
+          {accountsLoading ? "Loading…" : "Account not found."}
+        </p>
+      </AppShell>
     );
   }
 
@@ -45,21 +43,31 @@ export function AccountDetailPage() {
     await qc.invalidateQueries({ queryKey: ["networth"] });
   }
 
+  const sorted = [...(entries ?? [])].sort((a, b) =>
+    a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
+  );
+
   return (
-    <div className="min-h-screen p-6 md:p-8 max-w-2xl mx-auto space-y-5">
-      <Link to="/">
-        <Button variant="outline">← Back</Button>
-      </Link>
-      <div>
-        <h1 className="text-2xl font-semibold">{account.name}</h1>
-        <p className="text-muted-foreground">
-          {account.subtype} · {account.currency}
-        </p>
-        <p className="text-3xl font-semibold tabular-nums mt-2">
+    <AppShell actions={<BackButton />}>
+      <header>
+        <Eyebrow>
+          {classLabel(account.class)} · {subtypeLabel(account.subtype)} ·{" "}
+          {account.currency}
+        </Eyebrow>
+        <h1 className="mt-2 font-heading text-3xl tracking-tight">
+          {account.name}
+        </h1>
+        <p
+          className={cn(
+            "mt-1 font-heading text-4xl tabular-nums tracking-tight",
+            account.balanceMinor < 0 && "text-destructive",
+          )}
+        >
           {formatMoney(account.balanceMinor, account.currency)}
         </p>
-      </div>
-      <div className="flex gap-2">
+      </header>
+
+      <div className="mt-5 flex flex-wrap gap-2">
         <SetBalanceDialog
           accountId={id}
           currency={account.currency}
@@ -73,36 +81,51 @@ export function AccountDetailPage() {
           onDone={() => {}}
         />
       </div>
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium uppercase text-muted-foreground">
-          Entries
-        </h2>
-        {(entries ?? []).map((e) => (
-          <Card key={e.id}>
-            <CardContent className="p-3 flex items-center justify-between">
-              <div>
-                <p className="tabular-nums">
-                  {formatMoney(e.amountMinor, account.currency)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {e.date} · {e.kind}
-                  {e.note ? ` · ${e.note}` : ""}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => delEntry(e.id)}
+
+      <section className="mt-9">
+        <Eyebrow className="mb-3">History</Eyebrow>
+        {sorted.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No entries yet. Use “Set balance…” to record where this account
+            stands today.
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
+            {sorted.map((e, i) => (
+              <div
+                key={e.id}
+                className={cn(
+                  "group flex items-center justify-between gap-4 px-4 py-3",
+                  i > 0 && "border-t border-border/70",
+                )}
               >
-                Delete
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-        {(entries ?? []).length === 0 && (
-          <p className="text-sm text-muted-foreground">No entries yet.</p>
+                <div className="min-w-0">
+                  <p
+                    className={cn(
+                      "tabular-nums",
+                      e.amountMinor < 0 && "text-destructive",
+                    )}
+                  >
+                    {formatMoney(e.amountMinor, account.currency)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {e.date} · {kindLabel(e.kind)}
+                    {e.note ? ` · ${e.note}` : ""}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+                  onClick={() => delEntry(e.id)}
+                >
+                  Delete
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
       </section>
-    </div>
+    </AppShell>
   );
 }
