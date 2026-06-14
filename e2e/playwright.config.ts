@@ -7,11 +7,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : 2,
-  // Each worker boots a real web+API stack; a cold first navigation under concurrent
-  // boot can occasionally time out. One retry absorbs that without masking real failures.
+  // Each worker boots a real web+API stack; the FIRST navigation pays a one-time Vite
+  // cold-compile (~15-20s). Generous nav/action timeouts let that land on the first
+  // attempt; one retry is a backstop for genuine boot contention.
   retries: 1,
-  timeout: 60_000,
-  expect: { timeout: 10_000 },
-  use: { trace: "on-first-retry", actionTimeout: 15_000 },
+  timeout: 90_000,
+  expect: { timeout: 15_000 },
+  use: { trace: "on-first-retry", actionTimeout: 30_000, navigationTimeout: 30_000 },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });
