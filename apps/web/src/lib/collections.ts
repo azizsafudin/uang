@@ -347,7 +347,6 @@ export const goalsCollection = createCollection(
       const { error } = await api.goals.post({
         id: m.id,
         name: m.name,
-        term: m.term,
         targetAmountMinor: m.targetAmountMinor,
         currency: m.currency,
         targetDate: m.targetDate,
@@ -363,7 +362,6 @@ export const goalsCollection = createCollection(
       if (!m) return;
       const { error } = await api.goals({ id: m.id }).patch({
         name: m.name,
-        term: m.term,
         targetAmountMinor: m.targetAmountMinor,
         currency: m.currency,
         targetDate: m.targetDate,

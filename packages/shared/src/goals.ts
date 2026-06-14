@@ -101,15 +101,11 @@ export function monthsToReachMinor(
 
 import { accessibleValueMinor, type AccessibilityConfig } from "./projection";
 
-export type GoalTerm = "short" | "long";
-
 export type GoalInput = {
   id: string;
   targetAmountMinor: number;   // already in base currency
   targetYear: number | null;   // year component of targetDate; null = indefinite (no deadline)
   ownerScope: string;          // 'household' | a userId
-  term: GoalTerm;
-  sortOrder: number;
 };
 
 export type AllocAccount = AccessibilityConfig & {
@@ -185,13 +181,13 @@ export function allocateGoals(params: {
   for (const a of accounts) if (a.baseMinor > 0) remaining.set(a.id, a.baseMinor);
 
   // Soonest deadline first (indefinite goals have no deadline -> last claim on
-  // funds); tie-break short before long, then sortOrder.
+  // funds); tie-break by smallest target amount, then id for stable ordering.
   const ordered = [...goals].sort((g1, g2) => {
     const y1 = g1.targetYear ?? Number.POSITIVE_INFINITY;
     const y2 = g2.targetYear ?? Number.POSITIVE_INFINITY;
     if (y1 !== y2) return y1 - y2;
-    if (g1.term !== g2.term) return g1.term === "short" ? -1 : 1;
-    return g1.sortOrder - g2.sortOrder;
+    if (g1.targetAmountMinor !== g2.targetAmountMinor) return g1.targetAmountMinor - g2.targetAmountMinor;
+    return g1.id < g2.id ? -1 : g1.id > g2.id ? 1 : 0;
   });
 
   const out: GoalAllocation[] = [];

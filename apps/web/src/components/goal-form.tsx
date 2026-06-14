@@ -7,9 +7,6 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 
 // major <-> minor helpers for the amount input.
 const toMajor = (minor: number, currency: string) => String(minor / 10 ** currencyDecimals(currency));
@@ -36,7 +33,6 @@ export function GoalForm({
   const setOpen = onOpenChange ?? setOpenState;
   const [f, setF] = useState({
     name: goal?.name ?? "",
-    term: goal?.term ?? ("long" as "short" | "long"),
     amount: goal ? toMajor(goal.targetAmountMinor, currency) : "",
     targetDate: goal?.targetDate ?? "",
     contribution: goal ? toMajor(goal.monthlyContributionMinor, currency) : "",
@@ -50,7 +46,6 @@ export function GoalForm({
     if (editing) {
       goalsCollection.update(goal!.id, (draft) => {
         draft.name = f.name;
-        draft.term = f.term;
         draft.targetAmountMinor = targetAmountMinor;
         draft.targetDate = targetDate;
         draft.monthlyContributionMinor = monthlyContributionMinor;
@@ -59,7 +54,6 @@ export function GoalForm({
       goalsCollection.insert({
         id: newId(),
         name: f.name,
-        term: f.term,
         targetAmountMinor,
         currency,
         targetDate,
@@ -88,25 +82,10 @@ export function GoalForm({
             <Label>Name</Label>
             <Input value={f.name} required onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Term</Label>
-              <Select value={f.term}
-                onValueChange={(v: string | null) => v && setF((p) => ({ ...p, term: v as "short" | "long" }))}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>{(v: unknown) => (String(v) === "short" ? "Short term" : "Long term")}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="short">Short term</SelectItem>
-                  <SelectItem value="long">Long term</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Target ({currency})</Label>
-              <Input type="number" step="any" value={f.amount} required
-                onChange={(e) => setF((p) => ({ ...p, amount: e.target.value }))} />
-            </div>
+          <div>
+            <Label>Target ({currency})</Label>
+            <Input type="number" step="any" value={f.amount} required
+              onChange={(e) => setF((p) => ({ ...p, amount: e.target.value }))} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

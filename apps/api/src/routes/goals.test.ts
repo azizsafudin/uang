@@ -13,7 +13,7 @@ test("POST /goals creates, GET lists, PATCH edits, DELETE removes", async () => 
   const create = await app.handle(new Request("http://localhost/goals", {
     method: "POST", headers: { cookie, "content-type": "application/json" },
     body: JSON.stringify({
-      id, name: "House", term: "long", targetAmountMinor: 50_000_000,
+      id, name: "House", targetAmountMinor: 50_000_000,
       currency: "USD", targetDate: "2035-01-01", ownerScope: "household",
     }),
   }));
@@ -23,7 +23,6 @@ test("POST /goals creates, GET lists, PATCH edits, DELETE removes", async () => 
   expect(list.length).toBe(1);
   let g = list.find((x: any) => x.id === id);
   expect(g.name).toBe("House");
-  expect(g.term).toBe("long");
   expect(g.targetAmountMinor).toBe(50_000_000);
   expect(g.targetDate).toBe("2035-01-01");
   expect(g.ownerScope).toBe("household");
@@ -53,7 +52,7 @@ test("GET /goals/:id/projection returns a series; 404 for unknown id", async () 
   await app.handle(new Request("http://localhost/goals", {
     method: "POST", headers: { cookie, "content-type": "application/json" },
     body: JSON.stringify({
-      id, name: "House", term: "long", targetAmountMinor: 50_000_000,
+      id, name: "House", targetAmountMinor: 50_000_000,
       currency: "USD", targetDate: "2040-01-01", ownerScope: "household",
     }),
   }));

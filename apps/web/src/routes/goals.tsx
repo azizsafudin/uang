@@ -10,7 +10,7 @@ import { formatDate } from "@/lib/utils";
 import { GoalForm } from "@/components/goal-form";
 import { GoalDonut } from "@/components/goal-donut";
 import { useDestructiveAction } from "@/lib/use-destructive-action";
-import { AppShell, Eyebrow } from "@/components/app-layout";
+import { AppShell } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 type GoalAnalysis = {
-  id: string; name: string; term: "short" | "long"; targetAmountMinor: number;
+  id: string; name: string; targetAmountMinor: number;
   targetDate: string | null; currency: string; allocatedMinor: number; progressPct: number;
   monthlyContributionMinor: number; requiredMonthlyMinor: number;
   projectedAtTargetMinor: number | null; onTrack: boolean; reachDate: string | null;
@@ -35,11 +35,6 @@ async function fetchAnalysis(): Promise<AnalysisResponse> {
   if (error) throw new Error(String(error));
   return data as unknown as AnalysisResponse;
 }
-
-const TERMS = [
-  { key: "short", label: "Short term" },
-  { key: "long", label: "Long term" },
-] as const;
 
 function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; base: string }) {
   const [editOpen, setEditOpen] = useState(false);
@@ -129,12 +124,22 @@ export function GoalsPage() {
   // Refetch the analysis whenever any goal's funding-relevant fields change (not
   // just the count), so editing a target amount/date updates progress + on-track.
   const goalsSignature = rows
-    .map((g) => `${g.id}:${g.targetAmountMinor}:${g.targetDate}:${g.term}:${g.ownerScope}:${g.monthlyContributionMinor}`)
+    .map((g) => `${g.id}:${g.targetAmountMinor}:${g.targetDate}:${g.ownerScope}:${g.monthlyContributionMinor}`)
     .sort()
     .join("|");
   const analysisQ = useQuery({ queryKey: ["goals", "analysis", goalsSignature], queryFn: fetchAnalysis });
   const base = analysisQ.data?.baseCurrency ?? "";
   const byId = new Map((analysisQ.data?.goals ?? []).map((g) => [g.id, g]));
+
+  // Priority order: soonest deadline first, indefinite goals last; tie-break by
+  // smallest target, then id (matches the allocation order).
+  const ordered = [...rows].sort((a, b) => {
+    const ad = a.targetDate ?? "9999-99-99";
+    const bd = b.targetDate ?? "9999-99-99";
+    if (ad !== bd) return ad < bd ? -1 : 1;
+    if (a.targetAmountMinor !== b.targetAmountMinor) return a.targetAmountMinor - b.targetAmountMinor;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
 
   return (
     <AppShell
@@ -171,21 +176,10 @@ export function GoalsPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-8">
-          {TERMS.map(({ key, label }) => {
-            const termRows = rows.filter((g) => g.term === key);
-            if (termRows.length === 0) return null;
-            return (
-              <section key={key}>
-                <Eyebrow className="mb-3">{label}</Eyebrow>
-                <div className="space-y-3">
-                  {termRows.map((g) => (
-                    <GoalCard key={g.id} g={g} a={byId.get(g.id)} base={base} />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+        <div className="space-y-3">
+          {ordered.map((g) => (
+            <GoalCard key={g.id} g={g} a={byId.get(g.id)} base={base} />
+          ))}
         </div>
       )}
     </AppShell>

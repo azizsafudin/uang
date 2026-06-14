@@ -43,6 +43,13 @@
       "when": 1781447182951,
       "tag": "0005_loud_dragon_lord",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1781448444145,
+      "tag": "0006_bumpy_husk",
+      "breakpoints": true
     }
   ]
 }

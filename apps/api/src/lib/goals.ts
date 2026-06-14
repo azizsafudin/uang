@@ -21,7 +21,6 @@ export type GoalSource = {
 export type GoalAnalysis = {
   id: string;
   name: string;
-  term: "short" | "long";
   targetAmountMinor: number; // base currency
   targetDate: string | null; // null = indefinite (amount-only) goal
   currency: string;
@@ -137,7 +136,7 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
     targetBaseById.set(g.id, targetBase);
     goalInputs.push({
       id: g.id, targetAmountMinor: targetBase, targetYear: g.targetDate ? yearOf(g.targetDate) : null,
-      ownerScope: g.ownerScope, term: g.term, sortOrder: g.sortOrder,
+      ownerScope: g.ownerScope,
     });
   }
 
@@ -158,7 +157,7 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
     });
 
     analyses.push({
-      id: g.id, name: g.name, term: g.term, targetAmountMinor: targetBase,
+      id: g.id, name: g.name, targetAmountMinor: targetBase,
       targetDate: g.targetDate, currency: g.currency,
       allocatedMinor: alloc.allocatedMinor, progressPct: alloc.progressPct,
       monthlyContributionMinor: g.monthlyContributionMinor,
@@ -192,7 +191,7 @@ export type GoalProjectionPoint = {
 
 export type GoalProjectionResult = {
   baseCurrency: string;
-  goal: { id: string; name: string; term: "short" | "long"; targetDate: string | null; currency: string };
+  goal: { id: string; name: string; targetDate: string | null; currency: string };
   targetMinor: number;
   allocatedMinor: number;
   progressPct: number;
@@ -235,7 +234,7 @@ export async function goalProjection(
     targetBaseById.set(g.id, tb);
     goalInputs.push({
       id: g.id, targetAmountMinor: tb, targetYear: g.targetDate ? yearOf(g.targetDate) : null,
-      ownerScope: g.ownerScope, term: g.term, sortOrder: g.sortOrder,
+      ownerScope: g.ownerScope,
     });
   }
   const targetBase = targetBaseById.get(goal.id)!;
@@ -301,7 +300,7 @@ export async function goalProjection(
 
   return {
     baseCurrency: base,
-    goal: { id: goal.id, name: goal.name, term: goal.term, targetDate: goal.targetDate, currency: goal.currency },
+    goal: { id: goal.id, name: goal.name, targetDate: goal.targetDate, currency: goal.currency },
     targetMinor: targetBase,
     allocatedMinor: allocatedToday,
     progressPct: mine.progressPct,

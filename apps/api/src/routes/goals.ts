@@ -32,7 +32,6 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
         await db.insert(goals).values({
           id,
           name: body.name,
-          term: body.term === "short" ? "short" : "long",
           targetAmountMinor: body.targetAmountMinor,
           currency: body.currency.toUpperCase(),
           targetDate: body.targetDate ?? null,
@@ -56,7 +55,6 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
       body: t.Object({
         id: t.Optional(t.String()),
         name: t.String({ minLength: 1 }),
-        term: t.Union([t.Literal("short"), t.Literal("long")]),
         targetAmountMinor: t.Number(),
         currency: t.String({ pattern: "^[A-Za-z]{3}$" }),
         targetDate: t.Optional(t.Union([t.String(), t.Null()])),
@@ -72,7 +70,6 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
     async ({ params, body }: any) => {
       const update: Record<string, unknown> = {};
       if (body.name !== undefined) update.name = body.name;
-      if (body.term !== undefined) update.term = body.term;
       if (body.targetAmountMinor !== undefined) update.targetAmountMinor = body.targetAmountMinor;
       if (body.currency !== undefined) update.currency = body.currency.toUpperCase();
       if (body.targetDate !== undefined) update.targetDate = body.targetDate;
@@ -86,7 +83,6 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
     {
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
-        term: t.Optional(t.Union([t.Literal("short"), t.Literal("long")])),
         targetAmountMinor: t.Optional(t.Number()),
         currency: t.Optional(t.String({ pattern: "^[A-Za-z]{3}$" })),
         targetDate: t.Optional(t.Union([t.String(), t.Null()])),

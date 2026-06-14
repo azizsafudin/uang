@@ -45,8 +45,8 @@ test("analyzeGoals: soonest-first allocation, short sees cash only, long picks u
   await addAccount({ name: "CPF", subtype: "other", accessibleFromAge: 55, openingMinor: 10_000_000, ownerId: userId });
 
   await db.insert(goals).values([
-    { id: "short", name: "Car", term: "short", targetAmountMinor: 3_000_000, currency: "USD", targetDate: "2030-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed" },
-    { id: "long", name: "Retire", term: "long", targetAmountMinor: 100_000_000, currency: "USD", targetDate: "2050-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed" },
+    { id: "short", name: "Car", targetAmountMinor: 3_000_000, currency: "USD", targetDate: "2030-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed" },
+    { id: "long", name: "Retire", targetAmountMinor: 100_000_000, currency: "USD", targetDate: "2050-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed" },
   ]);
 
   const r = await analyzeGoals();
@@ -81,7 +81,7 @@ test("analyzeGoals: a sufficient monthly contribution puts a goal on track", asy
 
   // Tiny allocation, large planned saving: the contribution closes the gap.
   await db.insert(goals).values({
-    id: "c", name: "Save", term: "short", targetAmountMinor: 50_000_000, currency: "USD",
+    id: "c", name: "Save", targetAmountMinor: 50_000_000, currency: "USD",
     targetDate: "2030-01-01", ownerScope: "household", anchorDate: null,
     monthlyContributionMinor: 2_000_000, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
   });
@@ -104,7 +104,7 @@ test("goalProjection: past actual then a single projected trajectory toward targ
   await addAccount({ name: "CPF", subtype: "other", accessibleFromAge: 55, openingMinor: 10_000_000, ownerId: userId });
 
   await db.insert(goals).values({
-    id: "g", name: "Retire", term: "long", targetAmountMinor: 150_000_000, currency: "USD",
+    id: "g", name: "Retire", targetAmountMinor: 150_000_000, currency: "USD",
     targetDate: "2050-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0,
     sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
   });
@@ -153,7 +153,7 @@ test("goals: an indefinite (no target date) goal reports a reach date, no requir
   await addAccount({ name: "Cash", subtype: "bank", openingMinor: 1_000_000, ownerId: owner.id });
 
   await db.insert(goals).values({
-    id: "indef", name: "Wealth", term: "long", targetAmountMinor: 50_000_000, currency: "USD",
+    id: "indef", name: "Wealth", targetAmountMinor: 50_000_000, currency: "USD",
     targetDate: null, ownerScope: "household", anchorDate: null,
     monthlyContributionMinor: 1_000_000, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
   });

@@ -98,13 +98,12 @@ export const memberProfiles = sqliteTable("member_profiles", {
   birthYear: integer("birth_year"),
 });
 
-// Financial goals. term drives grouping/sort; eligibility derives from targetDate.
-// ownerScope is 'household' or a userId. anchorDate is the optional on-track
-// baseline (null => anchor at createdAt).
+// Financial goals. Ordered/allocated by soonest targetDate then smallest amount;
+// eligibility derives from targetDate. ownerScope is 'household' or a userId.
+// anchorDate is the optional on-track baseline (null => anchor at createdAt).
 export const goals = sqliteTable("goals", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  term: text("term").$type<"short" | "long">().notNull(),
   targetAmountMinor: integer("target_amount_minor").notNull(),
   currency: text("currency").notNull(),
   targetDate: text("target_date"), // YYYY-MM-DD | null (null = indefinite, amount-only goal)

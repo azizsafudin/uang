@@ -19,7 +19,7 @@ import {
 
 type ProjectionResponse = {
   baseCurrency: string;
-  goal: { id: string; name: string; term: "short" | "long"; targetDate: string; currency: string };
+  goal: { id: string; name: string; targetDate: string | null; currency: string };
   targetMinor: number;
   allocatedMinor: number;
   progressPct: number;
@@ -68,7 +68,7 @@ export function GoalDetailPage() {
         <>
           <div className="mb-6 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <Eyebrow className="mb-2">{p.goal.term === "short" ? "Short term" : "Long term"}</Eyebrow>
+              <Eyebrow className="mb-2">{p.goal.targetDate ? "Goal" : "Goal · no deadline"}</Eyebrow>
               <h1 className="font-heading text-3xl tracking-tight">{p.goal.name}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 {formatMoney(p.targetMinor, base)}
