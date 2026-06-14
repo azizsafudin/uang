@@ -123,7 +123,7 @@ export function GoalDetailPage() {
               </dl>
             </section>
 
-            <section className="rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5">
+            <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5">
               <Eyebrow className="mb-3">Projection</Eyebrow>
               <GoalProjectionChart
                 series={p.series}
