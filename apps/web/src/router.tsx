@@ -12,6 +12,7 @@ import { LoginPage } from "./routes/login";
 import { DashboardPage } from "./routes/dashboard";
 import { AccountDetailPage } from "./routes/account-detail";
 import { SettingsPage } from "./routes/settings";
+import { ProjectionsPage } from "./routes/projections";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
 
@@ -52,12 +53,20 @@ const settingsRoute = createRoute({
   beforeLoad: requireInitializedAndAuthed,
 });
 
+const projectionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projections",
+  component: ProjectionsPage,
+  beforeLoad: requireInitializedAndAuthed,
+});
+
 const routeTree = rootRoute.addChildren([
   onboardingRoute,
   loginRoute,
   dashboardRoute,
   accountDetailRoute,
   settingsRoute,
+  projectionsRoute,
 ]);
 
 export const router = createRouter({ routeTree });

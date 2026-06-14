@@ -70,6 +70,9 @@ export function DashboardPage() {
       actions={
         <>
           <AccountForm />
+          <Link to="/projections" className="text-sm font-medium text-primary hover:underline">
+            Projections →
+          </Link>
           <Link to="/settings">
             <Button variant="ghost" size="sm">
               Settings
