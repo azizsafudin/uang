@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <style>
+    :root { --tile: #fbf9f5; --ink: #1f5d4c; --edge: rgba(31, 93, 76, 0.18); }
+    @media (prefers-color-scheme: dark) {
+      :root { --tile: #16130f; --ink: #5fb39a; --edge: rgba(95, 179, 154, 0.24); }
+    }
+  </style>
+
+  <!-- rounded tile -->
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="14"
+        fill="var(--tile)" stroke="var(--edge)" stroke-width="1.5" />
+
+  <!-- serif "U" -->
+  <g fill="none" stroke="var(--ink)" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 21 18 L 21 35 C 21 44 25 48 32 48 C 39 48 43 44 43 35 L 43 18" />
+  </g>
+  <g fill="var(--ink)">
+    <rect x="14.5" y="14.5" width="13" height="5" rx="1.6" />
+    <rect x="36.5" y="14.5" width="13" height="5" rx="1.6" />
+  </g>
+</svg>
