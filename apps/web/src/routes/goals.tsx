@@ -146,7 +146,7 @@ export function GoalsPage() {
     >
       <div className="mb-6 flex items-baseline justify-between">
         <h1 className="font-heading text-3xl tracking-tight">Goals</h1>
-        {analysisQ.data && (
+        {analysisQ.data && analysisQ.data.unallocatedMinor !== 0 && (
           <span className="text-sm text-muted-foreground">
             Unallocated:{" "}
             <span className="font-medium tabular-nums text-foreground">
@@ -156,25 +156,35 @@ export function GoalsPage() {
         )}
       </div>
 
-      <div className="space-y-8">
-        {TERMS.map(({ key, label }) => {
-          const termRows = rows.filter((g) => g.term === key);
-          return (
-            <section key={key}>
-              <Eyebrow className="mb-3">{label}</Eyebrow>
-              {termRows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">None yet.</p>
-              ) : (
+      {rows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
+          <p className="font-heading text-lg">No goals yet</p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            Create a goal to track how your net worth funds it over time, with required
+            contributions and an on-track projection.
+          </p>
+          <div className="mt-4 flex justify-center">
+            <GoalForm defaultCurrency={base || undefined} />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {TERMS.map(({ key, label }) => {
+            const termRows = rows.filter((g) => g.term === key);
+            if (termRows.length === 0) return null;
+            return (
+              <section key={key}>
+                <Eyebrow className="mb-3">{label}</Eyebrow>
                 <div className="space-y-3">
                   {termRows.map((g) => (
                     <GoalCard key={g.id} g={g} a={byId.get(g.id)} base={base} />
                   ))}
                 </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
     </AppShell>
   );
 }
