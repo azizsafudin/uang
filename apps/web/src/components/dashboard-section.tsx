@@ -5,7 +5,6 @@ import {
   closestCorners,
   KeyboardSensor,
   PointerSensor,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -29,6 +28,7 @@ import { Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { groupsCollection, newId, type GroupRow } from "@/lib/collections";
+import { useUsers, type Member } from "@/lib/use-users";
 
 export type AccountValuation = {
   id: string;
@@ -55,35 +55,60 @@ type Props = {
   hasData: boolean;
 };
 
-const STANDALONE = "standalone";
+const OWNER_PREFIX = "owner:";
+
+function ownerKey(ownerIds: string[]): string {
+  return [...ownerIds].sort().join("|");
+}
+
+function isOwnerCard(id: string): boolean {
+  return id.startsWith(OWNER_PREFIX);
+}
+
+function ownerIdsOf(cardId: string): string[] {
+  return cardId.slice(OWNER_PREFIX.length).split("|").filter(Boolean);
+}
+
+function homeBucketId(account: AccountValuation): string {
+  return OWNER_PREFIX + ownerKey(account.ownerIds);
+}
 
 type Built = { order: string[]; members: Record<string, string[]> };
 
 function build(groups: GroupRow[], accounts: AccountValuation[]): Built {
   const members: Record<string, string[]> = {};
+  // Card sort key: groups use group.sortOrder; buckets use min member sortOrder.
+  const sortKey: Record<string, number> = {};
 
-  const sortedGroups = [...groups].sort((a, b) => a.sortOrder - b.sortOrder);
-  for (const g of sortedGroups) {
+  for (const g of groups) {
     const mem = accounts
       .filter((a) => a.groupId === g.id)
       .sort((a, b) => a.sortOrder - b.sortOrder);
     members[g.id] = mem.map((a) => a.id);
+    sortKey[g.id] = g.sortOrder;
   }
 
   const ungrouped = accounts
     .filter((a) => !a.groupId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
-  members[STANDALONE] = ungrouped.map((a) => a.id);
+  for (const a of ungrouped) {
+    const cardId = homeBucketId(a);
+    if (!members[cardId]) {
+      members[cardId] = [];
+      sortKey[cardId] = a.sortOrder; // first seen = min sortOrder (already sorted)
+    }
+    members[cardId].push(a.id);
+  }
 
-  // Group cards are reorderable; the standalone card is always pinned last.
-  const order = [...sortedGroups.map((g) => g.id), STANDALONE];
+  // All cards (groups + owner buckets) interleave by their sort key.
+  const order = Object.keys(members).sort((a, b) => sortKey[a] - sortKey[b]);
   return { order, members };
 }
 
 function signature(groups: GroupRow[], accounts: AccountValuation[]): string {
   return JSON.stringify([
     groups.map((g) => [g.id, g.sortOrder]),
-    accounts.map((a) => [a.id, a.groupId, a.sortOrder]),
+    accounts.map((a) => [a.id, a.groupId, a.sortOrder, a.ownerIds]),
   ]);
 }
 
@@ -114,31 +139,6 @@ function SortableCard({
       )}
     >
       {children({ dragHandleProps: { ...attributes, ...listeners }, isDragging })}
-    </div>
-  );
-}
-
-// The standalone (ungrouped) card is pinned to the bottom and is NOT
-// reorderable — it only needs to be a drop target for accounts.
-function DroppableCard({
-  id,
-  highlight,
-  children,
-}: {
-  id: string;
-  highlight?: boolean;
-  children: React.ReactNode;
-}) {
-  const { setNodeRef } = useDroppable({ id });
-  return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "overflow-hidden rounded-xl border border-border bg-card",
-        highlight && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-      )}
-    >
-      {children}
     </div>
   );
 }
@@ -174,6 +174,18 @@ export function DashboardSection({
   hasData,
 }: Props) {
   const qc = useQueryClient();
+  const { data: users } = useUsers();
+
+  const memberById = new Map<string, Member>();
+  for (const u of users ?? []) memberById.set(u.id, u);
+
+  function ownerLabel(cardId: string): string {
+    const ids = ownerIdsOf(cardId);
+    if (ids.length === 0) return "Unowned";
+    const names = ids.map((id) => memberById.get(id)?.name ?? "…");
+    if (ids.length === 1) return names[0];
+    return "Shared · " + names.join(", ");
+  }
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [newGroupOpen, setNewGroupOpen] = useState(false);
@@ -262,8 +274,8 @@ export function DashboardSection({
       groupId?: string | null;
     }> = [];
     for (const cardId of curOrder) {
-      if (cardId === STANDALONE) {
-        for (const acctId of curMembers[STANDALONE] ?? []) {
+      if (isOwnerCard(cardId)) {
+        for (const acctId of curMembers[cardId] ?? []) {
           items.push({ id: acctId, kind: "account", sortOrder: n++, groupId: null });
         }
       } else {
@@ -279,10 +291,28 @@ export function DashboardSection({
   }
 
   function onDragStart(event: DragStartEvent) {
-    setActiveId(String(event.active.id));
+    const id = String(event.active.id);
+    setActiveId(id);
     setOverContainer(null);
     draggingRef.current = true;
     crossMovedRef.current = false;
+
+    // If an account is being dragged, ensure its home owner bucket exists as a
+    // (possibly empty) drop target — so a grouped account can be ungrouped even
+    // when no other ungrouped account of that owner is currently visible.
+    const acct = acctById.get(id);
+    if (acct) {
+      const home = homeBucketId(acct);
+      if (!order.includes(home)) {
+        setOrder((prev) => (prev.includes(home) ? prev : [...prev, home]));
+        setMembers((prev) => {
+          if (prev[home]) return prev;
+          const next = { ...prev, [home]: [] };
+          membersRef.current = next;
+          return next;
+        });
+      }
+    }
   }
 
   function onDragOver(event: DragOverEvent) {
@@ -298,6 +328,17 @@ export function DashboardSection({
     const overIdStr = String(over.id);
     const fromContainer = findContainer(activeIdStr);
     const toContainer = order.includes(overIdStr) ? overIdStr : findContainer(overIdStr);
+
+    // Owner-integrity guard: an account may only land in a real group or in its
+    // OWN owner bucket. Dropping into a different owner bucket is a no-op.
+    if (toContainer && isOwnerCard(toContainer)) {
+      const acct = acctById.get(activeIdStr);
+      if (acct && toContainer !== homeBucketId(acct)) {
+        setOverContainer(null);
+        return;
+      }
+    }
+
     setOverContainer(toContainer ?? null);
     if (!fromContainer || !toContainer || fromContainer === toContainer) return;
 
@@ -332,18 +373,13 @@ export function DashboardSection({
     const activeIdStr = String(active.id);
     const overIdStr = String(over.id);
 
-    // Group card drag — reorder among groups; the standalone card stays last.
-    if (order.includes(activeIdStr) && activeIdStr !== STANDALONE) {
-      const groupOrder = order.filter((id) => id !== STANDALONE);
+    // Card drag — groups and owner buckets reorder freely among each other.
+    if (order.includes(activeIdStr)) {
       const overCard = order.includes(overIdStr) ? overIdStr : findContainer(overIdStr);
-      const oldIndex = groupOrder.indexOf(activeIdStr);
-      // Dropping onto (or past) the standalone card sends the group to the end.
-      const newIndex =
-        !overCard || overCard === STANDALONE
-          ? groupOrder.length - 1
-          : groupOrder.indexOf(overCard);
+      const oldIndex = order.indexOf(activeIdStr);
+      const newIndex = overCard ? order.indexOf(overCard) : -1;
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-      const newOrder = [...arrayMove(groupOrder, oldIndex, newIndex), STANDALONE];
+      const newOrder = arrayMove(order, oldIndex, newIndex);
       setOrder(newOrder);
       await persist(newOrder, membersRef.current);
       return;
@@ -353,6 +389,12 @@ export function DashboardSection({
     const fromContainer = findContainer(activeIdStr);
     if (!fromContainer) return;
     const toContainer = order.includes(overIdStr) ? overIdStr : findContainer(overIdStr);
+
+    // Owner-integrity guard: invalid cross-owner-bucket drop is a no-op.
+    if (toContainer && isOwnerCard(toContainer)) {
+      const acct = acctById.get(activeIdStr);
+      if (acct && toContainer !== homeBucketId(acct)) return;
+    }
 
     if (!crossMovedRef.current && toContainer && fromContainer === toContainer) {
       // Same-container reorder.
@@ -446,10 +488,7 @@ export function DashboardSection({
           onDragOver={onDragOver}
           onDragEnd={(e) => void onDragEnd(e)}
         >
-          <SortableContext
-            items={order.filter((id) => id !== STANDALONE)}
-            strategy={verticalListSortingStrategy}
-          >
+          <SortableContext items={order} strategy={verticalListSortingStrategy}>
             <div className="space-y-3">
               {order.map((cardId) => {
                 const memberIds = members[cardId] ?? [];
@@ -457,80 +496,62 @@ export function DashboardSection({
                 const isAccountDrag = activeId !== null && !order.includes(activeId);
                 const isDropTarget = isAccountDrag && overContainer === cardId;
                 const activeAcctName = activeId ? acctById.get(activeId)?.name : undefined;
+                const bucket = isOwnerCard(cardId);
 
-                if (cardId === STANDALONE) {
-                  // Hidden at rest when empty; shown during a drag as a drop target.
-                  if (memberIds.length === 0 && !dragging) return null;
-                  return (
-                    <DroppableCard key={cardId} id={cardId} highlight={isDropTarget}>
-                      {memberIds.length === 0 ? (
-                        <p className="px-4 py-4 text-center text-xs text-muted-foreground">
-                          Drop here to remove from group
-                        </p>
-                      ) : (
-                        <SortableContext items={memberIds} strategy={verticalListSortingStrategy}>
-                          {memberIds.map((aid, i) => {
-                            const acct = acctById.get(aid);
-                            if (!acct) return null;
-                            return (
-                              <SortableAccount key={aid} id={aid}>
-                                {({ dragHandleProps: dp, isDragging }) => (
-                                  <AccountRow
-                                    account={acct}
-                                    baseCurrency={baseCurrency}
-                                    isLast={i === memberIds.length - 1}
-                                    dragHandleProps={dp}
-                                    isDragging={isDragging}
-                                  />
-                                )}
-                              </SortableAccount>
-                            );
-                          })}
-                        </SortableContext>
-                      )}
-                    </DroppableCard>
-                  );
-                }
+                // Empty owner buckets are hidden at rest; shown during a drag
+                // (their home account can be dropped back in to ungroup it).
+                if (bucket && memberIds.length === 0 && !dragging) return null;
 
-                // Group card.
-                const group = groups.find((g) => g.id === cardId);
-                if (!group) return null;
+                const cardName = bucket
+                  ? ownerLabel(cardId)
+                  : (groups.find((g) => g.id === cardId)?.name ?? "");
+                // Group cards must resolve to a real group.
+                const group = bucket ? null : groups.find((g) => g.id === cardId);
+                if (!bucket && !group) return null;
+
                 const memberAccts = memberIds
                   .map((id) => acctById.get(id))
                   .filter((a): a is AccountValuation => a !== undefined);
                 const subtotal = memberAccts
                   .filter((a) => !a.missingRate)
                   .reduce((sum, a) => sum + a.baseMinor, 0);
-                const isExpanded = expanded.has(group.id);
+                // `expanded` tracks toggles away from each card's default:
+                // groups default collapsed (in-set = expanded); buckets default
+                // expanded (in-set = collapsed).
+                const expandedState = bucket ? !expanded.has(cardId) : expanded.has(cardId);
 
                 return (
                   <SortableCard key={cardId} id={cardId} highlight={isDropTarget}>
                     {({ dragHandleProps, isDragging }) => (
                       <div>
                         <AccountGroupRow
-                          name={group.name}
+                          name={cardName}
                           memberCount={memberIds.length}
                           subtotalMinor={subtotal}
                           baseCurrency={baseCurrency}
-                          expanded={isExpanded}
-                          onToggle={() => toggleGroup(group.id)}
-                          onRename={(name) => void renameGroup(group.id, name)}
-                          onDelete={() => void deleteGroup(group.id)}
+                          expanded={expandedState}
+                          onToggle={() => toggleGroup(cardId)}
+                          onRename={
+                            bucket ? undefined : (name) => void renameGroup(cardId, name)
+                          }
+                          onDelete={bucket ? undefined : () => void deleteGroup(cardId)}
                           dragHandleProps={dragHandleProps}
                           isDragging={isDragging}
                         />
-                        {isDropTarget && !isExpanded && (
+                        {isDropTarget && !expandedState && !bucket && (
                           <p className="border-t border-primary/30 bg-primary/10 px-4 py-2 text-center text-xs font-medium text-primary">
                             Drop here to add{activeAcctName ? ` ${activeAcctName}` : " account"} into{" "}
-                            {group.name}
+                            {cardName}
                           </p>
                         )}
-                        {isExpanded && (
+                        {expandedState && (
                           <SortableContext items={memberIds} strategy={verticalListSortingStrategy}>
                             <div className="border-t border-border/70">
                               {memberIds.length === 0 ? (
                                 <p className="px-4 py-3 text-xs text-muted-foreground">
-                                  No accounts — drag one in.
+                                  {bucket
+                                    ? "Drop here to remove from group"
+                                    : "No accounts — drag one in."}
                                 </p>
                               ) : (
                                 memberIds.map((aid, i) => {

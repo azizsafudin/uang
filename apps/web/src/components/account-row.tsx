@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
 import { formatMoney } from "@/components/money";
 import { subtypeLabel } from "@/components/labels";
-import { OwnersBadge } from "@/components/owners-badge";
 import { cn } from "@/lib/utils";
 
 type Account = {
@@ -14,7 +13,6 @@ type Account = {
   baseMinor: number;
   missingRate: boolean;
   class: string;
-  ownerIds: string[];
 };
 
 type Props = {
@@ -82,7 +80,6 @@ export function AccountRow({ account, baseCurrency, isLast, dragHandleProps, isD
                 no FX rate
               </span>
             )}
-            <OwnersBadge ownerIds={account.ownerIds} />
           </div>
         </div>
 

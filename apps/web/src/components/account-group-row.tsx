@@ -19,8 +19,8 @@ type Props = {
   baseCurrency: string;
   expanded: boolean;
   onToggle: () => void;
-  onRename: (name: string) => void;
-  onDelete: () => void;
+  onRename?: (name: string) => void;
+  onDelete?: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
   isDragging?: boolean;
 };
@@ -47,9 +47,11 @@ export function AccountGroupRow({
 
   function commitRename() {
     const trimmed = draft.trim();
-    if (trimmed && trimmed !== name) onRename(trimmed);
+    if (trimmed && trimmed !== name) onRename?.(trimmed);
     setRenaming(false);
   }
+
+  const hasMenu = Boolean(onRename || onDelete);
 
   return (
     <div
@@ -104,26 +106,30 @@ export function AccountGroupRow({
         </button>
       )}
 
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <button
-              type="button"
-              aria-label="Group actions"
-              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            />
-          }
-        >
-          <MoreVertical size={15} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={startRename}>Rename</DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={onDelete}>
-            Delete group
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {hasMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                aria-label="Group actions"
+                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              />
+            }
+          >
+            <MoreVertical size={15} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {onRename && <DropdownMenuItem onClick={startRename}>Rename</DropdownMenuItem>}
+            {onRename && onDelete && <DropdownMenuSeparator />}
+            {onDelete && (
+              <DropdownMenuItem variant="destructive" onClick={onDelete}>
+                Delete group
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }
