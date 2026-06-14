@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { currencyDecimals } from "@uang/shared";
 import { SUBTYPES, subtypeLabel, classLabel } from "@/components/labels";
 import { accountsCollection, newId, type AccountRow } from "@/lib/collections";
+import { defaultAssumptions } from "@/lib/assumptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,7 @@ export function AccountForm() {
     const currency = f.currency.toUpperCase();
     // A complete optimistic row; the server fills balanceMinor/createdAt/createdBy
     // and reconciles by id on refetch.
+    const assumptions = defaultAssumptions(f.subtype);
     const row: AccountRow = {
       id: newId(),
       name: f.name,
@@ -62,6 +64,12 @@ export function AccountForm() {
       createdAt: Math.floor(Date.now() / 1000),
       createdBy: meId ?? "",
       ownerIds: owners.length > 0 ? owners : meId ? [meId] : [],
+      growthRateBps: assumptions.growthRateBps,
+      accessibleFromAge: assumptions.accessibleFromAge,
+      earlyWithdrawal: assumptions.earlyWithdrawal,
+      earlyHaircutBps: assumptions.earlyHaircutBps,
+      illiquid: assumptions.illiquid ? 1 : 0,
+      liquidationAge: assumptions.liquidationAge,
     };
     if (f.valuationMode === "ledger" && !Number.isNaN(openingMajor) && openingMajor !== 0) {
       const dec = currencyDecimals(currency);

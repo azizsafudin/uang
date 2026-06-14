@@ -70,6 +70,12 @@ export const accountsCollection = createCollection(
         ownerIds: m.ownerIds,
         openingBalanceMinor: m.openingBalanceMinor,
         openingDate: m.openingDate,
+        growthRateBps: m.growthRateBps,
+        accessibleFromAge: m.accessibleFromAge,
+        earlyWithdrawal: m.earlyWithdrawal,
+        earlyHaircutBps: m.earlyHaircutBps,
+        illiquid: m.illiquid === 1,
+        liquidationAge: m.liquidationAge ?? null,
       });
       if (error) throw new Error(String(error));
     },
@@ -81,6 +87,12 @@ export const accountsCollection = createCollection(
         institution: m.institution ?? undefined,
         sortOrder: m.sortOrder,
         isArchived: m.isArchived === 1,
+        growthRateBps: m.growthRateBps,
+        accessibleFromAge: m.accessibleFromAge,
+        earlyWithdrawal: m.earlyWithdrawal,
+        earlyHaircutBps: m.earlyHaircutBps,
+        illiquid: m.illiquid === 1,
+        liquidationAge: m.liquidationAge ?? null,
       });
       if (error) throw new Error(String(error));
     },
@@ -280,3 +292,28 @@ export function pricesCollection(instrumentId: string): PricesCollection {
   if (!_pricesCache.has(instrumentId)) _pricesCache.set(instrumentId, _makePricesCollection(instrumentId));
   return _pricesCache.get(instrumentId)!;
 }
+
+// ---------------------------------------------------------------------------
+// membersCollection — household members + birth years
+// ---------------------------------------------------------------------------
+
+export type MemberRow = RowOf<typeof api.members.get>;
+
+export const membersCollection = createCollection(
+  queryCollectionOptions<MemberRow, Error, ["members"], string>({
+    queryKey: ["members"],
+    queryFn: async (): Promise<Array<MemberRow>> => {
+      const { data, error } = await api.members.get();
+      if (error) throw new Error(String(error));
+      return Array.isArray(data) ? data : [];
+    },
+    queryClient,
+    getKey: (m) => m.id,
+    onUpdate: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as MemberRow | undefined;
+      if (!m) return;
+      const { error } = await api.members({ id: m.id }).patch({ birthYear: m.birthYear ?? null });
+      if (error) throw new Error(String(error));
+    },
+  })
+);
