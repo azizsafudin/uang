@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencySelect } from "@/components/currency-select";
 
 export function OnboardingPage() {
   const nav = useNavigate();
@@ -67,15 +68,13 @@ export function OnboardingPage() {
             </div>
             <div>
               <Label>Base currency</Label>
-              <Input
+              <CurrencySelect
                 data-testid="onboarding-currency"
                 value={form.baseCurrency}
-                onChange={set("baseCurrency")}
-                maxLength={3}
-                required
+                onValueChange={(code) => setForm({ ...form, baseCurrency: code })}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                The currency everything rolls up to (ISO code, e.g. MYR, USD).
+                The currency everything rolls up to.
               </p>
             </div>
             <div className="border-t border-border/70 pt-3">

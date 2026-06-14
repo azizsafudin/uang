@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSession } from "@/lib/auth";
 import { OwnersField } from "@/components/owners-field";
+import { CurrencySelect } from "@/components/currency-select";
 import {
   Dialog,
   DialogContent,
@@ -177,14 +178,11 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Currency</Label>
-              <Input
+              <CurrencySelect
                 data-testid="account-currency"
                 value={f.currency}
-                maxLength={3}
-                onChange={(e) => set("currency", e.target.value)}
-                required
+                onValueChange={(code) => set("currency", code)}
               />
-              <p className="text-xs text-muted-foreground">3-letter ISO code, e.g. SGD, USD, MYR</p>
             </div>
             {f.valuationMode === "ledger" && (
               <div>

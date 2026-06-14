@@ -11,3 +11,23 @@ export function currencyDecimals(code: string): number {
   const d = MINOR_UNITS[code.toUpperCase()];
   return d === undefined ? 2 : d;
 }
+
+// Display symbol per ISO 4217 code. Unknown codes fall back to the code itself.
+const SYMBOLS: Record<string, string> = {
+  USD: "$", EUR: "€", GBP: "£", MYR: "RM", SGD: "$", AUD: "$", CAD: "$", CHF: "Fr",
+  IDR: "Rp", INR: "₹", CNY: "¥", HKD: "$", THB: "฿", PHP: "₱",
+  JPY: "¥", KRW: "₩", VND: "₫", CLP: "$", ISK: "kr",
+  BHD: "BD", KWD: "KD", OMR: "﷼", JOD: "JD", TND: "DT",
+};
+
+export function currencySymbol(code: string): string {
+  return SYMBOLS[code.toUpperCase()] ?? code.toUpperCase();
+}
+
+// Supported ISO 4217 codes, roughly ordered by likely usage, for select inputs.
+export const CURRENCY_CODES: readonly string[] = [
+  "USD", "EUR", "GBP", "SGD", "MYR", "AUD", "CAD", "CHF",
+  "HKD", "CNY", "INR", "IDR", "THB", "PHP",
+  "JPY", "KRW", "VND",
+  "CLP", "ISK", "BHD", "KWD", "OMR", "JOD", "TND",
+];

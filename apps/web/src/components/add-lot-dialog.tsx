@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CurrencySelect } from "@/components/currency-select";
 import {
   Dialog,
   DialogContent,
@@ -116,7 +117,7 @@ export function AddLotDialog({ accountId }: { accountId: string }) {
               </div>
               <div>
                 <Label>Currency</Label>
-                <Input data-testid="lot-instrument-currency" value={ni.currency} maxLength={3} onChange={(e) => setNi((p) => ({ ...p, currency: e.target.value }))} required />
+                <CurrencySelect data-testid="lot-instrument-currency" value={ni.currency} onValueChange={(code) => setNi((p) => ({ ...p, currency: code }))} />
               </div>
               <div className="col-span-2">
                 <Label>Kind</Label>

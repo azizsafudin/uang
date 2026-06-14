@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { api } from "@/lib/api";
-import { currencyDecimals } from "@uang/shared";
+import { currencyDecimals, currencySymbol } from "@uang/shared";
 import { formatMoney } from "@/components/money";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -46,16 +46,12 @@ function formatDay(value: unknown, opts: Intl.DateTimeFormatOptions): string {
 // short so they don't crowd the plot.
 function formatMoneyCompact(minor: number, currency: string): string {
   const major = minor / 10 ** currencyDecimals(currency);
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency,
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(major);
-  } catch {
-    return String(Math.round(major));
-  }
+  const sign = major < 0 ? "-" : "";
+  const num = new Intl.NumberFormat(undefined, {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(Math.abs(major));
+  return `${sign}${currencySymbol(currency)}${num}`;
 }
 
 // Map a non-custom preset to a {from, to} range (to = today).

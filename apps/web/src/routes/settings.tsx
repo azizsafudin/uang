@@ -8,6 +8,7 @@ import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CurrencySelect } from "@/components/currency-select";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
@@ -181,15 +182,11 @@ export function SettingsPage() {
           >
             <div>
               <Label>Currency</Label>
-              <Input
+              <CurrencySelect
                 data-testid="fx-currency"
                 value={fx.currency}
-                maxLength={3}
-                placeholder="MYR"
-                onChange={(e) =>
-                  setFx((p) => ({ ...p, currency: e.target.value }))
-                }
-                required
+                placeholder="Select"
+                onValueChange={(code) => setFx((p) => ({ ...p, currency: code }))}
               />
             </div>
             <div>

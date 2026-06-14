@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { seedHousehold, createLedgerAccount, ADMIN } from "./helpers";
+import { seedHousehold, createLedgerAccount, selectCurrency, ADMIN } from "./helpers";
 
 const PARTNER = { name: "Pat Partner", email: "partner@e2e.test", password: "supersecret2" };
 
@@ -27,7 +27,7 @@ test("shared vs personal accounts and the net-worth owner toggle", async ({ page
     await page.getByRole("button", { name: "Add account" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByTestId("account-name").fill("Joint");
-    await dialog.getByTestId("account-currency").fill("USD");
+    await selectCurrency(page, dialog, "account-currency", "USD");
     await dialog.getByTestId("account-opening").fill("2000");
     // Admin is pre-checked; also check the partner to make it shared.
     await dialog.getByTestId("owner-option").filter({ hasText: PARTNER.name }).click();

@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { ADMIN } from "./helpers";
+import { ADMIN, selectCurrency } from "./helpers";
 
 test.beforeEach(async ({ backend }) => {
   await backend.freshDb(); // unseeded: a fresh, empty (migrated) DB
@@ -9,7 +9,7 @@ test("first-run onboarding creates a household and lands on the dashboard", asyn
   await test.step("fill and submit the onboarding form", async () => {
     await page.goto("/onboarding");
     await page.getByTestId("onboarding-household").fill("The E2E Household");
-    await page.getByTestId("onboarding-currency").fill("USD");
+    await selectCurrency(page, page, "onboarding-currency", "USD");
     await page.getByTestId("onboarding-name").fill(ADMIN.name);
     await page.getByTestId("onboarding-email").fill(ADMIN.email);
     await page.getByTestId("onboarding-password").fill(ADMIN.password);

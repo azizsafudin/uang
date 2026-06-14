@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { seedHousehold } from "./helpers";
+import { seedHousehold, selectCurrency } from "./helpers";
 
 test.beforeEach(async ({ backend, request, context }) => {
   await backend.freshDb();
@@ -16,7 +16,7 @@ test("holdings account: add a lot with a new instrument, set price, see gain", a
     // Set valuation to Holdings directly (base-ui Select: click the trigger, then the option).
     await dialog.getByTestId("account-valuation").click();
     await page.getByRole("option", { name: "Holdings (investments)" }).click();
-    await dialog.getByTestId("account-currency").fill("USD");
+    await selectCurrency(page, dialog, "account-currency", "USD");
     await dialog.getByRole("button", { name: "Create" }).click();
     await expect(dialog).toBeHidden();
   });
@@ -30,7 +30,7 @@ test("holdings account: add a lot with a new instrument, set price, see gain", a
     // Instrument select defaults to "New instrument…", so the new-instrument fields are visible.
     await dialog.getByTestId("lot-instrument-name").fill("Acme Corp");
     await dialog.getByTestId("lot-instrument-symbol").fill("ACME");
-    await dialog.getByTestId("lot-instrument-currency").fill("USD");
+    await selectCurrency(page, dialog, "lot-instrument-currency", "USD");
     await dialog.getByTestId("lot-units").fill("10");
     await dialog.getByTestId("lot-unit-cost").fill("100");
     await dialog.getByTestId("lot-fees").fill("5");
