@@ -3,7 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Primary, theme-adaptive icon (id lets favicon.ts swap colors live). -->
+    <link id="app-favicon" rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Raster fallbacks for browsers without SVG-favicon support. -->
+    <link rel="alternate icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="alternate icon" href="/favicon.ico" sizes="48x48 32x32 16x16" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#fbf9f5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16130f" media="(prefers-color-scheme: dark)" />
     <title>Uang</title>
   </head>
   <body>
