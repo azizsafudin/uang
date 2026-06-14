@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { OwnersField } from "@/components/owners-field";
 import { OwnersBadge } from "@/components/owners-badge";
+import { HoldingsDetail } from "@/components/holdings-detail";
 
 const BackButton = () => (
   <Link to="/">
@@ -40,6 +41,14 @@ export function AccountDetailPage() {
         <p className="text-muted-foreground">
           {accountsLoading ? "Loading…" : "Account not found."}
         </p>
+      </AppShell>
+    );
+  }
+
+  if (account.valuationMode === "holdings") {
+    return (
+      <AppShell actions={<BackButton />}>
+        <HoldingsDetail accountId={id} accountName={account.name} />
       </AppShell>
     );
   }
