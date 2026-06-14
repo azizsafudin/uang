@@ -6,6 +6,7 @@
   },
   "deploy": {
     "healthcheckPath": "/health",
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "sleepApplication": true
   }
 }
