@@ -1,7 +1,7 @@
 # Goal Spend / Decumulation + Waterfall — Design
 
 **Date:** 2026-06-15
-**Status:** Approved (design); pending implementation plan
+**Status:** Implemented (see docs/superpowers/plans/2026-06-15-goal-spend-decumulation.md)
 **Feature:** Let a goal *spend* money at/after its target date (one-time, recurring flat, or a % withdrawal rate), and let a completed goal's freed contribution + surplus **cascade** to the next-priority goal — modelled by a month-by-month multi-goal cashflow simulation.
 
 Builds on the merged Goals slice (`/goals`, allocation, per-goal contributions, projections). This is the decumulation piece deferred in the original projections design (§8).
