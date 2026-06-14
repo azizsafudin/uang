@@ -28,16 +28,9 @@ type RowOf<G extends (...args: never[]) => Promise<{ data: unknown }>> =
 type AccountApi = ReturnType<typeof api.accounts>;
 type InstrumentApi = ReturnType<typeof api.instruments>;
 
-export type AccountRow = RowOf<typeof api.accounts.get> & {
-  // Insert-only hints consumed by POST /accounts (it creates an opening entry);
-  // never returned by GET.
-  openingBalanceMinor?: number;
-  openingDate?: string;
-};
+export type AccountRow = RowOf<typeof api.accounts.get>;
 export type FxRow = RowOf<typeof api.fx.get>;
 export type InstrumentRow = RowOf<typeof api.instruments.get>;
-export type EntryRow = RowOf<AccountApi["entries"]["get"]>;
-export type LotRow = RowOf<AccountApi["lots"]["get"]>;
 export type PriceRow = RowOf<InstrumentApi["prices"]["get"]>;
 
 // ---------------------------------------------------------------------------
@@ -64,12 +57,9 @@ export const accountsCollection = createCollection(
         class: m.class,
         subtype: m.subtype,
         currency: m.currency,
-        valuationMode: m.valuationMode,
         institution: m.institution ?? undefined,
         sortOrder: m.sortOrder,
         ownerIds: m.ownerIds,
-        openingBalanceMinor: m.openingBalanceMinor,
-        openingDate: m.openingDate,
         growthRateBps: m.growthRateBps,
         accessibleFromAge: m.accessibleFromAge,
         earlyWithdrawal: m.earlyWithdrawal,
@@ -159,7 +149,7 @@ export const instrumentsCollection = createCollection(
       if (!m) return;
       const { error } = await api.instruments.post({
         name: m.name,
-        kind: m.kind,
+        kind: m.kind as "stock" | "etf" | "fund" | "crypto" | "other",
         currency: m.currency,
         symbol: m.symbol ?? undefined,
         isin: m.isin ?? undefined,
@@ -170,97 +160,51 @@ export const instrumentsCollection = createCollection(
 );
 
 // ---------------------------------------------------------------------------
-// entriesCollection — factory, memoised per accountId
+// transactionsCollection — factory, memoised per accountId
 // ---------------------------------------------------------------------------
 
-type EntriesCollection = ReturnType<typeof _makeEntriesCollection>;
-const _entriesCache = new Map<string, EntriesCollection>();
+export type TransactionRow = RowOf<AccountApi["transactions"]["get"]>;
 
-function _makeEntriesCollection(accountId: string) {
+type TransactionsCollection = ReturnType<typeof _makeTransactionsCollection>;
+const _transactionsCache = new Map<string, TransactionsCollection>();
+
+function _makeTransactionsCollection(accountId: string) {
   return createCollection(
-    queryCollectionOptions<EntryRow, Error, [string, string], string>({
-      queryKey: ["entries", accountId],
-      queryFn: async (): Promise<Array<EntryRow>> => {
-        const { data, error } = await api.accounts({ id: accountId }).entries.get();
+    queryCollectionOptions<TransactionRow, Error, [string, string], string>({
+      queryKey: ["transactions", accountId],
+      queryFn: async (): Promise<Array<TransactionRow>> => {
+        const { data, error } = await api.accounts({ id: accountId }).transactions.get();
         if (error) throw new Error(String(error));
         return Array.isArray(data) ? data : [];
       },
       queryClient,
-      getKey: (e) => e.id,
-      onDelete: async ({ transaction }) => {
-        const id = (transaction.mutations[0]?.original as EntryRow | undefined)?.id;
-        if (!id) return;
-        await api.entries({ id }).delete();
-      },
-    })
-  );
-}
-
-export function entriesCollection(accountId: string): EntriesCollection {
-  if (!_entriesCache.has(accountId)) {
-    _entriesCache.set(accountId, _makeEntriesCollection(accountId));
-  }
-  return _entriesCache.get(accountId)!;
-}
-
-// ---------------------------------------------------------------------------
-// lotsCollection — factory, memoised per accountId
-// ---------------------------------------------------------------------------
-
-type LotsCollection = ReturnType<typeof _makeLotsCollection>;
-const _lotsCache = new Map<string, LotsCollection>();
-
-function _makeLotsCollection(accountId: string) {
-  return createCollection(
-    queryCollectionOptions<LotRow, Error, [string, string], string>({
-      queryKey: ["lots", accountId],
-      queryFn: async (): Promise<Array<LotRow>> => {
-        const { data, error } = await api.accounts({ id: accountId }).lots.get();
-        if (error) throw new Error(String(error));
-        return Array.isArray(data) ? data : [];
-      },
-      queryClient,
-      getKey: (l) => l.id,
-      onInsert: async ({ transaction }) => {
-        const m = transaction.mutations[0]?.modified as LotRow | undefined;
-        if (!m) return;
-        // Send the client-generated id; accountId is in the URL, createdAt/createdBy are server-set.
-        const { error } = await api.accounts({ id: accountId }).lots.post({
-          id: m.id,
-          instrumentId: m.instrumentId,
-          unitsScaled: m.unitsScaled,
-          unitCostScaled: m.unitCostScaled,
-          feesMinor: m.feesMinor,
-          tradeDate: m.tradeDate,
-          note: m.note ?? undefined,
-        });
-        if (error) throw new Error(String(error));
-      },
+      getKey: (t) => t.id,
       onUpdate: async ({ transaction }) => {
-        const m = transaction.mutations[0]?.modified as LotRow | undefined;
+        const m = transaction.mutations[0]?.modified as TransactionRow | undefined;
         if (!m) return;
-        const { error } = await api.lots({ id: m.id }).patch({
-          instrumentId: m.instrumentId,
-          unitsScaled: m.unitsScaled,
-          unitCostScaled: m.unitCostScaled,
+        const { error } = await api.transactions({ id: m.id }).patch({
+          date: m.date,
+          unitsDelta: m.unitsDelta,
+          unitPriceScaled: m.unitPriceScaled ?? undefined,
           feesMinor: m.feesMinor,
-          tradeDate: m.tradeDate,
-          note: m.note ?? undefined,
+          notes: m.notes ?? undefined,
         });
         if (error) throw new Error(String(error));
       },
       onDelete: async ({ transaction }) => {
-        const id = (transaction.mutations[0]?.original as LotRow | undefined)?.id;
+        const id = (transaction.mutations[0]?.original as TransactionRow | undefined)?.id;
         if (!id) return;
-        await api.lots({ id }).delete();
+        await api.transactions({ id }).delete();
       },
     })
   );
 }
 
-export function lotsCollection(accountId: string): LotsCollection {
-  if (!_lotsCache.has(accountId)) _lotsCache.set(accountId, _makeLotsCollection(accountId));
-  return _lotsCache.get(accountId)!;
+export function transactionsCollection(accountId: string): TransactionsCollection {
+  if (!_transactionsCache.has(accountId)) {
+    _transactionsCache.set(accountId, _makeTransactionsCollection(accountId));
+  }
+  return _transactionsCache.get(accountId)!;
 }
 
 // ---------------------------------------------------------------------------

@@ -31,3 +31,16 @@ export const CURRENCY_CODES: readonly string[] = [
   "JPY", "KRW", "VND",
   "CLP", "ISK", "BHD", "KWD", "OMR", "JOD", "TND",
 ];
+
+// Friendly display names for currency instruments. Unknown codes fall back to the code.
+const CURRENCY_NAMES: Record<string, string> = {
+  USD: "US Dollar", EUR: "Euro", GBP: "Pound Sterling", SGD: "Singapore Dollar",
+  MYR: "Malaysian Ringgit", AUD: "Australian Dollar", CAD: "Canadian Dollar",
+  CHF: "Swiss Franc", JPY: "Japanese Yen", HKD: "Hong Kong Dollar", CNY: "Chinese Yuan",
+  INR: "Indian Rupee", IDR: "Indonesian Rupiah", THB: "Thai Baht", PHP: "Philippine Peso",
+  KRW: "South Korean Won", VND: "Vietnamese Dong",
+};
+
+export function currencyName(code: string): string {
+  return CURRENCY_NAMES[code.toUpperCase()] ?? code.toUpperCase();
+}

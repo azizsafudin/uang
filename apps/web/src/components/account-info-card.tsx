@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
-import { Pencil, X } from "lucide-react";
 import { accountsCollection, groupsCollection, newId, type AccountRow } from "@/lib/collections";
+import { SectionCard } from "@/components/section-card";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,30 +81,13 @@ export function AccountInfoCard({ account }: Props) {
   const groupName = groups.find((g) => g.id === groupId)?.name ?? null;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border bg-muted px-4 py-2.5">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          Account info
-        </span>
-        <button
-          onClick={editing ? cancel : openEdit}
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent",
-            editing && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
-          )}
-          aria-label={editing ? "Cancel editing" : "Edit account"}
-          title={editing ? "Cancel editing" : "Edit account"}
-        >
-          {editing ? <X size={13} /> : <Pencil size={13} />}
-        </button>
-      </div>
-
+    <SectionCard title="Account info" editing={editing} onToggle={editing ? cancel : openEdit}>
       {!editing && (
-        <div>
+        <div className="py-1.5">
           <KVRow label="Name" value={account.name} />
           <KVRow label="Institution" value={account.institution ?? null} empty="—" />
           <KVRow label="Group" value={groupName} empty="None" />
-          <div className="flex items-start gap-6 border-t border-border px-4 py-2.5">
+          <div className="flex items-start gap-6 px-4 py-2">
             <span className="w-20 shrink-0 text-xs text-muted-foreground">Owners</span>
             <OwnersBadge ownerIds={account.ownerIds} />
           </div>
@@ -191,13 +174,13 @@ export function AccountInfoCard({ account }: Props) {
           </div>
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
-function KVRow({ label, value, empty = "—" }: { label: string; value: string | null; empty?: string }) {
+export function KVRow({ label, value, empty = "—" }: { label: string; value: string | null; empty?: string }) {
   return (
-    <div className="flex items-start gap-6 border-t border-border px-4 py-2.5 first:border-t-0">
+    <div className="flex items-start gap-6 px-4 py-2">
       <span className="w-20 shrink-0 text-xs text-muted-foreground">{label}</span>
       <span className={cn("text-sm font-medium", !value && "text-muted-foreground font-normal")}>
         {value ?? empty}
@@ -206,7 +189,7 @@ function KVRow({ label, value, empty = "—" }: { label: string; value: string |
   );
 }
 
-function Field({
+export function Field({
   label,
   hint,
   children,

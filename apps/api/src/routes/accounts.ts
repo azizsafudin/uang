@@ -1,22 +1,25 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
-import { accounts, entries, accountOwners, lots, groups } from "../db/schema";
+import { accounts, transactions, accountOwners, settings, groups } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { isUniqueViolation } from "../lib/db-errors";
-import { accountBalanceMinor } from "../lib/valuation";
+import { accountValueMinor } from "../lib/valuation";
+import { ensureCurrencyInstrument } from "../lib/instruments";
 import { getAllOwnerSets, setOwners, allUsersExist } from "../lib/owners";
 
 export const accountsRoutes = new Elysia({ prefix: "/accounts" })
   .use(authGuard)
   .get("/", async () => {
+    const s = (await db.select().from(settings).where(eq(settings.id, 1)))[0];
+    const base = s?.baseCurrency ?? "USD";
     const rows = await db.select().from(accounts).orderBy(accounts.sortOrder);
     const ownerSets = await getAllOwnerSets();
     return Promise.all(
       rows.map(async (a) => ({
         ...a,
-        balanceMinor: await accountBalanceMinor(a.id),
+        balanceMinor: (await accountValueMinor(a.id, a.currency, base)).valueMinor,
         ownerIds: ownerSets.get(a.id) ?? [],
       })),
     );
@@ -24,7 +27,6 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
   .post(
     "/",
     async ({ body, userId, set }: any) => {
-      // Default owners to the creator; otherwise every id must be an existing user.
       const ownerIds: string[] =
         Array.isArray(body.ownerIds) && body.ownerIds.length > 0 ? body.ownerIds : [userId!];
       if (!(await allUsersExist(ownerIds))) {
@@ -33,14 +35,14 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
       }
 
       const id = body.id ?? createId();
+      const currency = body.currency.toUpperCase();
       try {
         await db.insert(accounts).values({
           id,
           name: body.name,
           class: body.class,
           subtype: body.subtype,
-          currency: body.currency.toUpperCase(),
-          valuationMode: body.valuationMode === "holdings" ? "holdings" : "ledger",
+          currency,
           institution: body.institution ?? null,
           isArchived: 0,
           sortOrder: body.sortOrder ?? 0,
@@ -62,19 +64,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         throw e;
       }
       await setOwners(id, ownerIds);
-      // Holdings accounts derive value from lots, never an opening ledger entry.
-      if (body.valuationMode !== "holdings" && typeof body.openingBalanceMinor === "number" && body.openingBalanceMinor !== 0) {
-        const today = new Date(nowEpoch() * 1000).toISOString().slice(0, 10);
-        await db.insert(entries).values({
-          id: createId(),
-          accountId: id,
-          date: body.openingDate ?? today,
-          amountMinor: body.openingBalanceMinor,
-          kind: "opening",
-          createdAt: nowEpoch(),
-          createdBy: userId!,
-        });
-      }
+      await ensureCurrencyInstrument(currency);
       return { id };
     },
     {
@@ -84,12 +74,9 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         class: t.Union([t.Literal("asset"), t.Literal("liability")]),
         subtype: t.String({ minLength: 1 }),
         currency: t.String({ pattern: "^[A-Za-z]{3}$" }),
-        valuationMode: t.Optional(t.String()),
         institution: t.Optional(t.String()),
         groupId: t.Optional(t.Union([t.String(), t.Null()])),
         sortOrder: t.Optional(t.Number()),
-        openingBalanceMinor: t.Optional(t.Number()),
-        openingDate: t.Optional(t.String()),
         ownerIds: t.Optional(t.Array(t.String())),
         growthRateBps: t.Optional(t.Number()),
         accessibleFromAge: t.Optional(t.Number()),
@@ -191,8 +178,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
     await db
       .delete(accountOwners)
       .where(eq(accountOwners.accountId, params.id));
-    await db.delete(entries).where(eq(entries.accountId, params.id));
-    await db.delete(lots).where(eq(lots.accountId, params.id));
+    await db.delete(transactions).where(eq(transactions.accountId, params.id));
     await db.delete(accounts).where(eq(accounts.id, params.id));
     return { ok: true };
   });

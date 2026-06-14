@@ -1,20 +1,50 @@
 import { db } from "../db/client";
-import { accounts, entries, settings } from "../db/schema";
-import { and, eq, lte, sql } from "drizzle-orm";
-import { convertToBase, toBig, fromBig, SCALE } from "@uang/shared";
+import { accounts, settings } from "../db/schema";
+import { eq } from "drizzle-orm";
+import { convertToBase, convertFromBase, toBig, fromBig, SCALE } from "@uang/shared";
 import { latestFxRateScaled } from "./fx";
-import { holdingsAccountValuation } from "./holdings";
+import { accountPositions } from "./positions";
 import { getAllOwnerSets } from "./owners";
 
-export async function accountBalanceMinor(accountId: string, asOf?: string): Promise<number> {
-  const where = asOf
-    ? and(eq(entries.accountId, accountId), lte(entries.date, asOf))
-    : eq(entries.accountId, accountId);
-  const rows = await db
-    .select({ total: sql<number>`coalesce(sum(${entries.amountMinor}), 0)` })
-    .from(entries)
-    .where(where);
-  return Number(rows[0]?.total ?? 0);
+// Convert an amount in `from` currency minor units to `to` currency minor units, routing
+// through `base` (X→base via fx(X); base→Y via fx(Y) inverse). null if a needed rate is
+// missing. Identity when from === to.
+export async function convertMinor(
+  amountMinor: number, from: string, to: string, base: string, asOf?: string,
+): Promise<number | null> {
+  if (from.toUpperCase() === to.toUpperCase()) return amountMinor;
+
+  let baseMinor: number;
+  if (from.toUpperCase() === base.toUpperCase()) {
+    baseMinor = amountMinor;
+  } else {
+    const r = await latestFxRateScaled(from, asOf);
+    if (r === null) return null;
+    baseMinor = fromBig(convertToBase(toBig(amountMinor), from, base, toBig(r)));
+  }
+
+  if (to.toUpperCase() === base.toUpperCase()) return baseMinor;
+  const r2 = await latestFxRateScaled(to, asOf);
+  if (r2 === null) return null;
+  return fromBig(convertFromBase(toBig(baseMinor), base, to, toBig(r2)));
+}
+
+// Total value of an account in `target` currency by summing each position's market value
+// (in the instrument's currency) converted to `target`. A missing price or missing FX rate
+// flags `missing` and excludes that position.
+export async function accountValueMinor(
+  accountId: string, target: string, base: string, asOf?: string,
+): Promise<{ valueMinor: number; missing: boolean }> {
+  const positions = await accountPositions(accountId, asOf);
+  let total = 0n;
+  let missing = false;
+  for (const p of positions) {
+    if (p.missingPrice) { missing = true; continue; }
+    const conv = await convertMinor(p.marketValueMinor, p.instrumentCurrency, target, base, asOf);
+    if (conv === null) { missing = true; continue; }
+    total += toBig(conv);
+  }
+  return { valueMinor: fromBig(total), missing };
 }
 
 export type AccountValuation = {
@@ -52,40 +82,19 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
     const shared = ownerIds.length >= 2;
 
     // Owner filter: a specific member sees only accounts they solely own.
-    // `household` (or absent) sees everything.
     if (owner && owner !== "household") {
       const personalToOwner = ownerIds.length === 1 && ownerIds[0] === owner;
       if (!personalToOwner) continue;
     }
 
-    let balanceMinor = 0;
-    let baseMinor = 0;
-    let missingRate = false;
-    let currency = a.currency;
+    const baseRes = await accountValueMinor(a.id, base, base, asOf);
+    const dispRes = await accountValueMinor(a.id, a.currency, base, asOf);
+    const missingRate = baseRes.missing;
+    if (!missingRate) total += toBig(baseRes.valueMinor);
 
-    if (a.valuationMode === "holdings") {
-      const hv = await holdingsAccountValuation(a.id, asOf, base);
-      baseMinor = hv.baseMinor;
-      balanceMinor = hv.baseMinor; // holdings: own-currency balance == base total (display rule)
-      missingRate = hv.missing;
-      currency = base;             // holdings report in base currency
-    } else {
-      balanceMinor = await accountBalanceMinor(a.id, asOf);
-      if (a.currency.toUpperCase() === base.toUpperCase()) {
-        baseMinor = balanceMinor;
-      } else {
-        const rate = await latestFxRateScaled(a.currency, asOf);
-        if (rate === null) {
-          missingRate = true;
-        } else {
-          baseMinor = fromBig(convertToBase(toBig(balanceMinor), a.currency, base, toBig(rate)));
-        }
-      }
-    }
-    if (!missingRate) total += toBig(baseMinor);
     out.push({
-      id: a.id, name: a.name, class: a.class, subtype: a.subtype, currency,
-      balanceMinor, baseMinor, missingRate, ownerIds, shared,
+      id: a.id, name: a.name, class: a.class, subtype: a.subtype, currency: a.currency,
+      balanceMinor: dispRes.valueMinor, baseMinor: baseRes.valueMinor, missingRate, ownerIds, shared,
       growthRateBps: a.growthRateBps,
       accessibleFromAge: a.accessibleFromAge,
       earlyWithdrawal: a.earlyWithdrawal,

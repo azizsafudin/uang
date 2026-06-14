@@ -41,7 +41,7 @@ export function UpdatePrice({
       source: "manual",
       createdAt: Math.floor(Date.now() / 1000),
     });
-    await qc.invalidateQueries({ queryKey: ["holdings", accountId] });
+    await qc.invalidateQueries({ queryKey: ["positions", accountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
     setOpen(false);
     setPrice("");

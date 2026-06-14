@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { seedHousehold, createLedgerAccount } from "./helpers";
+import { seedHousehold, createAccount, addCashDeposit } from "./helpers";
 
 test.beforeEach(async ({ backend, request, context }) => {
   await backend.freshDb();
@@ -10,7 +10,12 @@ test("net-worth chart renders data and responds to preset changes", async ({ pag
   await page.goto("/");
 
   await test.step("give the household a balance so the series has data", async () => {
-    await createLedgerAccount(page, { name: "Savings", currency: "USD", opening: "5000" });
+    await createAccount(page, { name: "Savings", currency: "USD" });
+    await page.reload();
+    await page.getByTestId("account-row").filter({ hasText: "Savings" }).click();
+    await expect(page).toHaveURL(/\/accounts\//);
+    await addCashDeposit(page, { amount: "5000", currency: "USD" });
+    await page.goto("/");
     await page.reload(); // ensure the chart's series query refetches with the new account
     await expect(page.getByTestId("networth-hero")).toContainText("5,000.00");
   });

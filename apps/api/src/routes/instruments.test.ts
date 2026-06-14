@@ -29,3 +29,34 @@ test("create then list instruments", async () => {
   expect(list[0].symbol).toBe("AAPL");
   expect(list[0].currency).toBe("USD"); // uppercased
 });
+
+test("POST /instruments/currency find-or-creates and is idempotent", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+
+  const r1 = await app.handle(new Request("http://localhost/instruments/currency", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ symbol: "sgd" }),
+  }));
+  expect(r1.status).toBe(200);
+  const b1 = await r1.json();
+  expect(b1.symbol).toBe("SGD");
+  expect(b1.kind).toBe("currency");
+
+  const r2 = await app.handle(new Request("http://localhost/instruments/currency", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ symbol: "SGD" }),
+  }));
+  const b2 = await r2.json();
+  expect(b2.id).toBe(b1.id);
+});
+
+test("POST /instruments accepts crypto kind", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const res = await app.handle(new Request("http://localhost/instruments", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Bitcoin", kind: "crypto", currency: "USD", symbol: "BTC" }),
+  }));
+  expect(res.status).toBe(200);
+});

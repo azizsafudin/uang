@@ -40,16 +40,34 @@ export async function selectCurrency(
   await page.getByRole("option", { name: new RegExp(`^${code} `) }).click();
 }
 
-// Open the "Add account" dialog from the dashboard and create a ledger account.
-export async function createLedgerAccount(
+// Open the "Add account" dialog from the dashboard and create an account.
+export async function createAccount(
   page: Page,
-  opts: { name: string; currency?: string; opening?: string },
+  opts: { name: string; currency?: string },
 ) {
   await page.getByRole("button", { name: "Add account" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByTestId("account-name").fill(opts.name);
   await selectCurrency(page, dialog, "account-currency", opts.currency ?? "USD");
-  if (opts.opening) await dialog.getByTestId("account-opening").fill(opts.opening);
   await dialog.getByRole("button", { name: "Create" }).click();
+  await expect(dialog).toBeHidden();
+}
+
+// On an account detail page, add a cash deposit using the auto-seeded currency
+// instrument for `currency` (option label looks like "USD — US Dollar (cash)").
+export async function addCashDeposit(
+  page: Page,
+  opts: { amount: string; currency?: string },
+) {
+  const code = opts.currency ?? "USD";
+  // Reload first so the instruments live-query refetches the account's freshly
+  // seeded currency instrument before we open the Select (avoids a load race).
+  await page.reload();
+  await page.getByRole("button", { name: "Add transaction" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByTestId("tx-instrument").click();
+  await page.getByRole("option", { name: new RegExp(`${code} .* \\(cash\\)`) }).click();
+  await dialog.getByTestId("tx-amount").fill(opts.amount);
+  await dialog.getByRole("button", { name: "Add" }).click();
   await expect(dialog).toBeHidden();
 }

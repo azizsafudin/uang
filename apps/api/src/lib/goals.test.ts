@@ -1,6 +1,7 @@
 import { expect, test, beforeEach } from "bun:test";
 import { db } from "../db/client";
-import { accounts, entries, goals, memberProfiles, user } from "../db/schema";
+import { accounts, instruments, transactions, goals, memberProfiles, user } from "../db/schema";
+import { SCALE, currencyDecimals } from "@uang/shared";
 import { createId, nowEpoch } from "./ids";
 import { setOwners } from "./owners";
 import { resetDb, initAndLogin } from "./test-helpers";
@@ -8,7 +9,7 @@ import { analyzeGoals, goalProjection } from "./goals";
 
 beforeEach(resetDb);
 
-// Seed an asset account owned by `ownerId`, with an opening ledger balance.
+// Seed an asset account owned by `ownerId`, funded with an opening cash transaction.
 async function addAccount(opts: {
   name: string; subtype: string; accessibleFromAge?: number;
   earlyWithdrawal?: "none" | "penalty"; earlyHaircutBps?: number; illiquid?: boolean;
@@ -17,7 +18,7 @@ async function addAccount(opts: {
   const id = createId();
   await db.insert(accounts).values({
     id, name: opts.name, class: "asset", subtype: opts.subtype, currency: "USD",
-    valuationMode: "ledger", isArchived: 0, sortOrder: 0,
+    isArchived: 0, sortOrder: 0,
     growthRateBps: 0,
     accessibleFromAge: opts.accessibleFromAge ?? 0,
     earlyWithdrawal: opts.earlyWithdrawal ?? "none",
@@ -26,9 +27,16 @@ async function addAccount(opts: {
     createdAt: nowEpoch(), createdBy: "seed",
   });
   await setOwners(id, [opts.ownerId]);
-  await db.insert(entries).values({
-    id: createId(), accountId: id, date: "2020-01-01", amountMinor: opts.openingMinor,
-    kind: "opening", createdAt: nowEpoch(), createdBy: "seed",
+  const instrId = createId();
+  await db.insert(instruments).values({
+    id: instrId, symbol: "USD", isin: null, name: "US Dollar",
+    kind: "currency", currency: "USD", createdAt: nowEpoch(),
+  });
+  const major = opts.openingMinor / 10 ** currencyDecimals("USD");
+  await db.insert(transactions).values({
+    id: createId(), accountId: id, instrumentId: instrId, date: "2020-01-01",
+    unitsDelta: Math.round(major * Number(SCALE)), unitPriceScaled: Number(SCALE),
+    feesMinor: 0, notes: null, createdAt: nowEpoch(), createdBy: "seed",
   });
   return id;
 }

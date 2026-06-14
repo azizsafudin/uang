@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { currencyDecimals } from "@uang/shared";
 import { SUBTYPES, subtypeLabel, classLabel } from "@/components/labels";
 import { accountsCollection, newId, type AccountRow } from "@/lib/collections";
 import { defaultAssumptions } from "@/lib/assumptions";
@@ -34,9 +33,6 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
     class: "asset",
     subtype: "bank",
     currency: defaultCurrency ?? "USD",
-    valuationMode: "ledger",
-    openingBalance: "",
-    openingDate: new Date().toISOString().slice(0, 10),
   });
   const set = (k: string, v: string) => setF((prev) => ({ ...prev, [k]: v }));
 
@@ -46,10 +42,7 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const openingMajor = parseFloat(f.openingBalance);
     const currency = f.currency.toUpperCase();
-    // A complete optimistic row; the server fills balanceMinor/createdAt/createdBy
-    // and reconciles by id on refetch.
     const assumptions = defaultAssumptions(f.subtype);
     const row: AccountRow = {
       id: newId(),
@@ -57,7 +50,6 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
       class: f.class as AccountRow["class"],
       subtype: f.subtype,
       currency,
-      valuationMode: f.valuationMode as AccountRow["valuationMode"],
       institution: null,
       isArchived: 0,
       sortOrder: 0,
@@ -73,15 +65,10 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
       illiquid: assumptions.illiquid ? 1 : 0,
       liquidationAge: assumptions.liquidationAge,
     };
-    if (f.valuationMode === "ledger" && !Number.isNaN(openingMajor) && openingMajor !== 0) {
-      const dec = currencyDecimals(currency);
-      row.openingBalanceMinor = Math.round(openingMajor * 10 ** dec);
-      row.openingDate = f.openingDate;
-    }
     await accountsCollection.insert(row);
     await qc.invalidateQueries({ queryKey: ["networth"] });
     setOpen(false);
-    setF((prev) => ({ ...prev, name: "", openingBalance: "" }));
+    setF((prev) => ({ ...prev, name: "" }));
   }
 
   return (
@@ -134,11 +121,7 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
                 value={f.subtype}
                 onValueChange={(v: string | null) => {
                   if (!v) return;
-                  setF((prev) => ({
-                    ...prev,
-                    subtype: v,
-                    valuationMode: v === "investment" ? "holdings" : "ledger",
-                  }));
+                  set("subtype", v);
                 }}
               >
                 <SelectTrigger className="w-full">
@@ -157,24 +140,6 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
               <p className="text-xs text-muted-foreground">The kind of account: bank account, investment portfolio, property, etc.</p>
             </div>
           </div>
-          <div>
-            <Label>Valuation</Label>
-            <Select
-              value={f.valuationMode}
-              onValueChange={(v: string | null) => v && set("valuationMode", v)}
-            >
-              <SelectTrigger className="w-full" data-testid="account-valuation">
-                <SelectValue>
-                  {(v: unknown) => (String(v) === "holdings" ? "Holdings (investments)" : "Ledger (balance)")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ledger">Ledger (balance)</SelectItem>
-                <SelectItem value="holdings">Holdings (investments)</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">Ledger: you record balances manually. Holdings: valued from investment lots × prices.</p>
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Currency</Label>
@@ -184,30 +149,7 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
                 onValueChange={(code) => set("currency", code)}
               />
             </div>
-            {f.valuationMode === "ledger" && (
-              <div>
-                <Label>Opening balance</Label>
-                <Input
-                  data-testid="account-opening"
-                  type="number"
-                  step="any"
-                  value={f.openingBalance}
-                  onChange={(e) => set("openingBalance", e.target.value)}
-                  placeholder="optional"
-                />
-              </div>
-            )}
           </div>
-          {f.valuationMode === "ledger" && (
-            <div>
-              <Label>Opening date</Label>
-              <Input
-                type="date"
-                value={f.openingDate}
-                onChange={(e) => set("openingDate", e.target.value)}
-              />
-            </div>
-          )}
           <div>
             <Label>Owners</Label>
             <OwnersField value={owners} onChange={setOwners} />

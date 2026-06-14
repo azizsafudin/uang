@@ -24,7 +24,7 @@ async function addAccount(createdBy: string) {
   const id = createId();
   await db.insert(accounts).values({
     id, name: "A", class: "asset", subtype: "bank", currency: "USD",
-    valuationMode: "ledger", isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy,
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy,
   });
   return id;
 }

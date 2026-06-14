@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { formatMoney } from "@/components/money";
-import { subtypeLabel, classLabel, kindLabel } from "@/components/labels";
-import { SetBalanceDialog } from "@/components/set-balance-dialog";
+import { subtypeLabel, classLabel } from "@/components/labels";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { accountsCollection, entriesCollection } from "@/lib/collections";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { accountsCollection } from "@/lib/collections";
 import { AccountInfoCard } from "@/components/account-info-card";
-import { AccountAssumptionsDialog } from "@/components/account-assumptions-dialog";
-import { HoldingsDetail } from "@/components/holdings-detail";
-import { cn } from "@/lib/utils";
+import { AccountProjectionCard } from "@/components/account-projection-card";
+import { AddTransactionDialog } from "@/components/add-transaction-dialog";
+import { usePositions, PositionsPanel, HistoryPanel } from "@/components/account-history";
 import {
   Dialog,
   DialogContent,
@@ -22,30 +22,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-const BackButton = () => (
-  <Link to="/">
-    <Button variant="ghost" size="sm">
-      ← Back
-    </Button>
-  </Link>
-);
-
 export function AccountDetailPage() {
   const { id } = useParams({ from: "/app/accounts/$id" });
   const nav = useNavigate();
   const qc = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteName, setDeleteName] = useState("");
+  const [tab, setTab] = useState("positions");
 
   const { data: accounts, isLoading: accountsLoading } = useLiveQuery(accountsCollection);
-  const collection = entriesCollection(id);
-  const { data: entries } = useLiveQuery(collection);
-
   const account = (accounts ?? []).find((a) => a.id === id);
+  const { data: pos, isLoading: posLoading } = usePositions(id);
 
   if (accountsLoading || !account) {
     return (
-      <AppShell actions={<BackButton />}>
+      <AppShell>
         <p className="text-muted-foreground">
           {accountsLoading ? "Loading…" : "Account not found."}
         </p>
@@ -73,13 +64,8 @@ export function AccountDetailPage() {
     await nav({ to: "/" });
   }
 
-  async function delEntry(entryId: string) {
-    await collection.delete(entryId);
-    await qc.invalidateQueries({ queryKey: ["networth"] });
-  }
-
   const dangerZone = (
-    <section className="mt-12 border-t border-border pt-6">
+    <section className="mt-10">
       <Eyebrow className="mb-3 text-destructive">Danger zone</Eyebrow>
       {account.isArchived === 0 ? (
         <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
@@ -152,105 +138,67 @@ export function AccountDetailPage() {
     </section>
   );
 
-  if (account.valuationMode === "holdings") {
-    return (
-      <AppShell actions={<BackButton />}>
-        {account.isArchived === 1 && (
-          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
-            This account is archived and hidden from the dashboard.
-          </div>
-        )}
-        <header className="mb-4">
-          <Eyebrow>{classLabel(account.class)} · {subtypeLabel(account.subtype)} · {account.currency}</Eyebrow>
-          <h1 className="mt-2 font-heading text-3xl tracking-tight">{account.name}</h1>
-        </header>
-        <section className="mb-4">
-          <AccountInfoCard account={account} />
-        </section>
-        <div className="mb-4 flex flex-wrap gap-2">
-          <AccountAssumptionsDialog account={account} />
-        </div>
-        <HoldingsDetail accountId={id} accountName={account.name} />
-        {dangerZone}
-      </AppShell>
-    );
-  }
-
-  const sorted = [...(entries ?? [])].sort((a, b) =>
-    a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
-  );
-
   return (
-    <AppShell actions={<BackButton />}>
+    <AppShell>
       {account.isArchived === 1 && (
         <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
           This account is archived and hidden from the dashboard.
         </div>
       )}
 
-      <header className="mb-5">
+      <header>
         <Eyebrow>
           {classLabel(account.class)} · {subtypeLabel(account.subtype)} · {account.currency}
         </Eyebrow>
         <h1 className="mt-2 font-heading text-3xl tracking-tight">{account.name}</h1>
         <p
-          className={cn(
-            "mt-1 font-heading text-4xl tabular-nums tracking-tight",
-            account.balanceMinor < 0 && "text-destructive",
-          )}
+          data-testid="account-total"
+          className="mt-1 font-heading text-4xl tabular-nums tracking-tight"
         >
-          {formatMoney(account.balanceMinor, account.currency)}
+          {posLoading || !pos ? "—" : formatMoney(pos.totalMinor, account.currency)}
         </p>
+        {pos && pos.missing && (
+          <p className="mt-1 text-sm text-destructive">
+            Some positions are missing a price or FX rate.
+          </p>
+        )}
       </header>
 
-      <AccountInfoCard account={account} />
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <SetBalanceDialog accountId={id} currency={account.currency} mode="set" onDone={() => {}} />
-        <SetBalanceDialog accountId={id} currency={account.currency} mode="revalue" onDone={() => {}} />
-        <AccountAssumptionsDialog account={account} />
+      <div className="mt-5">
+        <AddTransactionDialog accountId={id} accountCurrency={account.currency} />
       </div>
 
-      <section className="mt-9">
-        <Eyebrow className="mb-3">History</Eyebrow>
-        {sorted.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No entries yet. Use "Set balance…" to record where this account stands today.
-          </p>
-        ) : (
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
-            {sorted.map((e, i) => (
-              <div
-                key={e.id}
-                className={cn(
-                  "group flex items-center justify-between gap-4 px-4 py-3",
-                  i > 0 && "border-t border-border/70",
-                )}
-              >
-                <div className="min-w-0">
-                  <p className={cn("tabular-nums", e.amountMinor < 0 && "text-destructive")}>
-                    {formatMoney(e.amountMinor, account.currency)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {e.date} · {kindLabel(e.kind)}
-                    {e.note ? ` · ${e.note}` : ""}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
-                  onClick={() => delEntry(e.id)}
-                >
-                  Delete
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => typeof v === "string" && setTab(v)}
+        className="mt-8"
+      >
+        <TabsList variant="line" className="w-full justify-start">
+          <TabsTrigger value="positions" className="flex-none px-3">
+            Positions
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex-none px-3">
+            History
+          </TabsTrigger>
+          <TabsTrigger value="details" className="flex-none px-3">
+            Details
+          </TabsTrigger>
+        </TabsList>
 
-      {dangerZone}
+        <TabsContent value="positions" className="mt-5">
+          <PositionsPanel accountId={id} accountCurrency={account.currency} />
+        </TabsContent>
+        <TabsContent value="history" className="mt-5">
+          <HistoryPanel accountId={id} />
+        </TabsContent>
+        <TabsContent value="details" className="mt-5">
+          <div className="grid items-start gap-6 md:grid-cols-2">
+            <AccountInfoCard account={account} />
+            <AccountProjectionCard account={account} />
+          </div>
+          {dangerZone}
+        </TabsContent>
+      </Tabs>
     </AppShell>
   );
 }

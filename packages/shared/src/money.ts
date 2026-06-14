@@ -33,6 +33,24 @@ export function convertToBase(
   return roundDiv(num, den);
 }
 
+// Inverse of convertToBase: convert an amount in `base` currency minor units to
+// `to` currency minor units. rateScaled = (base major per 1 to-major) * SCALE — i.e.
+// the SAME rate `to` would use with convertToBase. For base === to, returns unchanged.
+// to_minor = round( amountBaseMinor * 10^toDec * SCALE / (10^baseDec * rateScaled) )
+export function convertFromBase(
+  amountBaseMinor: bigint,
+  base: string,
+  to: string,
+  rateScaled: bigint,
+): bigint {
+  if (base.toUpperCase() === to.toUpperCase()) return amountBaseMinor;
+  const toDec = BigInt(currencyDecimals(to));
+  const baseDec = BigInt(currencyDecimals(base));
+  const num = amountBaseMinor * 10n ** toDec * SCALE;
+  const den = 10n ** baseDec * rateScaled;
+  return roundDiv(num, den);
+}
+
 // Boundary helpers between DB/JSON numbers and BigInt math.
 export function toBig(n: number): bigint {
   if (!Number.isInteger(n)) throw new Error("toBig: expected an integer");

@@ -2,23 +2,31 @@ import { expect, test, beforeEach } from "bun:test";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { networthSeriesRoutes } from "./networth-series";
 import { db } from "../db/client";
-import { accounts, entries } from "../db/schema";
+import { accounts, instruments, transactions } from "../db/schema";
+import { SCALE } from "@uang/shared";
 import { createId, nowEpoch } from "../lib/ids";
 
 beforeEach(resetDb);
 
 const app = makeApp(networthSeriesRoutes);
 
+const S = Number(SCALE);
+
 async function seedAccount(amountMinor: number, date: string) {
   const id = createId();
   await db.insert(accounts).values({
     id, name: "Checking", class: "asset", subtype: "bank", currency: "USD",
-    valuationMode: "ledger", isArchived: 0, sortOrder: 0,
+    isArchived: 0, sortOrder: 0,
     createdAt: nowEpoch(), createdBy: "seed",
   });
-  await db.insert(entries).values({
-    id: createId(), accountId: id, date, amountMinor,
-    kind: "opening", createdAt: nowEpoch(), createdBy: "seed",
+  const instrId = createId();
+  await db.insert(instruments).values({
+    id: instrId, symbol: "USD", isin: null, name: "USD", kind: "currency", currency: "USD", createdAt: nowEpoch(),
+  });
+  await db.insert(transactions).values({
+    id: createId(), accountId: id, instrumentId: instrId, date,
+    unitsDelta: Math.round((amountMinor / 100) * S), unitPriceScaled: S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: "seed",
   });
   return id;
 }

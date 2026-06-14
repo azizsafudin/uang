@@ -1,9 +1,8 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { createApp } from "../app";
 import { runMigrations } from "../db/migrate";
 import { db } from "../db/client";
-import { settings, user, accounts, accountOwners, memberProfiles, goals, entries, fxRates, instruments, lots, prices, groups } from "../db/schema";
+import { settings, user, accounts, accountOwners, memberProfiles, goals, groups, transactions, fxRates, instruments, prices } from "../db/schema";
 import { auth } from "../auth";
 import { onboarding } from "../routes/onboarding";
 import { isInitialized } from "./settings";
@@ -14,10 +13,9 @@ export async function resetDb() {
   await db.delete(accountOwners);
   await db.delete(memberProfiles);
   await db.delete(goals);
-  await db.delete(lots);
+  await db.delete(transactions);
   await db.delete(prices);
   await db.delete(instruments);
-  await db.delete(entries);
   await db.delete(accounts);
   await db.delete(groups);
   await db.delete(fxRates);
@@ -42,7 +40,7 @@ export function makeApp(...routes: Elysia[]) {
 
 // Initialize the household + an admin user, return a session cookie header for authed requests.
 export async function initAndLogin(opts?: { baseCurrency?: string; app?: Elysia }) {
-  const app = opts?.app ?? createApp();
+  const app = opts?.app ?? (await import("../app")).createApp();
   await app.handle(new Request("http://localhost/onboarding/init", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({

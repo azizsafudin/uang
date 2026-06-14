@@ -2,14 +2,19 @@ import { expect, test, beforeEach } from "bun:test";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { networthRoutes } from "./networth";
 import { db } from "../db/client";
-import { accounts, entries, accountOwners } from "../db/schema";
+import { accounts, instruments, transactions, accountOwners } from "../db/schema";
+import { SCALE } from "@uang/shared";
 import { createId, nowEpoch } from "../lib/ids";
 
 beforeEach(resetDb);
 
 const app = makeApp(networthRoutes);
 
-// Seed an account + an opening entry directly via Drizzle (no dependency on accounts route).
+const S = Number(SCALE);
+
+// Seed an account + a cash balance via a currency instrument + transaction (no dependency
+// on accounts route). amountMinor is in the account currency's minor units; converted back
+// to whole major units for the units delta (1 currency unit = 1 major unit, priced at SCALE).
 async function seedAccount(opts: {
   name: string;
   cls: "asset" | "liability";
@@ -25,18 +30,27 @@ async function seedAccount(opts: {
     class: opts.cls,
     subtype: "bank",
     currency: opts.currency,
-    valuationMode: "ledger",
     isArchived: 0,
     sortOrder: 0,
     createdAt: nowEpoch(),
     createdBy: opts.userId,
   });
-  await db.insert(entries).values({
+  const instrId = createId();
+  await db.insert(instruments).values({
+    id: instrId, symbol: opts.currency, isin: null, name: opts.currency,
+    kind: "currency", currency: opts.currency, createdAt: nowEpoch(),
+  });
+  // amountMinor (minor units) -> major units delta. e.g. 100000 minor USD = 1000 major.
+  const amountMajor = opts.amountMinor / 100;
+  await db.insert(transactions).values({
     id: createId(),
     accountId: id,
+    instrumentId: instrId,
     date: opts.date,
-    amountMinor: opts.amountMinor,
-    kind: "opening",
+    unitsDelta: Math.round(amountMajor * S),
+    unitPriceScaled: S,
+    feesMinor: 0,
+    notes: null,
     createdAt: nowEpoch(),
     createdBy: opts.userId,
   });

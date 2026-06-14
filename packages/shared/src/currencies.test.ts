@@ -15,3 +15,14 @@ test("is case-insensitive", () => {
 test("defaults unknown codes to 2", () => {
   expect(currencyDecimals("ZZZ")).toBe(2);
 });
+
+import { currencyName } from "./currencies";
+
+test("currencyName returns a friendly name for known codes", () => {
+  expect(currencyName("SGD")).toBe("Singapore Dollar");
+  expect(currencyName("usd")).toBe("US Dollar");
+});
+
+test("currencyName falls back to the upper-cased code for unknown currencies", () => {
+  expect(currencyName("xyz")).toBe("XYZ");
+});

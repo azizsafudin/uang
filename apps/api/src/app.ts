@@ -3,7 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { auth } from "./auth";
 import { onboarding } from "./routes/onboarding";
 import { accountsRoutes } from "./routes/accounts";
-import { entriesRoutes } from "./routes/entries";
+import { transactionsRoutes } from "./routes/transactions";
 import { fxRoutes } from "./routes/fx";
 import { networthRoutes } from "./routes/networth";
 import { networthSeriesRoutes } from "./routes/networth-series";
@@ -13,7 +13,7 @@ import { settingsRoutes } from "./routes/settings";
 import { goalsRoutes } from "./routes/goals";
 import { exportRoutes } from "./routes/export";
 import { instrumentsRoutes } from "./routes/instruments";
-import { lotsRoutes } from "./routes/lots";
+import { positionsRoutes } from "./routes/positions";
 import { pricesRoutes } from "./routes/prices";
 import { groupsRoutes } from "./routes/groups";
 import { isInitialized } from "./lib/settings";
@@ -47,7 +47,7 @@ export function createApp() {
     // propagates forward; mounting them last keeps it from intercepting
     // /api/auth/* (sign-in) or /onboarding/*.
     .use(accountsRoutes)
-    .use(entriesRoutes)
+    .use(transactionsRoutes)
     .use(fxRoutes)
     .use(networthRoutes)
     .use(networthSeriesRoutes)
@@ -57,7 +57,7 @@ export function createApp() {
     .use(goalsRoutes)
     .use(exportRoutes)
     .use(instrumentsRoutes)
-    .use(lotsRoutes)
+    .use(positionsRoutes)
     .use(pricesRoutes)
     .use(groupsRoutes);
 }

@@ -16,7 +16,6 @@ export const accounts = sqliteTable("accounts", {
   class: text("class").$type<"asset" | "liability">().notNull(),
   subtype: text("subtype").notNull(),
   currency: text("currency").notNull(),
-  valuationMode: text("valuation_mode").$type<"ledger" | "holdings">().notNull(),
   institution: text("institution"),
   isArchived: integer("is_archived").notNull().default(0),
   sortOrder: integer("sort_order").notNull().default(0),
@@ -40,36 +39,25 @@ export const groups = sqliteTable("groups", {
   createdAt: integer("created_at").notNull(),
 });
 
-export const entries = sqliteTable("entries", {
-  id: text("id").primaryKey(),
-  accountId: text("account_id").notNull(),
-  date: text("date").notNull(), // YYYY-MM-DD
-  amountMinor: integer("amount_minor").notNull(),
-  kind: text("kind").notNull(), // 'opening'|'adjustment'|'revaluation'|'transaction'
-  note: text("note"),
-  createdAt: integer("created_at").notNull(),
-  createdBy: text("created_by").notNull(),
-});
-
 export const instruments = sqliteTable("instruments", {
   id: text("id").primaryKey(),
   symbol: text("symbol"),
   isin: text("isin"),
   name: text("name").notNull(),
-  kind: text("kind").$type<"stock" | "etf" | "fund" | "other">().notNull(),
+  kind: text("kind").$type<"currency" | "stock" | "etf" | "fund" | "crypto" | "other">().notNull(),
   currency: text("currency").notNull(),
   createdAt: integer("created_at").notNull(),
 });
 
-export const lots = sqliteTable("lots", {
+export const transactions = sqliteTable("transactions", {
   id: text("id").primaryKey(),
   accountId: text("account_id").notNull(),
   instrumentId: text("instrument_id").notNull(),
-  unitsScaled: integer("units_scaled").notNull(),
-  unitCostScaled: integer("unit_cost_scaled").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD, backdating allowed
+  unitsDelta: integer("units_delta").notNull(), // signed, ×1e8 (positive = acquire, negative = dispose)
+  unitPriceScaled: integer("unit_price_scaled"), // price per unit at trade time ×1e8 (SCALE for currencies)
   feesMinor: integer("fees_minor").notNull().default(0),
-  tradeDate: text("trade_date").notNull(),
-  note: text("note"),
+  notes: text("notes"),
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
 });

@@ -2,10 +2,32 @@ import { expect, test, beforeEach } from "bun:test";
 import { resetDb } from "./test-helpers";
 import { netWorthSeries } from "./networth-series";
 import { db } from "../db/client";
-import { accounts, entries, accountOwners, settings } from "../db/schema";
+import { accounts, instruments, transactions, accountOwners, settings } from "../db/schema";
+import { SCALE } from "@uang/shared";
 import { createId, nowEpoch } from "./ids";
 
 beforeEach(resetDb);
+
+const S = Number(SCALE);
+
+// Find-or-create a currency instrument for `currency`, returning its id.
+async function ensureCurrency(currency: string): Promise<string> {
+  const id = createId();
+  await db.insert(instruments).values({
+    id, symbol: currency, isin: null, name: currency, kind: "currency", currency, createdAt: nowEpoch(),
+  });
+  return id;
+}
+
+// Insert a cash transaction of `amountMinor` (account-currency minor units) on `date`.
+async function seedTx(accountId: string, instrumentId: string, amountMinor: number, date: string, userId = "seed") {
+  const amountMajor = amountMinor / 100;
+  await db.insert(transactions).values({
+    id: createId(), accountId, instrumentId, date,
+    unitsDelta: Math.round(amountMajor * S), unitPriceScaled: S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: userId,
+  });
+}
 
 // resetDb wipes settings; netWorth needs a base-currency row. Seed it directly.
 async function seedSettings(baseCurrency = "USD") {
@@ -23,7 +45,7 @@ async function seedAccount(opts: {
   amountMinor: number;
   date: string;
   userId?: string;
-}) {
+}): Promise<{ id: string; instrumentId: string }> {
   const id = createId();
   await db.insert(accounts).values({
     id,
@@ -31,22 +53,14 @@ async function seedAccount(opts: {
     class: opts.cls,
     subtype: "bank",
     currency: opts.currency,
-    valuationMode: "ledger",
     isArchived: 0,
     sortOrder: 0,
     createdAt: nowEpoch(),
     createdBy: opts.userId ?? "seed",
   });
-  await db.insert(entries).values({
-    id: createId(),
-    accountId: id,
-    date: opts.date,
-    amountMinor: opts.amountMinor,
-    kind: "opening",
-    createdAt: nowEpoch(),
-    createdBy: opts.userId ?? "seed",
-  });
-  return id;
+  const instrumentId = await ensureCurrency(opts.currency);
+  await seedTx(id, instrumentId, opts.amountMinor, opts.date, opts.userId ?? "seed");
+  return { id, instrumentId };
 }
 
 async function ownAccount(accountId: string, userIds: string[]) {
@@ -58,11 +72,8 @@ async function ownAccount(accountId: string, userIds: string[]) {
 test("weekly points are ascending, anchored on `to`, with as-of values", async () => {
   await seedSettings("USD");
   // Opening $1,000 on 2026-01-01; +$500 on 2026-02-01 (balance 1500 from Feb 1).
-  const acct = await seedAccount({ cls: "asset", currency: "USD", amountMinor: 100000, date: "2026-01-01" });
-  await db.insert(entries).values({
-    id: createId(), accountId: acct, date: "2026-02-01", amountMinor: 50000,
-    kind: "adjust", createdAt: nowEpoch(), createdBy: "seed",
-  });
+  const { id: acct, instrumentId } = await seedAccount({ cls: "asset", currency: "USD", amountMinor: 100000, date: "2026-01-01" });
+  await seedTx(acct, instrumentId, 50000, "2026-02-01");
 
   const series = await netWorthSeries({ from: "2026-01-01", to: "2026-02-05" });
 
@@ -90,9 +101,9 @@ test("omitting `to` anchors the last point on today", async () => {
 
 test("owner filter restricts to that member's sole-owned accounts", async () => {
   await seedSettings("USD");
-  const mine = await seedAccount({ cls: "asset", currency: "USD", amountMinor: 10000, date: "2026-01-01", userId: "u1" });
+  const { id: mine } = await seedAccount({ cls: "asset", currency: "USD", amountMinor: 10000, date: "2026-01-01", userId: "u1" });
   await ownAccount(mine, ["u1"]);
-  const joint = await seedAccount({ cls: "asset", currency: "USD", amountMinor: 20000, date: "2026-01-01", userId: "u1" });
+  const { id: joint } = await seedAccount({ cls: "asset", currency: "USD", amountMinor: 20000, date: "2026-01-01", userId: "u1" });
   await ownAccount(joint, ["u1", "u2"]);
 
   const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-01", owner: "u1" });

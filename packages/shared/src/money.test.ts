@@ -68,3 +68,26 @@ test("toBig/fromBig round-trip integers", () => {
 test("fromBig throws above the safe integer boundary", () => {
   expect(() => fromBig(9_007_199_254_740_993n)).toThrow();
 });
+
+import { convertFromBase } from "./money";
+
+test("convertFromBase is the inverse of convertToBase for same-decimal currencies", () => {
+  // 1 SGD = 0.74 USD → rate_scaled = 0.74 * SCALE. base=USD, to=SGD.
+  const rate = (74n * SCALE) / 100n;
+  // 100.00 SGD -> USD
+  const usd = convertToBase(10000n, "SGD", "USD", rate); // 7400 (USD minor)
+  expect(usd).toBe(7400n);
+  // 7400 USD -> SGD should round-trip back to ~10000
+  expect(convertFromBase(7400n, "USD", "SGD", rate)).toBe(10000n);
+});
+
+test("convertFromBase returns the amount unchanged when base === to", () => {
+  expect(convertFromBase(12345n, "USD", "USD", SCALE)).toBe(12345n);
+});
+
+test("convertFromBase handles differing decimals (USD base -> JPY)", () => {
+  // 1 JPY = 0.0067 USD → rate_scaled = 0.0067 * SCALE = 670000.
+  const rate = 670000n;
+  // 67 USD (6700 minor, 2dp) -> JPY (0 dp): 6700 / 100 / 0.0067 = 10000 JPY
+  expect(convertFromBase(6700n, "USD", "JPY", rate)).toBe(10000n);
+});

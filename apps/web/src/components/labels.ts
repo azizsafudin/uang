@@ -16,12 +16,9 @@ export const subtypeLabel = (s: string): string => SUBTYPE_LABELS[s] ?? s;
 export const classLabel = (c: string): string =>
   c === "liability" ? "Liability" : "Asset";
 
-// Ledger entry kinds, humanized.
-export const KIND_LABELS: Record<string, string> = {
-  opening: "Opening balance",
-  adjustment: "Balance adjustment",
-  revaluation: "Revaluation",
-  transaction: "Transaction",
+// Instrument kinds, humanized (used for position badges).
+export const INSTRUMENT_KIND_LABELS: Record<string, string> = {
+  currency: "Cash", stock: "Stock", etf: "ETF", fund: "Fund", crypto: "Crypto", other: "Other",
 };
 
-export const kindLabel = (k: string): string => KIND_LABELS[k] ?? k;
+export const instrumentKindLabel = (k: string): string => INSTRUMENT_KIND_LABELS[k] ?? k;

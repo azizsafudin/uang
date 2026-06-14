@@ -3,7 +3,8 @@ import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { accountsRoutes } from "./accounts";
 import { groupsRoutes } from "./groups";
 import { db } from "../db/client";
-import { user } from "../db/schema";
+import { user, instruments } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 beforeEach(resetDb);
 
@@ -13,7 +14,7 @@ test("requires auth", async () => {
   expect(res.status).toBe(401);
 });
 
-test("create then list accounts, with optional opening balance", async () => {
+test("create then list accounts; fresh account has zero balance", async () => {
   const app = makeApp(accountsRoutes);
   const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
 
@@ -26,8 +27,6 @@ test("create then list accounts, with optional opening balance", async () => {
         class: "asset",
         subtype: "bank",
         currency: "USD",
-        openingBalanceMinor: 100000,
-        openingDate: "2026-01-01",
       }),
     }),
   );
@@ -41,7 +40,19 @@ test("create then list accounts, with optional opening balance", async () => {
   const body = await list.json();
   expect(body.length).toBe(1);
   expect(body[0].name).toBe("Checking");
-  expect(body[0].balanceMinor).toBe(100000); // opening entry applied
+  expect(body[0].balanceMinor).toBe(0); // no transactions yet
+});
+
+test("creating an account seeds its currency instrument", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const res = await app.handle(new Request("http://localhost/accounts", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "DBS Savings", class: "asset", subtype: "bank", currency: "SGD" }),
+  }));
+  expect(res.status).toBe(200);
+  const rows = await db.select().from(instruments).where(eq(instruments.kind, "currency"));
+  expect(rows.some((r) => r.symbol === "SGD")).toBe(true);
 });
 
 test("persists a client-supplied id, and rejects a duplicate with 409", async () => {
@@ -75,26 +86,6 @@ test("persists a client-supplied id, and rejects a duplicate with 409", async ()
   const dup = await post(body);
   expect(dup.status).toBe(409);
   expect((await dup.json()).error).toBe("duplicate_id");
-});
-
-test("accepts holdings valuation mode", async () => {
-  const app = makeApp(accountsRoutes);
-  const { cookie } = await initAndLogin({ app });
-
-  const res = await app.handle(
-    new Request("http://localhost/accounts", {
-      method: "POST",
-      headers: { "content-type": "application/json", cookie },
-      body: JSON.stringify({
-        name: "Broker",
-        class: "asset",
-        subtype: "investment",
-        currency: "USD",
-        valuationMode: "holdings",
-      }),
-    }),
-  );
-  expect(res.status).toBe(200);
 });
 
 async function firstUserId(): Promise<string> {
@@ -207,22 +198,6 @@ test("PATCH /:id/owners rejects invalid owner ids (422)", async () => {
   expect(res.status).toBe(422);
 });
 
-test("creates a holdings account (valuationMode='holdings')", async () => {
-  const app = makeApp(accountsRoutes);
-  const { cookie } = await initAndLogin({ app });
-
-  const res = await app.handle(new Request("http://localhost/accounts", {
-    method: "POST",
-    headers: { "content-type": "application/json", cookie },
-    body: JSON.stringify({ name: "Broker", class: "asset", subtype: "investment", currency: "USD", valuationMode: "holdings" }),
-  }));
-  expect(res.status).toBe(200);
-
-  const list = await (await app.handle(new Request("http://localhost/accounts", { headers: { cookie } }))).json();
-  const broker = list.find((a: any) => a.name === "Broker");
-  expect(broker.valuationMode).toBe("holdings");
-});
-
 test("POST then PATCH round-trips projection assumptions", async () => {
   const app = makeApp(accountsRoutes);
   const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
@@ -232,7 +207,6 @@ test("POST then PATCH round-trips projection assumptions", async () => {
     method: "POST", headers: { cookie, "content-type": "application/json" },
     body: JSON.stringify({
       id, name: "SRS", class: "asset", subtype: "investment", currency: "USD",
-      valuationMode: "ledger",
       growthRateBps: 800, accessibleFromAge: 62, earlyWithdrawal: "penalty",
       earlyHaircutBps: 500, illiquid: false, liquidationAge: null,
     }),
@@ -265,7 +239,6 @@ test("DELETE /:id removes an archived account and cascades its data", async () =
   const app = makeApp(accountsRoutes);
   const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
 
-  // Create with an opening balance (produces an entry row)
   const { id } = await (
     await app.handle(
       new Request("http://localhost/accounts", {
@@ -276,7 +249,6 @@ test("DELETE /:id removes an archived account and cascades its data", async () =
           class: "asset",
           subtype: "bank",
           currency: "USD",
-          openingBalanceMinor: 50000,
         }),
       }),
     )
