@@ -4,7 +4,6 @@
     "jsx": "react-jsx",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "types": ["vite/client"],
-    "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] },
     "ignoreDeprecations": "6.0",
     "noEmit": true
