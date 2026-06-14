@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { SCALE } from "@uang/shared";
 import { api } from "@/lib/api";
-import { fxCollection, newId } from "@/lib/collections";
+import { fxCollection, membersCollection, newId } from "@/lib/collections";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,35 @@ function Section({
         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
       )}
       <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function MembersSection() {
+  const { data: members = [] } = useLiveQuery(membersCollection);
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4">
+      <h2 className="mb-3 text-sm font-medium text-muted-foreground">Members</h2>
+      <div className="space-y-3">
+        {members.map((m) => (
+          <div key={m.id} className="flex items-center justify-between gap-3">
+            <Label className="flex-1">{m.name}</Label>
+            <Input
+              type="number"
+              min="0"
+              className="w-32"
+              placeholder="Birth year"
+              defaultValue={m.birthYear ?? ""}
+              onBlur={(e) => {
+                const v = e.target.value === "" ? null : parseInt(e.target.value, 10);
+                if (v !== (m.birthYear ?? null)) {
+                  membersCollection.update(m.id, (draft) => { draft.birthYear = v; });
+                }
+              }}
+            />
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -231,6 +260,8 @@ export function SettingsPage() {
             ))}
           </div>
         </Section>
+
+        <MembersSection />
 
         <Section
           eyebrow="Backup"
