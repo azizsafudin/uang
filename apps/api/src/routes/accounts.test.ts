@@ -1,6 +1,7 @@
 import { expect, test, beforeEach } from "bun:test";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { accountsRoutes } from "./accounts";
+import { groupsRoutes } from "./groups";
 import { db } from "../db/client";
 import { user } from "../db/schema";
 
@@ -336,4 +337,87 @@ test("DELETE /:id rejects a non-archived account with 422", async () => {
   );
   expect(del.status).toBe(422);
   expect((await del.json()).error).toBe("not_archived");
+});
+
+test("PATCH /:id accepts groupId", async () => {
+  const app = makeApp(accountsRoutes, groupsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const gRes = await app.handle(
+    new Request("http://localhost/groups", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "CPF", class: "asset" }),
+    }),
+  );
+  const { id: groupId } = await gRes.json();
+
+  const aRes = await app.handle(
+    new Request("http://localhost/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "CPF OA", class: "asset", subtype: "bank", currency: "SGD" }),
+    }),
+  );
+  const { id: accountId } = await aRes.json();
+
+  const patch = await app.handle(
+    new Request(`http://localhost/accounts/${accountId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ groupId }),
+    }),
+  );
+  expect(patch.status).toBe(200);
+
+  const list = await app.handle(
+    new Request("http://localhost/accounts", { headers: { cookie } }),
+  );
+  const body = await list.json();
+  expect(body.find((a: any) => a.id === accountId).groupId).toBe(groupId);
+});
+
+test("PATCH /reorder updates sortOrder for accounts and groups", async () => {
+  const app = makeApp(accountsRoutes, groupsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const aRes = await app.handle(
+    new Request("http://localhost/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "Savings", class: "asset", subtype: "bank", currency: "SGD" }),
+    }),
+  );
+  const { id: accountId } = await aRes.json();
+
+  const gRes = await app.handle(
+    new Request("http://localhost/groups", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "CPF", class: "asset" }),
+    }),
+  );
+  const { id: groupId } = await gRes.json();
+
+  const reorder = await app.handle(
+    new Request("http://localhost/accounts/reorder", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({
+        items: [
+          { id: accountId, kind: "account", sortOrder: 10 },
+          { id: groupId, kind: "group", sortOrder: 5 },
+        ],
+      }),
+    }),
+  );
+  expect(reorder.status).toBe(200);
+
+  const { db } = await import("../db/client");
+  const { accounts, groups } = await import("../db/schema");
+  const { eq } = await import("drizzle-orm");
+  const [acct] = await db.select().from(accounts).where(eq(accounts.id, accountId));
+  const [grp] = await db.select().from(groups).where(eq(groups.id, groupId));
+  expect(acct.sortOrder).toBe(10);
+  expect(grp.sortOrder).toBe(5);
 });

@@ -15,6 +15,7 @@ import { exportRoutes } from "./routes/export";
 import { instrumentsRoutes } from "./routes/instruments";
 import { lotsRoutes } from "./routes/lots";
 import { pricesRoutes } from "./routes/prices";
+import { groupsRoutes } from "./routes/groups";
 import { isInitialized } from "./lib/settings";
 
 export function createApp() {
@@ -57,7 +58,8 @@ export function createApp() {
     .use(exportRoutes)
     .use(instrumentsRoutes)
     .use(lotsRoutes)
-    .use(pricesRoutes);
+    .use(pricesRoutes)
+    .use(groupsRoutes);
 }
 
 export type App = ReturnType<typeof createApp>;

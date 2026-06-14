@@ -10,3 +10,6 @@ data/
 .DS_Store
 *.tsbuildinfo
 .worktrees/
+.claude/
+.clone/
+.superpowers/

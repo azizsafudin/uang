@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f17c48c0-d084-4cb3-a58d-68425561536f",
+  "id": "ca3aab0b-b8c0-4b9d-a3a7-24751428e857",
   "prevId": "1bb99733-8f67-4b73-b043-71e716002d39",
   "tables": {
     "account_owners": {
@@ -159,6 +159,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "group_id": {
+          "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -300,8 +307,8 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
-    "goals": {
-      "name": "goals",
+    "groups": {
+      "name": "groups",
       "columns": {
         "id": {
           "name": "id",
@@ -317,47 +324,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "term": {
-          "name": "term",
+        "class": {
+          "name": "class",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "target_amount_minor": {
-          "name": "target_amount_minor",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "currency": {
-          "name": "currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "target_date": {
-          "name": "target_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "owner_scope": {
-          "name": "owner_scope",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'household'"
-        },
-        "anchor_date": {
-          "name": "anchor_date",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "sort_order": {
@@ -371,13 +342,6 @@
         "created_at": {
           "name": "created_at",
           "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -638,22 +602,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "contribution_growth_rate_bps": {
-          "name": "contribution_growth_rate_bps",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 800
-        },
-        "projection_end_age": {
-          "name": "projection_end_age",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 90
         },
         "created_at": {
           "name": "created_at",

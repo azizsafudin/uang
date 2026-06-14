@@ -27,8 +27,17 @@ export const accounts = sqliteTable("accounts", {
   earlyHaircutBps: integer("early_haircut_bps").notNull().default(0),
   illiquid: integer("illiquid").notNull().default(0),
   liquidationAge: integer("liquidation_age"),
+  groupId: text("group_id"),   // nullable logical FK → groups.id
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
+});
+
+export const groups = sqliteTable("groups", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  class: text("class").$type<"asset" | "liability">().notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
 });
 
 export const entries = sqliteTable("entries", {

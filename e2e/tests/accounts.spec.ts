@@ -24,7 +24,7 @@ test("create a ledger account with an opening balance and update it", async ({ p
   await test.step("set a new balance on the detail page", async () => {
     await page.getByTestId("account-row").filter({ hasText: "Checking" }).click();
     await expect(page).toHaveURL(/\/accounts\//);
-    await page.getByRole("button", { name: "Set balance…" }).click();
+    await page.getByRole("button", { name: "Set balance" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByTestId("set-balance-amount").fill("1500");
     await dialog.getByRole("button", { name: "Save" }).click();

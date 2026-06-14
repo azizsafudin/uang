@@ -1,33 +1,23 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLiveQuery } from "@tanstack/react-db";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { signOut } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/components/money";
-import { subtypeLabel } from "@/components/labels";
+import { cn } from "@/lib/utils";
 import { AccountForm } from "@/components/account-form";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { NetWorthToggle } from "@/components/net-worth-toggle";
 import { NetWorthChart } from "@/components/net-worth-chart";
-import { OwnersBadge } from "@/components/owners-badge";
+import { DashboardSection, type AccountValuation } from "@/components/dashboard-section";
+import { groupsCollection } from "@/lib/collections";
 
 type NetWorth = {
   baseCurrency: string;
   totalBaseMinor: number;
-  accounts: Array<{
-    id: string;
-    name: string;
-    class: string;
-    subtype: string;
-    currency: string;
-    balanceMinor: number;
-    baseMinor: number;
-    missingRate: boolean;
-    ownerIds: string[];
-    shared: boolean;
-  }>;
+  accounts: AccountValuation[];
 };
 
 async function fetchNw(owner: string): Promise<NetWorth> {
@@ -36,7 +26,7 @@ async function fetchNw(owner: string): Promise<NetWorth> {
   return data as unknown as NetWorth;
 }
 
-const GROUPS = [
+const CLASS_SECTIONS = [
   { cls: "asset", label: "Assets" },
   { cls: "liability", label: "Liabilities" },
 ] as const;
@@ -47,7 +37,7 @@ export function DashboardPage() {
 
   // The account list + group totals always reflect the whole household, so the
   // list never changes when you toggle the headline.
-  const { data: listData, isLoading } = useQuery({
+  const { data: listData } = useQuery({
     queryKey: ["networth", "household"],
     queryFn: () => fetchNw("household"),
   });
@@ -58,12 +48,10 @@ export function DashboardPage() {
     queryFn: () => fetchNw(owner),
   });
 
+  const { data: allGroups } = useLiveQuery(groupsCollection);
+
   const base = listData?.baseCurrency ?? "";
   const accounts = listData?.accounts ?? [];
-  const groupTotal = (cls: string) =>
-    accounts
-      .filter((a) => a.class === cls && !a.missingRate)
-      .reduce((sum, a) => sum + a.baseMinor, 0);
 
   return (
     <AppShell
@@ -119,68 +107,24 @@ export function DashboardPage() {
       </div>
 
       <div className="mt-9 space-y-8">
-        {GROUPS.map(({ cls, label }) => {
-          const rows = accounts.filter((a) => a.class === cls);
-          return (
-            <section key={cls}>
-              <div className="mb-3 flex items-baseline justify-between">
-                <Eyebrow>{label}</Eyebrow>
-                {listData && rows.length > 0 && (
-                  <span className="font-heading text-sm tabular-nums text-muted-foreground">
-                    {formatMoney(groupTotal(cls), base)}
-                  </span>
-                )}
-              </div>
+        {CLASS_SECTIONS.map(({ cls, label }) => {
+          const sectionAccounts = accounts.filter((a) => a.class === cls);
+          const sectionGroups = (allGroups ?? []).filter((g) => g.class === cls);
+          const sectionTotal = sectionAccounts
+            .filter((a) => !a.missingRate)
+            .reduce((sum, a) => sum + a.baseMinor, 0);
 
-              {rows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">None yet.</p>
-              ) : (
-                <div className="overflow-hidden rounded-xl border border-border bg-card">
-                  {rows.map((a, i) => (
-                    <Link
-                      key={a.id}
-                      data-testid="account-row"
-                      to="/accounts/$id"
-                      params={{ id: a.id }}
-                      className={cn(
-                        "flex items-center justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-accent",
-                        i > 0 && "border-t border-border/70",
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{a.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {subtypeLabel(a.subtype)} · {a.currency}
-                          {a.missingRate && (
-                            <span className="ml-1.5 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[0.65rem] font-medium text-destructive">
-                              no FX rate
-                            </span>
-                          )}
-                        </p>
-                        <div className="mt-1">
-                          <OwnersBadge ownerIds={a.ownerIds} />
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right tabular-nums">
-                        <p
-                          className={cn(
-                            "font-medium",
-                            a.balanceMinor < 0 && "text-destructive",
-                          )}
-                        >
-                          {formatMoney(a.balanceMinor, a.currency)}
-                        </p>
-                        {a.currency !== base && !a.missingRate && (
-                          <p className="text-xs text-muted-foreground">
-                            {formatMoney(a.baseMinor, base)}
-                          </p>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
+          return (
+            <DashboardSection
+              key={cls}
+              cls={cls}
+              label={label}
+              accounts={sectionAccounts}
+              groups={sectionGroups}
+              baseCurrency={base}
+              sectionTotalMinor={sectionTotal}
+              hasData={!!listData}
+            />
           );
         })}
       </div>
