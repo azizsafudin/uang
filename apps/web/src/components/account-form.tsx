@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSession } from "@/lib/auth";
 import { OwnersField } from "@/components/owners-field";
+import { FieldTooltip } from "@/components/field-tooltip";
 import {
   Dialog,
   DialogContent,
@@ -100,7 +101,10 @@ export function AccountForm() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Type</Label>
+              <Label className="inline-flex items-center">
+                Type
+                <FieldTooltip content="Asset = something you own; Liability = a debt or obligation" />
+              </Label>
               <Select
                 value={f.class}
                 onValueChange={(v: string | null) => v && set("class", v)}
@@ -117,7 +121,10 @@ export function AccountForm() {
               </Select>
             </div>
             <div>
-              <Label>Category</Label>
+              <Label className="inline-flex items-center">
+                Category
+                <FieldTooltip content="How this account is categorised on the dashboard" />
+              </Label>
               <Select
                 value={f.subtype}
                 onValueChange={(v: string | null) => {
@@ -145,7 +152,10 @@ export function AccountForm() {
             </div>
           </div>
           <div>
-            <Label>Valuation</Label>
+            <Label className="inline-flex items-center">
+              Valuation
+              <FieldTooltip content="Ledger: you record the balance manually from your statement. Holdings: value is calculated from your investment positions (units × current price)" />
+            </Label>
             <Select
               value={f.valuationMode}
               onValueChange={(v: string | null) => v && set("valuationMode", v)}
@@ -163,7 +173,10 @@ export function AccountForm() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Currency</Label>
+              <Label className="inline-flex items-center">
+                Currency
+                <FieldTooltip content="3-letter ISO code, e.g. SGD, USD, MYR" />
+              </Label>
               <Input
                 data-testid="account-currency"
                 value={f.currency}
