@@ -38,6 +38,7 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
           targetDate: body.targetDate,
           ownerScope: body.ownerScope ?? "household",
           anchorDate: body.anchorDate ?? null,
+          monthlyContributionMinor: body.monthlyContributionMinor ?? 0,
           sortOrder: body.sortOrder ?? 0,
           createdAt: nowEpoch(),
           createdBy: userId!,
@@ -61,6 +62,7 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
         targetDate: t.String(),
         ownerScope: t.Optional(t.String()),
         anchorDate: t.Optional(t.Union([t.String(), t.Null()])),
+        monthlyContributionMinor: t.Optional(t.Number()),
         sortOrder: t.Optional(t.Number()),
       }),
     },
@@ -76,6 +78,7 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
       if (body.targetDate !== undefined) update.targetDate = body.targetDate;
       if (body.ownerScope !== undefined) update.ownerScope = body.ownerScope;
       if (body.anchorDate !== undefined) update.anchorDate = body.anchorDate;
+      if (body.monthlyContributionMinor !== undefined) update.monthlyContributionMinor = body.monthlyContributionMinor;
       if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
       await db.update(goals).set(update).where(eq(goals.id, params.id));
       return { ok: true };
@@ -89,6 +92,7 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
         targetDate: t.Optional(t.String()),
         ownerScope: t.Optional(t.String()),
         anchorDate: t.Optional(t.Union([t.String(), t.Null()])),
+        monthlyContributionMinor: t.Optional(t.Number()),
         sortOrder: t.Optional(t.Number()),
       }),
     },

@@ -1,15 +1,22 @@
 import { db } from "../db/client";
 import { goals as goalsTable, memberProfiles } from "../db/schema";
 import {
-  convertToBase, toBig, fromBig, compoundMinor,
+  convertToBase, toBig, fromBig,
   compoundMonthlyMinor, annuityFutureValueMinor,
-  allocateGoals, requiredMonthlyContributionMinor, goalOnTrack,
+  allocateGoals, requiredMonthlyContributionMinor,
   type AllocAccount, type GoalInput,
 } from "@uang/shared";
 import { netWorth, latestFxRateScaled } from "./valuation";
 import { getSettings } from "./settings";
 
 type GoalRow = typeof goalsTable.$inferSelect;
+
+// A funding account that contributes to this goal, with its allocated slice.
+export type GoalSource = {
+  accountId: string;
+  name: string;
+  allocatedMinor: number;
+};
 
 export type GoalAnalysis = {
   id: string;
@@ -20,12 +27,10 @@ export type GoalAnalysis = {
   currency: string;
   allocatedMinor: number;
   progressPct: number;
-  projectedAllocatedMinor: number;
-  gapMinor: number;
-  requiredMonthlyMinor: number;
-  onPlanTodayMinor: number;
-  aheadByMinor: number;
-  onTrack: boolean;
+  monthlyContributionMinor: number;   // the goal's planned saving
+  requiredMonthlyMinor: number;       // contribution needed to hit target
+  projectedAtTargetMinor: number;     // where the plan lands by the target date
+  onTrack: boolean;                   // projected >= target
   sources: GoalSource[];
 };
 
@@ -44,6 +49,30 @@ function monthsBetween(fromISO: string, toISO: string): number {
   const t = new Date(`${toISO.slice(0, 10)}T00:00:00Z`);
   const m = (t.getUTCFullYear() - f.getUTCFullYear()) * 12 + (t.getUTCMonth() - f.getUTCMonth());
   return Math.max(0, m);
+}
+
+// Shift an ISO date (YYYY-MM-DD) by whole months (UTC).
+function addMonthsISO(iso: string, deltaMonths: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + deltaMonths);
+  return d.toISOString().slice(0, 10);
+}
+
+// Single-rate plan math: today's allocated balance grows at the plan rate, and the
+// planned monthly contribution accumulates on top. `required` is the contribution
+// that would land exactly on target; on track when the plan reaches the target.
+function goalPlanMath(params: {
+  allocatedMinor: number;
+  monthlyContributionMinor: number;
+  targetMinor: number;
+  planRateBps: number;
+  monthsToTarget: number;
+}): { requiredMonthlyMinor: number; projectedAtTargetMinor: number; onTrack: boolean } {
+  const { allocatedMinor, monthlyContributionMinor, targetMinor, planRateBps, monthsToTarget } = params;
+  const grownAllocated = compoundMonthlyMinor(allocatedMinor, planRateBps, monthsToTarget);
+  const requiredMonthlyMinor = requiredMonthlyContributionMinor(targetMinor - grownAllocated, planRateBps, monthsToTarget);
+  const projectedAtTargetMinor = grownAllocated + annuityFutureValueMinor(monthlyContributionMinor, planRateBps, monthsToTarget);
+  return { requiredMonthlyMinor, projectedAtTargetMinor, onTrack: projectedAtTargetMinor >= targetMinor };
 }
 
 // Convert a goal's target into base currency using the latest FX rate.
@@ -85,7 +114,6 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
   const birthByUser = new Map<string, number | null>(profiles.map((p) => [p.userId, p.birthYear]));
 
   const todayISO = new Date().toISOString().slice(0, 10);
-  const thisYear = yearOf(todayISO);
 
   // Today's snapshot -> base targets -> allocation.
   const nwToday = await netWorth({ owner: "household" });
@@ -106,58 +134,27 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
   const allocToday = allocateGoals({ goals: goalInputs, accounts: allocAccountsToday });
   const allocById = new Map(allocToday.goals.map((g) => [g.id, g]));
 
-  // For on-track we need each goal's allocated-at-anchor. Group goals by distinct
-  // anchor date so we run one netWorth() snapshot + allocation per anchor.
-  const anchorByGoal = new Map<string, string>();
-  for (const g of goalRows) anchorByGoal.set(g.id, (g.anchorDate ?? new Date(g.createdAt * 1000).toISOString().slice(0, 10)));
-  const distinctAnchors = [...new Set(anchorByGoal.values())];
-
-  const allocatedAtAnchorById = new Map<string, number>();
-  for (const anchor of distinctAnchors) {
-    const nwAnchor = await netWorth({ asOf: anchor, owner: "household" });
-    const allocAnchor = allocateGoals({
-      goals: goalInputs,
-      accounts: toAllocAccounts(nwAnchor.accounts, birthByUser),
-    });
-    for (const g of allocAnchor.goals) {
-      if (anchorByGoal.get(g.id) === anchor) allocatedAtAnchorById.set(g.id, g.allocatedMinor);
-    }
-  }
-
   const analyses: GoalAnalysis[] = [];
   for (const g of goalRows) {
     const targetBase = targetBaseById.get(g.id) ?? g.targetAmountMinor;
     const alloc = allocById.get(g.id)!;
-
-    // §5.3 projected allocated: grow each allocated line at its own rate to target year.
-    const yearsToTarget = Math.max(0, yearOf(g.targetDate) - thisYear);
-    let projectedAllocated = 0;
-    for (const line of alloc.lines) {
-      projectedAllocated += compoundMinor(line.allocatedMinor, line.growthRateBps, yearsToTarget);
-    }
-    const gap = targetBase - projectedAllocated;
     const monthsToTarget = monthsBetween(todayISO, g.targetDate);
-    const requiredMonthly = requiredMonthlyContributionMinor(gap, planRateBps, monthsToTarget);
-
-    // §5.4 on-track, per goal, anchored.
-    const anchor = anchorByGoal.get(g.id)!;
-    const startAnchor = allocatedAtAnchorById.get(g.id) ?? alloc.allocatedMinor;
-    const ot = goalOnTrack({
+    const m = goalPlanMath({
+      allocatedMinor: alloc.allocatedMinor,
+      monthlyContributionMinor: g.monthlyContributionMinor,
       targetMinor: targetBase,
-      startAnchorMinor: startAnchor,
-      allocatedTodayMinor: alloc.allocatedMinor,
       planRateBps,
-      monthsAnchorToToday: monthsBetween(anchor, todayISO),
-      monthsAnchorToTarget: monthsBetween(anchor, g.targetDate),
+      monthsToTarget,
     });
 
     analyses.push({
       id: g.id, name: g.name, term: g.term, targetAmountMinor: targetBase,
       targetDate: g.targetDate, currency: g.currency,
       allocatedMinor: alloc.allocatedMinor, progressPct: alloc.progressPct,
-      projectedAllocatedMinor: projectedAllocated, gapMinor: Math.max(0, gap),
-      requiredMonthlyMinor: requiredMonthly,
-      onPlanTodayMinor: ot.onPlanTodayMinor, aheadByMinor: ot.aheadByMinor, onTrack: ot.onTrack,
+      monthlyContributionMinor: g.monthlyContributionMinor,
+      requiredMonthlyMinor: m.requiredMonthlyMinor,
+      projectedAtTargetMinor: m.projectedAtTargetMinor,
+      onTrack: m.onTrack,
       sources: alloc.lines.map((line) => ({
         accountId: line.accountId,
         name: nameById.get(line.accountId) ?? line.accountId,
@@ -176,25 +173,10 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
   };
 }
 
-// Shift an ISO date (YYYY-MM-DD) by whole months (UTC).
-function addMonthsISO(iso: string, deltaMonths: number): string {
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + deltaMonths);
-  return d.toISOString().slice(0, 10);
-}
-
 export type GoalProjectionPoint = {
   date: string;
-  actual: number | null;   // realized allocated value (past + today)
-  onPlan: number | null;   // glide path (today + future)
-  eligible: number | null; // allocated capital left to grow (today + future)
-};
-
-// A funding account that contributes to this goal, with its allocated slice.
-export type GoalSource = {
-  accountId: string;
-  name: string;
-  allocatedMinor: number;
+  actual: number | null;    // realized allocated value (past + today)
+  projected: number | null; // allocated + planned contribution, growing (today + future)
 };
 
 export type GoalProjectionResult = {
@@ -203,17 +185,19 @@ export type GoalProjectionResult = {
   targetMinor: number;
   allocatedMinor: number;
   progressPct: number;
+  monthlyContributionMinor: number;
   requiredMonthlyMinor: number;
+  projectedAtTargetMinor: number;
   onTrack: boolean;
-  aheadByMinor: number;
   sources: GoalSource[];
   series: GoalProjectionPoint[];
 };
 
-// Per-goal time series: realized allocation over the last `historyMonths`,
-// then the on-plan glide path vs the eligible-accounts trajectory to the target
-// date. All goal allocations are computed globally (no double-counting), then
-// this goal's slice is taken. Returns null if the goal does not exist.
+// Per-goal time series: realized allocation over the last `historyMonths`, then a
+// single projected trajectory to the target date = today's allocation growing at
+// the plan rate plus the goal's planned monthly contribution. All goal allocations
+// are computed globally (no double-counting), then this goal's slice is taken.
+// Returns null if the goal does not exist.
 export async function goalProjection(
   goalId: string,
   historyMonths = 12,
@@ -230,7 +214,6 @@ export async function goalProjection(
   const birthByUser = new Map<string, number | null>(profiles.map((p) => [p.userId, p.birthYear]));
 
   const todayISO = new Date().toISOString().slice(0, 10);
-  const thisYear = yearOf(todayISO);
 
   // Inputs for ALL goals (allocation is global), with base-currency targets.
   const goalInputs: GoalInput[] = [];
@@ -251,8 +234,7 @@ export async function goalProjection(
   const mine = allocToday.goals.find((g) => g.id === goal.id)!;
   const allocatedToday = mine.allocatedMinor;
 
-  // Funding sources: this goal's allocation lines with account names (most-liquid first,
-  // the order allocation filled them).
+  // Funding sources: this goal's allocation lines with account names (most-liquid first).
   const nameById = new Map(nwToday.accounts.map((a) => [a.id, a.name]));
   const sources: GoalSource[] = mine.lines.map((line) => ({
     accountId: line.accountId,
@@ -260,26 +242,14 @@ export async function goalProjection(
     allocatedMinor: line.allocatedMinor,
   }));
 
-  // Required monthly (same model as analyzeGoals): grow allocated at per-account
-  // annual rates to the target year, fill the gap at the plan rate.
-  const yearsToTarget = Math.max(0, yearOf(goal.targetDate) - thisYear);
-  let projectedAllocated = 0;
-  for (const line of mine.lines) projectedAllocated += compoundMinor(line.allocatedMinor, line.growthRateBps, yearsToTarget);
+  const contribution = goal.monthlyContributionMinor;
   const monthsToTarget = monthsBetween(todayISO, goal.targetDate);
-  const requiredMonthly = requiredMonthlyContributionMinor(targetBase - projectedAllocated, planRateBps, monthsToTarget);
-
-  // On-track, anchored (same as analyzeGoals).
-  const anchor = goal.anchorDate ?? new Date(goal.createdAt * 1000).toISOString().slice(0, 10);
-  const nwAnchor = await netWorth({ asOf: anchor, owner: "household" });
-  const allocAnchor = allocateGoals({ goals: goalInputs, accounts: toAllocAccounts(nwAnchor.accounts, birthByUser) });
-  const startAnchor = allocAnchor.goals.find((g) => g.id === goal.id)?.allocatedMinor ?? allocatedToday;
-  const ot = goalOnTrack({
+  const m = goalPlanMath({
+    allocatedMinor: allocatedToday,
+    monthlyContributionMinor: contribution,
     targetMinor: targetBase,
-    startAnchorMinor: startAnchor,
-    allocatedTodayMinor: allocatedToday,
     planRateBps,
-    monthsAnchorToToday: monthsBetween(anchor, todayISO),
-    monthsAnchorToTarget: monthsBetween(anchor, goal.targetDate),
+    monthsToTarget,
   });
 
   const series: GoalProjectionPoint[] = [];
@@ -290,23 +260,21 @@ export async function goalProjection(
     const nwPast = await netWorth({ asOf: date, owner: "household" });
     const allocPast = allocateGoals({ goals: goalInputs, accounts: toAllocAccounts(nwPast.accounts, birthByUser) });
     const realized = allocPast.goals.find((g) => g.id === goal.id)?.allocatedMinor ?? 0;
-    series.push({ date, actual: realized, onPlan: null, eligible: null });
+    series.push({ date, actual: realized, projected: null });
   }
 
-  // Today: all three series meet at the current allocation.
-  series.push({ date: todayISO, actual: allocatedToday, onPlan: allocatedToday, eligible: allocatedToday });
+  // Today: actual meets projected at the current allocation.
+  series.push({ date: todayISO, actual: allocatedToday, projected: allocatedToday });
 
   // Future: step so a far-dated goal stays under ~120 points; always include the target month.
   const step = Math.max(1, Math.ceil(monthsToTarget / 120));
   const futureMonths: number[] = [];
-  for (let m = step; m < monthsToTarget; m += step) futureMonths.push(m);
+  for (let mo = step; mo < monthsToTarget; mo += step) futureMonths.push(mo);
   if (monthsToTarget > 0) futureMonths.push(monthsToTarget);
-  for (const m of futureMonths) {
-    const date = addMonthsISO(todayISO, m);
-    const onPlan = compoundMonthlyMinor(allocatedToday, planRateBps, m) + annuityFutureValueMinor(requiredMonthly, planRateBps, m);
-    let eligible = 0;
-    for (const line of mine.lines) eligible += compoundMonthlyMinor(line.allocatedMinor, line.growthRateBps, m);
-    series.push({ date, actual: null, onPlan, eligible });
+  for (const mo of futureMonths) {
+    const date = addMonthsISO(todayISO, mo);
+    const projected = compoundMonthlyMinor(allocatedToday, planRateBps, mo) + annuityFutureValueMinor(contribution, planRateBps, mo);
+    series.push({ date, actual: null, projected });
   }
 
   return {
@@ -315,9 +283,10 @@ export async function goalProjection(
     targetMinor: targetBase,
     allocatedMinor: allocatedToday,
     progressPct: mine.progressPct,
-    requiredMonthlyMinor: requiredMonthly,
-    onTrack: ot.onTrack,
-    aheadByMinor: ot.aheadByMinor,
+    monthlyContributionMinor: contribution,
+    requiredMonthlyMinor: m.requiredMonthlyMinor,
+    projectedAtTargetMinor: m.projectedAtTargetMinor,
+    onTrack: m.onTrack,
     sources,
     series,
   };

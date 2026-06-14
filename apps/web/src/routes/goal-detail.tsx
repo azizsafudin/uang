@@ -23,9 +23,10 @@ type ProjectionResponse = {
   targetMinor: number;
   allocatedMinor: number;
   progressPct: number;
+  monthlyContributionMinor: number;
   requiredMonthlyMinor: number;
+  projectedAtTargetMinor: number;
   onTrack: boolean;
-  aheadByMinor: number;
   sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
   series: GoalProjectionPoint[];
 };
@@ -46,7 +47,7 @@ export function GoalDetailPage() {
   const row = rows.find((g) => g.id === id);
 
   const projQ = useQuery({
-    queryKey: ["goals", "projection", id, row?.targetAmountMinor, row?.targetDate],
+    queryKey: ["goals", "projection", id, row?.targetAmountMinor, row?.targetDate, row?.monthlyContributionMinor],
     queryFn: () => fetchProjection(id),
   });
   const p = projQ.data;
@@ -116,6 +117,10 @@ export function GoalDetailPage() {
               <dl className="mt-3 space-y-1 text-sm tabular-nums">
                 <div className="flex justify-between"><dt className="text-muted-foreground">Allocated</dt><dd>{formatMoney(p.allocatedMinor, base)}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Target</dt><dd>{formatMoney(p.targetMinor, base)}</dd></div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Contributing</dt>
+                  <dd>{p.monthlyContributionMinor > 0 ? `${formatMoney(p.monthlyContributionMinor, base)}/mo` : "—"}</dd>
+                </div>
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Required</dt>
                   <dd>{p.requiredMonthlyMinor > 0 ? `${formatMoney(p.requiredMonthlyMinor, base)}/mo` : "—"}</dd>

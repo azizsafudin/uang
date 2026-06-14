@@ -39,17 +39,20 @@ export function GoalForm({
     term: goal?.term ?? ("long" as "short" | "long"),
     amount: goal ? toMajor(goal.targetAmountMinor, currency) : "",
     targetDate: goal?.targetDate ?? "",
+    contribution: goal ? toMajor(goal.monthlyContributionMinor, currency) : "",
   });
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const targetAmountMinor = toMinor(f.amount, currency);
+    const monthlyContributionMinor = toMinor(f.contribution, currency);
     if (editing) {
       goalsCollection.update(goal!.id, (draft) => {
         draft.name = f.name;
         draft.term = f.term;
         draft.targetAmountMinor = targetAmountMinor;
         draft.targetDate = f.targetDate;
+        draft.monthlyContributionMinor = monthlyContributionMinor;
       });
     } else {
       goalsCollection.insert({
@@ -61,6 +64,7 @@ export function GoalForm({
         targetDate: f.targetDate,
         ownerScope: "household",
         anchorDate: null,
+        monthlyContributionMinor,
         sortOrder: 0,
         createdAt: Math.floor(Date.now() / 1000),
         createdBy: "",
@@ -103,10 +107,17 @@ export function GoalForm({
                 onChange={(e) => setF((p) => ({ ...p, amount: e.target.value }))} />
             </div>
           </div>
-          <div>
-            <Label>Target date</Label>
-            <Input type="date" value={f.targetDate} required
-              onChange={(e) => setF((p) => ({ ...p, targetDate: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Target date</Label>
+              <Input type="date" value={f.targetDate} required
+                onChange={(e) => setF((p) => ({ ...p, targetDate: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Monthly contribution ({currency})</Label>
+              <Input type="number" step="any" min="0" placeholder="0" value={f.contribution}
+                onChange={(e) => setF((p) => ({ ...p, contribution: e.target.value }))} />
+            </div>
           </div>
           <DialogFooter><Button type="submit">{editing ? "Save" : "Create"}</Button></DialogFooter>
         </form>

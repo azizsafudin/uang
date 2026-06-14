@@ -21,8 +21,8 @@ import {
 type GoalAnalysis = {
   id: string; name: string; term: "short" | "long"; targetAmountMinor: number;
   targetDate: string; currency: string; allocatedMinor: number; progressPct: number;
-  projectedAllocatedMinor: number; gapMinor: number; requiredMonthlyMinor: number;
-  onPlanTodayMinor: number; aheadByMinor: number; onTrack: boolean;
+  monthlyContributionMinor: number; requiredMonthlyMinor: number;
+  projectedAtTargetMinor: number; onTrack: boolean;
   sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
 };
 type AnalysisResponse = {
@@ -126,7 +126,7 @@ export function GoalsPage() {
   // Refetch the analysis whenever any goal's funding-relevant fields change (not
   // just the count), so editing a target amount/date updates progress + on-track.
   const goalsSignature = rows
-    .map((g) => `${g.id}:${g.targetAmountMinor}:${g.targetDate}:${g.term}:${g.ownerScope}`)
+    .map((g) => `${g.id}:${g.targetAmountMinor}:${g.targetDate}:${g.term}:${g.ownerScope}:${g.monthlyContributionMinor}`)
     .sort()
     .join("|");
   const analysisQ = useQuery({ queryKey: ["goals", "analysis", goalsSignature], queryFn: fetchAnalysis });

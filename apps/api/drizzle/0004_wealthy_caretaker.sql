@@ -1,0 +1,1 @@
+ALTER TABLE `goals` ADD `monthly_contribution_minor` integer DEFAULT 0 NOT NULL;

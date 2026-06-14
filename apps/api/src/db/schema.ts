@@ -110,6 +110,8 @@ export const goals = sqliteTable("goals", {
   targetDate: text("target_date").notNull(), // YYYY-MM-DD
   ownerScope: text("owner_scope").notNull().default("household"),
   anchorDate: text("anchor_date"), // YYYY-MM-DD | null
+  // Assumed planned saving toward this goal (base of the projected line).
+  monthlyContributionMinor: integer("monthly_contribution_minor").notNull().default(0),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),

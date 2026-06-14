@@ -353,6 +353,7 @@ export const goalsCollection = createCollection(
         targetDate: m.targetDate,
         ownerScope: m.ownerScope,
         anchorDate: m.anchorDate ?? null,
+        monthlyContributionMinor: m.monthlyContributionMinor,
         sortOrder: m.sortOrder,
       });
       if (error) throw new Error(String(error));
@@ -368,6 +369,7 @@ export const goalsCollection = createCollection(
         targetDate: m.targetDate,
         ownerScope: m.ownerScope,
         anchorDate: m.anchorDate ?? null,
+        monthlyContributionMinor: m.monthlyContributionMinor,
         sortOrder: m.sortOrder,
       });
       if (error) throw new Error(String(error));
