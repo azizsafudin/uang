@@ -46,6 +46,38 @@ export type EntryRow = {
   createdBy: string;
 };
 
+export type InstrumentRow = {
+  id: string;
+  symbol: string | null;
+  isin: string | null;
+  name: string;
+  kind: string;
+  currency: string;
+  createdAt: number;
+};
+
+export type LotRow = {
+  id: string;
+  accountId: string;
+  instrumentId: string;
+  unitsScaled: number;
+  unitCostScaled: number;
+  feesMinor: number;
+  tradeDate: string;
+  note: string | null;
+  createdAt: number;
+  createdBy: string;
+};
+
+export type PriceRow = {
+  id: string;
+  instrumentId: string;
+  date: string;
+  priceScaled: number;
+  source: string;
+  createdAt: number;
+};
+
 // ---------------------------------------------------------------------------
 // accountsCollection
 // ---------------------------------------------------------------------------
@@ -102,6 +134,29 @@ export const fxCollection = createCollection(
 );
 
 // ---------------------------------------------------------------------------
+// instrumentsCollection
+// ---------------------------------------------------------------------------
+
+export const instrumentsCollection = createCollection(
+  queryCollectionOptions<InstrumentRow, Error, ["instruments"], string>({
+    queryKey: ["instruments"],
+    queryFn: async (): Promise<Array<InstrumentRow>> => {
+      const { data, error } = await api.instruments.get();
+      if (error) throw new Error(String(error));
+      return (data as unknown as InstrumentRow[]) ?? [];
+    },
+    queryClient,
+    getKey: (i) => i.id,
+    onInsert: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as InstrumentRow | undefined;
+      if (!m) return;
+      const { id: _id, createdAt: _ca, ...body } = m;
+      await api.instruments.post(body as any);
+    },
+  })
+);
+
+// ---------------------------------------------------------------------------
 // entriesCollection — factory, memoised per accountId
 // ---------------------------------------------------------------------------
 
@@ -133,4 +188,84 @@ export function entriesCollection(accountId: string): EntriesCollection {
     _entriesCache.set(accountId, _makeEntriesCollection(accountId));
   }
   return _entriesCache.get(accountId)!;
+}
+
+// ---------------------------------------------------------------------------
+// lotsCollection — factory, memoised per accountId
+// ---------------------------------------------------------------------------
+
+type LotsCollection = ReturnType<typeof _makeLotsCollection>;
+const _lotsCache = new Map<string, LotsCollection>();
+
+function _makeLotsCollection(accountId: string) {
+  return createCollection(
+    queryCollectionOptions<LotRow, Error, [string, string], string>({
+      queryKey: ["lots", accountId],
+      queryFn: async (): Promise<Array<LotRow>> => {
+        const { data, error } = await api.accounts({ id: accountId }).lots.get();
+        if (error) throw new Error(String(error));
+        return (data as unknown as LotRow[]) ?? [];
+      },
+      queryClient,
+      getKey: (l) => l.id,
+      onInsert: async ({ transaction }) => {
+        const m = transaction.mutations[0]?.modified as LotRow | undefined;
+        if (!m) return;
+        const { id: _id, accountId: _aid, createdAt: _ca, createdBy: _cb, ...body } = m;
+        await api.accounts({ id: accountId }).lots.post(body as any);
+      },
+      onUpdate: async ({ transaction }) => {
+        const m = transaction.mutations[0]?.modified as LotRow | undefined;
+        if (!m) return;
+        await api.lots({ id: m.id }).patch(m as any);
+      },
+      onDelete: async ({ transaction }) => {
+        const id = (transaction.mutations[0]?.original as LotRow | undefined)?.id;
+        if (!id) return;
+        await api.lots({ id }).delete();
+      },
+    })
+  );
+}
+
+export function lotsCollection(accountId: string): LotsCollection {
+  if (!_lotsCache.has(accountId)) _lotsCache.set(accountId, _makeLotsCollection(accountId));
+  return _lotsCache.get(accountId)!;
+}
+
+// ---------------------------------------------------------------------------
+// pricesCollection — factory, memoised per instrumentId
+// ---------------------------------------------------------------------------
+
+type PricesCollection = ReturnType<typeof _makePricesCollection>;
+const _pricesCache = new Map<string, PricesCollection>();
+
+function _makePricesCollection(instrumentId: string) {
+  return createCollection(
+    queryCollectionOptions<PriceRow, Error, [string, string], string>({
+      queryKey: ["prices", instrumentId],
+      queryFn: async (): Promise<Array<PriceRow>> => {
+        const { data, error } = await api.instruments({ id: instrumentId }).prices.get();
+        if (error) throw new Error(String(error));
+        return (data as unknown as PriceRow[]) ?? [];
+      },
+      queryClient,
+      getKey: (p) => p.id,
+      onInsert: async ({ transaction }) => {
+        const m = transaction.mutations[0]?.modified as PriceRow | undefined;
+        if (!m) return;
+        await api.instruments({ id: instrumentId }).prices.post({ date: m.date, priceScaled: m.priceScaled } as any);
+      },
+      onDelete: async ({ transaction }) => {
+        const id = (transaction.mutations[0]?.original as PriceRow | undefined)?.id;
+        if (!id) return;
+        await api.prices({ id }).delete();
+      },
+    })
+  );
+}
+
+export function pricesCollection(instrumentId: string): PricesCollection {
+  if (!_pricesCache.has(instrumentId)) _pricesCache.set(instrumentId, _makePricesCollection(instrumentId));
+  return _pricesCache.get(instrumentId)!;
 }
