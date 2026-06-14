@@ -150,7 +150,7 @@ export function AccountForm() {
               value={f.valuationMode}
               onValueChange={(v: string | null) => v && set("valuationMode", v)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" data-testid="account-valuation">
                 <SelectValue>
                   {(v: unknown) => (String(v) === "holdings" ? "Holdings (investments)" : "Ledger (balance)")}
                 </SelectValue>
