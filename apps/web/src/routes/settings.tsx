@@ -51,7 +51,8 @@ function ProjectionAssumptionsSection() {
   });
 
   async function patch(body: { contributionGrowthRateBps?: number; projectionEndAge?: number }) {
-    await api.settings.patch(body);
+    const { error } = await api.settings.patch(body);
+    if (error) throw new Error(String(error));
     await qc.invalidateQueries({ queryKey: ["settings"] });
     await qc.invalidateQueries({ queryKey: ["goals", "analysis"] });
   }

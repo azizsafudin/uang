@@ -35,7 +35,13 @@ const TERMS = [
 export function GoalsPage() {
   // Live goal rows drive create/edit/delete; the analysis query provides the math.
   const { data: rows = [] } = useLiveQuery(goalsCollection);
-  const analysisQ = useQuery({ queryKey: ["goals", "analysis", rows.length], queryFn: fetchAnalysis });
+  // Refetch the analysis whenever any goal's funding-relevant fields change (not
+  // just the count), so editing a target amount/date updates progress + on-track.
+  const goalsSignature = rows
+    .map((g) => `${g.id}:${g.targetAmountMinor}:${g.targetDate}:${g.term}:${g.ownerScope}`)
+    .sort()
+    .join("|");
+  const analysisQ = useQuery({ queryKey: ["goals", "analysis", goalsSignature], queryFn: fetchAnalysis });
   const base = analysisQ.data?.baseCurrency ?? "";
   const byId = new Map((analysisQ.data?.goals ?? []).map((g) => [g.id, g]));
 

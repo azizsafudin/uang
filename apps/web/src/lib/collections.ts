@@ -330,7 +330,6 @@ export const membersCollection = createCollection(
 // ---------------------------------------------------------------------------
 
 export type GoalRow = RowOf<typeof api.goals.get>;
-type GoalApi = ReturnType<typeof api.goals>;
 
 export const goalsCollection = createCollection(
   queryCollectionOptions<GoalRow, Error, ["goals"], string>({
