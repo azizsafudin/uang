@@ -3,7 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { createApp } from "../app";
 import { runMigrations } from "../db/migrate";
 import { db } from "../db/client";
-import { settings, user, accounts, accountOwners, entries, fxRates } from "../db/schema";
+import { settings, user, accounts, accountOwners, entries, fxRates, instruments, lots, prices } from "../db/schema";
 import { auth } from "../auth";
 import { onboarding } from "../routes/onboarding";
 import { isInitialized } from "./settings";
@@ -12,6 +12,9 @@ import { isInitialized } from "./settings";
 export async function resetDb() {
   await runMigrations();
   await db.delete(accountOwners);
+  await db.delete(lots);
+  await db.delete(prices);
+  await db.delete(instruments);
   await db.delete(entries);
   await db.delete(accounts);
   await db.delete(fxRates);
