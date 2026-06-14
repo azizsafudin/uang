@@ -10,6 +10,7 @@ import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { NetWorthToggle } from "@/components/net-worth-toggle";
+import { NetWorthChart } from "@/components/net-worth-chart";
 import { OwnersBadge } from "@/components/owners-badge";
 
 type NetWorth = {
@@ -105,6 +106,10 @@ export function DashboardPage() {
           {!headline ? "—" : formatMoney(headline.totalBaseMinor, headline.baseCurrency)}
         </p>
       </section>
+
+      <div className="mt-6">
+        <NetWorthChart owner={owner} />
+      </div>
 
       <div className="mt-9 space-y-8">
         {GROUPS.map(({ cls, label }) => {
