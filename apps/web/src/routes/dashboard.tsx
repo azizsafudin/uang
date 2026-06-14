@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { signOut } from "@/lib/auth";
@@ -8,6 +9,8 @@ import { AccountForm } from "@/components/account-form";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { NetWorthToggle } from "@/components/net-worth-toggle";
+import { OwnersBadge } from "@/components/owners-badge";
 
 type NetWorth = {
   baseCurrency: string;
@@ -21,11 +24,13 @@ type NetWorth = {
     balanceMinor: number;
     baseMinor: number;
     missingRate: boolean;
+    ownerIds: string[];
+    shared: boolean;
   }>;
 };
 
-async function fetchNw(): Promise<NetWorth> {
-  const { data, error } = await api.networth.get({ query: {} });
+async function fetchNw(owner: string): Promise<NetWorth> {
+  const { data, error } = await api.networth.get({ query: { owner } });
   if (error) throw new Error(String(error));
   return data as unknown as NetWorth;
 }
@@ -37,13 +42,23 @@ const GROUPS = [
 
 export function DashboardPage() {
   const nav = useNavigate();
-  const { data, isLoading } = useQuery({
-    queryKey: ["networth"],
-    queryFn: fetchNw,
+  const [owner, setOwner] = useState("household");
+
+  // The account list + group totals always reflect the whole household, so the
+  // list never changes when you toggle the headline.
+  const { data: listData, isLoading } = useQuery({
+    queryKey: ["networth", "household"],
+    queryFn: () => fetchNw("household"),
   });
 
-  const base = data?.baseCurrency ?? "";
-  const accounts = data?.accounts ?? [];
+  // The headline follows the toggle. (owner === "household" dedupes with the list query.)
+  const { data: headline } = useQuery({
+    queryKey: ["networth", owner],
+    queryFn: () => fetchNw(owner),
+  });
+
+  const base = listData?.baseCurrency ?? "";
+  const accounts = listData?.accounts ?? [];
   const groupTotal = (cls: string) =>
     accounts
       .filter((a) => a.class === cls && !a.missingRate)
@@ -72,16 +87,22 @@ export function DashboardPage() {
         </>
       }
     >
-      {/* Hero: the household's net worth, minted in Fraunces. */}
+      <div className="mb-4">
+        <NetWorthToggle value={owner} onChange={setOwner} />
+      </div>
+
+      {/* Hero: net worth for the selected vantage point, minted in Fraunces. */}
       <section className="rounded-2xl border border-border bg-card px-6 py-7 shadow-sm md:px-8 md:py-9">
-        <Eyebrow>Net worth · as of today</Eyebrow>
+        <Eyebrow>
+          Net worth · {owner === "household" ? "household" : "personal"} · as of today
+        </Eyebrow>
         <p
           className={cn(
             "mt-3 font-heading text-5xl tracking-tight tabular-nums md:text-6xl",
-            data && data.totalBaseMinor < 0 && "text-destructive",
+            headline && headline.totalBaseMinor < 0 && "text-destructive",
           )}
         >
-          {isLoading || !data ? "—" : formatMoney(data.totalBaseMinor, base)}
+          {!headline ? "—" : formatMoney(headline.totalBaseMinor, headline.baseCurrency)}
         </p>
       </section>
 
@@ -92,7 +113,7 @@ export function DashboardPage() {
             <section key={cls}>
               <div className="mb-3 flex items-baseline justify-between">
                 <Eyebrow>{label}</Eyebrow>
-                {data && rows.length > 0 && (
+                {listData && rows.length > 0 && (
                   <span className="font-heading text-sm tabular-nums text-muted-foreground">
                     {formatMoney(groupTotal(cls), base)}
                   </span>
@@ -123,6 +144,9 @@ export function DashboardPage() {
                             </span>
                           )}
                         </p>
+                        <div className="mt-1">
+                          <OwnersBadge ownerIds={a.ownerIds} />
+                        </div>
                       </div>
                       <div className="shrink-0 text-right tabular-nums">
                         <p
