@@ -107,7 +107,7 @@ export function GoalDetailPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+          <div className="grid gap-4 md:grid-cols-[260px_1fr]">
             <section className="rounded-2xl border border-border bg-card p-4">
               <GoalDonut
                 sources={p.sources}
@@ -116,28 +116,28 @@ export function GoalDetailPage() {
                 progressPct={p.progressPct}
               />
               <dl className="mt-3 space-y-1 text-sm tabular-nums">
-                <div className="flex justify-between"><dt className="text-muted-foreground">Allocated</dt><dd>{formatMoney(p.allocatedMinor, base)}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted-foreground">Target</dt><dd>{formatMoney(p.targetMinor, base)}</dd></div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Contributing</dt>
+                <div className="flex justify-between gap-3"><dt className="shrink-0 text-muted-foreground">Allocated</dt><dd>{formatMoney(p.allocatedMinor, base)}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="shrink-0 text-muted-foreground">Target</dt><dd>{formatMoney(p.targetMinor, base)}</dd></div>
+                <div className="flex justify-between gap-3">
+                  <dt className="shrink-0 text-muted-foreground">Saving</dt>
                   <dd>{p.monthlyContributionMinor > 0 ? `${formatMoney(p.monthlyContributionMinor, base)}/mo` : "—"}</dd>
                 </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Required</dt>
+                <div className="flex justify-between gap-3">
+                  <dt className="shrink-0 text-muted-foreground">Required</dt>
                   <dd>{p.requiredMonthlyMinor > 0 ? `${formatMoney(p.requiredMonthlyMinor, base)}/mo` : "—"}</dd>
                 </div>
-                <div className="mt-2 flex justify-between border-t border-border/70 pt-2">
-                  <dt className="text-muted-foreground">Projected</dt>
+                <div className="mt-2 flex justify-between gap-3 border-t border-border/70 pt-2">
+                  <dt className="shrink-0 text-muted-foreground">Projected</dt>
                   <dd>{formatMoney(p.projectedAtTargetMinor, base)}</dd>
                 </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">{p.onTrack ? "Surplus" : "Shortfall"}</dt>
+                <div className="flex justify-between gap-3">
+                  <dt className="shrink-0 text-muted-foreground">{p.onTrack ? "Surplus" : "Shortfall"}</dt>
                   <dd className={p.onTrack ? "text-foreground" : "text-destructive"}>
                     {formatMoney(Math.abs(p.projectedAtTargetMinor - p.targetMinor), base)}
                   </dd>
                 </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Reaches</dt>
+                <div className="flex justify-between gap-3">
+                  <dt className="shrink-0 text-muted-foreground">Reaches</dt>
                   <dd>{p.reachDate ? formatDate(p.reachDate) : "—"}</dd>
                 </div>
               </dl>

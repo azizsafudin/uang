@@ -57,10 +57,11 @@ export function GoalDonut({
           </Pie>
         </PieChart>
       </ChartContainer>
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center leading-none">
         <span className={big ? "font-heading text-2xl tabular-nums" : "text-xs font-medium tabular-nums"}>
           {progressPct}%
         </span>
+        {big && <span className="mt-1 text-[0.65rem] uppercase tracking-wide text-muted-foreground">funded</span>}
       </div>
     </div>
   );
