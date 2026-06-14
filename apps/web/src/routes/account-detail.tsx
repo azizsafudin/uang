@@ -31,7 +31,7 @@ const BackButton = () => (
 );
 
 export function AccountDetailPage() {
-  const { id } = useParams({ from: "/accounts/$id" });
+  const { id } = useParams({ from: "/app-shell/accounts/$id" });
   const nav = useNavigate();
   const qc = useQueryClient();
   const [deleteOpen, setDeleteOpen] = useState(false);
