@@ -404,6 +404,9 @@ export const goalsCollection = createCollection(
         ownerScope: m.ownerScope,
         anchorDate: m.anchorDate ?? null,
         monthlyContributionMinor: m.monthlyContributionMinor,
+        spendType: m.spendType,
+        spendAmountMinor: m.spendAmountMinor,
+        spendRateBps: m.spendRateBps,
         sortOrder: m.sortOrder,
       });
       if (error) throw new Error(String(error));
@@ -419,6 +422,9 @@ export const goalsCollection = createCollection(
         ownerScope: m.ownerScope,
         anchorDate: m.anchorDate ?? null,
         monthlyContributionMinor: m.monthlyContributionMinor,
+        spendType: m.spendType,
+        spendAmountMinor: m.spendAmountMinor,
+        spendRateBps: m.spendRateBps,
         sortOrder: m.sortOrder,
       });
       if (error) throw new Error(String(error));
