@@ -9,6 +9,8 @@ import { networthRoutes } from "./routes/networth";
 import { networthSeriesRoutes } from "./routes/networth-series";
 import { usersRoutes } from "./routes/users";
 import { membersRoutes } from "./routes/members";
+import { settingsRoutes } from "./routes/settings";
+import { goalsRoutes } from "./routes/goals";
 import { exportRoutes } from "./routes/export";
 import { instrumentsRoutes } from "./routes/instruments";
 import { lotsRoutes } from "./routes/lots";
@@ -50,6 +52,8 @@ export function createApp() {
     .use(networthSeriesRoutes)
     .use(usersRoutes)
     .use(membersRoutes)
+    .use(settingsRoutes)
+    .use(goalsRoutes)
     .use(exportRoutes)
     .use(instrumentsRoutes)
     .use(lotsRoutes)
