@@ -9,7 +9,7 @@ export const instrumentsRoutes = new Elysia({ prefix: "/instruments" })
   .get("/", async () => db.select().from(instruments).orderBy(instruments.name))
   .post(
     "/",
-    async ({ body }: any) => {
+    async ({ body }) => {
       const id = createId();
       await db.insert(instruments).values({
         id,
