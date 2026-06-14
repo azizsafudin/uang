@@ -1,16 +1,15 @@
 import { useState } from "react";
-import { GripVertical, MoreVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { formatMoney } from "@/components/money";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 type Props = {
   name: string;
@@ -53,7 +52,7 @@ export function AccountGroupRow({
 
   const hasMenu = Boolean(onRename || onDelete);
 
-  return (
+  const row = (
     <div
       className={cn(
         "flex w-full items-center gap-2 pl-2 pr-2 py-2.5 transition-colors",
@@ -106,30 +105,23 @@ export function AccountGroupRow({
         </button>
       )}
 
-      {hasMenu && (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label="Group actions"
-                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              />
-            }
-          >
-            <MoreVertical size={15} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {onRename && <DropdownMenuItem onClick={startRename}>Rename</DropdownMenuItem>}
-            {onRename && onDelete && <DropdownMenuSeparator />}
-            {onDelete && (
-              <DropdownMenuItem variant="destructive" onClick={onDelete}>
-                Delete group
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
     </div>
+  );
+
+  if (!hasMenu) return row;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={row} />
+      <ContextMenuContent>
+        {onRename && <ContextMenuItem onClick={startRename}>Rename</ContextMenuItem>}
+        {onRename && onDelete && <ContextMenuSeparator />}
+        {onDelete && (
+          <ContextMenuItem variant="destructive" onClick={onDelete}>
+            Delete group
+          </ContextMenuItem>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
