@@ -1,7 +1,7 @@
 import { expect, test, beforeEach } from "bun:test";
 import { resetDb } from "./test-helpers";
 import { db } from "../db/client";
-import { settings, accounts, entries, fxRates } from "../db/schema";
+import { settings, accounts, entries, fxRates, accountOwners } from "../db/schema";
 import { createId, nowEpoch } from "./ids";
 import { accountBalanceMinor, netWorth } from "./valuation";
 
@@ -20,6 +20,11 @@ async function addEntry(accountId: string, amountMinor: number, date: string, ki
   await db.insert(entries).values({
     id: createId(), accountId, date, amountMinor, kind, createdAt: nowEpoch(), createdBy: "u",
   });
+}
+async function setOwnersDirect(accountId: string, userIds: string[]) {
+  for (const userId of userIds) {
+    await db.insert(accountOwners).values({ accountId, userId });
+  }
 }
 
 beforeEach(resetDb);
@@ -64,4 +69,62 @@ test("netWorth flags accounts with no FX rate and excludes them from the total",
   const e = nw.accounts.find((x) => x.name === "EU Account")!;
   expect(e.missingRate).toBe(true);
   expect(e.baseMinor).toBe(0);
+});
+
+test("netWorth tags each account with ownerIds and shared (|O|>=2)", async () => {
+  await seedBase("USD");
+  const personal = await addAccount({ name: "Solo", cls: "asset", currency: "USD" });
+  await addEntry(personal, 10000, "2026-01-01");
+  await setOwnersDirect(personal, ["u1"]);
+  const joint = await addAccount({ name: "Joint", cls: "asset", currency: "USD" });
+  await addEntry(joint, 20000, "2026-01-01");
+  await setOwnersDirect(joint, ["u1", "u2"]);
+
+  const nw = await netWorth();
+  const solo = nw.accounts.find((a) => a.name === "Solo")!;
+  const both = nw.accounts.find((a) => a.name === "Joint")!;
+  expect(solo.ownerIds.sort()).toEqual(["u1"]);
+  expect(solo.shared).toBe(false);
+  expect(both.ownerIds.sort()).toEqual(["u1", "u2"]);
+  expect(both.shared).toBe(true);
+});
+
+test("netWorth household total includes personal + shared accounts", async () => {
+  await seedBase("USD");
+  const solo = await addAccount({ name: "Solo", cls: "asset", currency: "USD" });
+  await addEntry(solo, 10000, "2026-01-01");
+  await setOwnersDirect(solo, ["u1"]);
+  const joint = await addAccount({ name: "Joint", cls: "asset", currency: "USD" });
+  await addEntry(joint, 20000, "2026-01-01");
+  await setOwnersDirect(joint, ["u1", "u2"]);
+
+  const nw = await netWorth({ owner: "household" });
+  expect(nw.totalBaseMinor).toBe(30000);
+  expect(nw.accounts.length).toBe(2);
+});
+
+test("netWorth for a member includes only their sole-owned accounts, excludes shared + others", async () => {
+  await seedBase("USD");
+  const mine = await addAccount({ name: "Mine", cls: "asset", currency: "USD" });
+  await addEntry(mine, 10000, "2026-01-01");
+  await setOwnersDirect(mine, ["u1"]);
+  const joint = await addAccount({ name: "Joint", cls: "asset", currency: "USD" });
+  await addEntry(joint, 20000, "2026-01-01");
+  await setOwnersDirect(joint, ["u1", "u2"]);
+  const theirs = await addAccount({ name: "Theirs", cls: "asset", currency: "USD" });
+  await addEntry(theirs, 40000, "2026-01-01");
+  await setOwnersDirect(theirs, ["u2"]);
+
+  const nw = await netWorth({ owner: "u1" });
+  expect(nw.totalBaseMinor).toBe(10000); // only "Mine"
+  expect(nw.accounts.map((a) => a.name)).toEqual(["Mine"]);
+});
+
+test("netWorth still supports asOf via the options object", async () => {
+  await seedBase("USD");
+  const a = await addAccount({ name: "Savings", cls: "asset", currency: "USD" });
+  await addEntry(a, 50000, "2026-03-01");
+  await setOwnersDirect(a, ["u1"]);
+  expect((await netWorth({ asOf: "2026-02-01" })).totalBaseMinor).toBe(0);
+  expect((await netWorth({ asOf: "2026-03-01" })).totalBaseMinor).toBe(50000);
 });
