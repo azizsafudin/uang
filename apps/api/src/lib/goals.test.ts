@@ -92,6 +92,12 @@ test("goalProjection: past actual + future on-plan/eligible series toward target
   expect(r.requiredMonthlyMinor).toBeGreaterThan(0); // 5M gap to fund
   expect(r.onTrack).toBe(true);                       // fresh goal, anchored at today
 
+  // Funding sources: this goal draws from both accounts, named, most-liquid first.
+  expect(r.sources.map((s) => s.name)).toEqual(["Cash", "CPF"]);
+  expect(r.sources.map((s) => s.allocatedMinor)).toEqual([5_000_000, 10_000_000]);
+  // Sources sum to the allocated total.
+  expect(r.sources.reduce((sum, s) => sum + s.allocatedMinor, 0)).toBe(r.allocatedMinor);
+
   const today = new Date().toISOString().slice(0, 10);
   const todayPoint = r.series.find((p) => p.date === today);
   if (!todayPoint) throw new Error("expected a today point");

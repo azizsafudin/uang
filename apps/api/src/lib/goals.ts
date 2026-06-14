@@ -183,6 +183,13 @@ export type GoalProjectionPoint = {
   eligible: number | null; // allocated capital left to grow (today + future)
 };
 
+// A funding account that contributes to this goal, with its allocated slice.
+export type GoalSource = {
+  accountId: string;
+  name: string;
+  allocatedMinor: number;
+};
+
 export type GoalProjectionResult = {
   baseCurrency: string;
   goal: { id: string; name: string; term: "short" | "long"; targetDate: string; currency: string };
@@ -192,6 +199,7 @@ export type GoalProjectionResult = {
   requiredMonthlyMinor: number;
   onTrack: boolean;
   aheadByMinor: number;
+  sources: GoalSource[];
   series: GoalProjectionPoint[];
 };
 
@@ -235,6 +243,15 @@ export async function goalProjection(
   const allocToday = allocateGoals({ goals: goalInputs, accounts: toAllocAccounts(nwToday.accounts, birthByUser) });
   const mine = allocToday.goals.find((g) => g.id === goal.id)!;
   const allocatedToday = mine.allocatedMinor;
+
+  // Funding sources: this goal's allocation lines with account names (most-liquid first,
+  // the order allocation filled them).
+  const nameById = new Map(nwToday.accounts.map((a) => [a.id, a.name]));
+  const sources: GoalSource[] = mine.lines.map((line) => ({
+    accountId: line.accountId,
+    name: nameById.get(line.accountId) ?? line.accountId,
+    allocatedMinor: line.allocatedMinor,
+  }));
 
   // Required monthly (same model as analyzeGoals): grow allocated at per-account
   // annual rates to the target year, fill the gap at the plan rate.
@@ -294,6 +311,7 @@ export async function goalProjection(
     requiredMonthlyMinor: requiredMonthly,
     onTrack: ot.onTrack,
     aheadByMinor: ot.aheadByMinor,
+    sources,
     series,
   };
 }

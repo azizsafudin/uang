@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { goalsCollection } from "@/lib/collections";
 import { formatMoney } from "@/components/money";
 import { GoalForm } from "@/components/goal-form";
-import { GoalDonut } from "@/components/goal-donut";
+import { GoalDonut, sourceColor, UNFUNDED_COLOR } from "@/components/goal-donut";
 import { GoalProjectionChart, type GoalProjectionPoint } from "@/components/goal-projection-chart";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ type ProjectionResponse = {
   requiredMonthlyMinor: number;
   onTrack: boolean;
   aheadByMinor: number;
+  sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
   series: GoalProjectionPoint[];
 };
 
@@ -95,9 +96,14 @@ export function GoalDetailPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+          <div className="grid gap-4 md:grid-cols-[260px_1fr]">
             <section className="rounded-2xl border border-border bg-card p-4">
-              <GoalDonut allocatedMinor={p.allocatedMinor} targetMinor={p.targetMinor} progressPct={p.progressPct} />
+              <GoalDonut
+                sources={p.sources}
+                allocatedMinor={p.allocatedMinor}
+                targetMinor={p.targetMinor}
+                progressPct={p.progressPct}
+              />
               <dl className="mt-3 space-y-1 text-sm tabular-nums">
                 <div className="flex justify-between"><dt className="text-muted-foreground">Allocated</dt><dd>{formatMoney(p.allocatedMinor, base)}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Target</dt><dd>{formatMoney(p.targetMinor, base)}</dd></div>
@@ -106,6 +112,37 @@ export function GoalDetailPage() {
                   <dd>{p.requiredMonthlyMinor > 0 ? `${formatMoney(p.requiredMonthlyMinor, base)}/mo` : "—"}</dd>
                 </div>
               </dl>
+
+              {/* Funding-source breakdown, swatches matching the donut slices. */}
+              <div className="mt-4 border-t border-border/70 pt-3">
+                <Eyebrow className="mb-2">Sources</Eyebrow>
+                {p.sources.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No accounts fund this goal yet.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {p.sources.map((s, i) => (
+                      <div key={s.accountId} className="flex items-center gap-2 text-sm">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: sourceColor(i) }} />
+                        <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                        <span className="tabular-nums">{formatMoney(s.allocatedMinor, base)}</span>
+                        <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">
+                          {p.targetMinor > 0 ? Math.round((s.allocatedMinor * 100) / p.targetMinor) : 0}%
+                        </span>
+                      </div>
+                    ))}
+                    {p.targetMinor > p.allocatedMinor && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: UNFUNDED_COLOR }} />
+                        <span className="min-w-0 flex-1 truncate">Unfunded</span>
+                        <span className="tabular-nums">{formatMoney(p.targetMinor - p.allocatedMinor, base)}</span>
+                        <span className="w-9 shrink-0 text-right tabular-nums">
+                          {p.targetMinor > 0 ? Math.round(((p.targetMinor - p.allocatedMinor) * 100) / p.targetMinor) : 0}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5">

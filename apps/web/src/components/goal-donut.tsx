@@ -1,32 +1,53 @@
 import { Cell, Pie, PieChart } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 
-const config = {
-  allocated: { label: "Allocated", color: "var(--chart-1)" },
-  remaining: { label: "Remaining", color: "var(--muted)" },
-} satisfies ChartConfig;
+// Donut/breakdown slice colors, cycled per funding source. Shared so the
+// detail page's source list can render matching swatches.
+export const SOURCE_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
+export const UNFUNDED_COLOR = "var(--muted)";
 
+export const sourceColor = (i: number): string => SOURCE_COLORS[i % SOURCE_COLORS.length];
+
+export type DonutSource = { accountId: string; name: string; allocatedMinor: number };
+
+const emptyConfig = {} satisfies ChartConfig;
+
+// A donut whose ring is split by funding source (each its own color), plus a
+// muted "unfunded" slice for the gap to target. Progress % sits in the center.
 export function GoalDonut({
+  sources,
   allocatedMinor,
   targetMinor,
   progressPct,
 }: {
+  sources: DonutSource[];
   allocatedMinor: number;
   targetMinor: number;
   progressPct: number;
 }) {
-  const remaining = Math.max(0, targetMinor - allocatedMinor);
-  const data = [
-    { key: "allocated", value: Math.max(0, allocatedMinor) },
-    { key: "remaining", value: remaining },
+  const unfunded = Math.max(0, targetMinor - allocatedMinor);
+  const slices = [
+    ...sources.map((s, i) => ({
+      key: s.accountId,
+      value: Math.max(0, s.allocatedMinor),
+      color: sourceColor(i),
+    })),
+    ...(unfunded > 0 ? [{ key: "__unfunded", value: unfunded, color: UNFUNDED_COLOR }] : []),
   ];
+
   return (
     <div className="relative">
-      <ChartContainer config={config} className="mx-auto aspect-square h-[180px]">
+      <ChartContainer config={emptyConfig} className="mx-auto aspect-square h-[180px]">
         <PieChart>
-          <Pie data={data} dataKey="value" nameKey="key" innerRadius={60} outerRadius={80} strokeWidth={2}>
-            {data.map((d) => (
-              <Cell key={d.key} fill={`var(--color-${d.key})`} />
+          <Pie data={slices} dataKey="value" nameKey="key" innerRadius={60} outerRadius={80} strokeWidth={2}>
+            {slices.map((s) => (
+              <Cell key={s.key} fill={s.color} />
             ))}
           </Pie>
         </PieChart>
