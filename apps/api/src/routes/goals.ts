@@ -27,6 +27,12 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
   .post(
     "/",
     async ({ body, userId, set }: any) => {
+      const spendType = body.spendType ?? "none";
+      const targetDate = body.targetDate ?? null;
+      if (spendType !== "none" && !targetDate) {
+        set.status = 422;
+        return { error: "spend_requires_target_date" };
+      }
       const id = body.id ?? createId();
       try {
         await db.insert(goals).values({
@@ -34,10 +40,13 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
           name: body.name,
           targetAmountMinor: body.targetAmountMinor,
           currency: body.currency.toUpperCase(),
-          targetDate: body.targetDate ?? null,
+          targetDate,
           ownerScope: body.ownerScope ?? "household",
           anchorDate: body.anchorDate ?? null,
           monthlyContributionMinor: body.monthlyContributionMinor ?? 0,
+          spendType,
+          spendAmountMinor: body.spendAmountMinor ?? null,
+          spendRateBps: body.spendRateBps ?? null,
           sortOrder: body.sortOrder ?? 0,
           createdAt: nowEpoch(),
           createdBy: userId!,
@@ -61,13 +70,25 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
         ownerScope: t.Optional(t.String()),
         anchorDate: t.Optional(t.Union([t.String(), t.Null()])),
         monthlyContributionMinor: t.Optional(t.Number()),
+        spendType: t.Optional(t.Union([t.Literal("none"), t.Literal("once"), t.Literal("monthly"), t.Literal("percent")])),
+        spendAmountMinor: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendRateBps: t.Optional(t.Union([t.Number(), t.Null()])),
         sortOrder: t.Optional(t.Number()),
       }),
     },
   )
   .patch(
     "/:id",
-    async ({ params, body }: any) => {
+    async ({ params, body, set }: any) => {
+      // Enabling spend requires a target date (existing or in this patch).
+      if (body.spendType !== undefined && body.spendType !== "none") {
+        const existing = (await db.select().from(goals).where(eq(goals.id, params.id)))[0];
+        const effectiveTargetDate = body.targetDate !== undefined ? body.targetDate : existing?.targetDate;
+        if (!effectiveTargetDate) {
+          set.status = 422;
+          return { error: "spend_requires_target_date" };
+        }
+      }
       const update: Record<string, unknown> = {};
       if (body.name !== undefined) update.name = body.name;
       if (body.targetAmountMinor !== undefined) update.targetAmountMinor = body.targetAmountMinor;
@@ -76,6 +97,9 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
       if (body.ownerScope !== undefined) update.ownerScope = body.ownerScope;
       if (body.anchorDate !== undefined) update.anchorDate = body.anchorDate;
       if (body.monthlyContributionMinor !== undefined) update.monthlyContributionMinor = body.monthlyContributionMinor;
+      if (body.spendType !== undefined) update.spendType = body.spendType;
+      if (body.spendAmountMinor !== undefined) update.spendAmountMinor = body.spendAmountMinor;
+      if (body.spendRateBps !== undefined) update.spendRateBps = body.spendRateBps;
       if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
       await db.update(goals).set(update).where(eq(goals.id, params.id));
       return { ok: true };
@@ -89,6 +113,9 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
         ownerScope: t.Optional(t.String()),
         anchorDate: t.Optional(t.Union([t.String(), t.Null()])),
         monthlyContributionMinor: t.Optional(t.Number()),
+        spendType: t.Optional(t.Union([t.Literal("none"), t.Literal("once"), t.Literal("monthly"), t.Literal("percent")])),
+        spendAmountMinor: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendRateBps: t.Optional(t.Union([t.Number(), t.Null()])),
         sortOrder: t.Optional(t.Number()),
       }),
     },
