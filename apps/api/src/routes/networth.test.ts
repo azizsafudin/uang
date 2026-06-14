@@ -2,7 +2,7 @@ import { expect, test, beforeEach } from "bun:test";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { networthRoutes } from "./networth";
 import { db } from "../db/client";
-import { accounts, entries } from "../db/schema";
+import { accounts, entries, accountOwners } from "../db/schema";
 import { createId, nowEpoch } from "../lib/ids";
 
 beforeEach(resetDb);
@@ -41,6 +41,12 @@ async function seedAccount(opts: {
     createdBy: opts.userId,
   });
   return id;
+}
+
+async function ownAccount(accountId: string, userIds: string[]) {
+  for (const userId of userIds) {
+    await db.insert(accountOwners).values({ accountId, userId });
+  }
 }
 
 test("GET /networth returns headline and per-account breakdown (assets minus liabilities)", async () => {
@@ -96,4 +102,35 @@ test("GET /networth supports optional ?asOf=YYYY-MM-DD query", async () => {
 test("GET /networth returns 401 without auth", async () => {
   const res = await app.handle(new Request("http://localhost/networth"));
   expect(res.status).toBe(401);
+});
+
+test("GET /networth?owner=<member> returns only that member's sole-owned accounts", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+
+  const mine = await seedAccount({ name: "Mine", cls: "asset", currency: "USD", amountMinor: 10000, date: "2026-01-01", userId: "u1" });
+  await ownAccount(mine, ["u1"]);
+  const joint = await seedAccount({ name: "Joint", cls: "asset", currency: "USD", amountMinor: 20000, date: "2026-01-01", userId: "u1" });
+  await ownAccount(joint, ["u1", "u2"]);
+
+  const res = await app.handle(new Request("http://localhost/networth?owner=u1", { headers: { cookie } }));
+  expect(res.status).toBe(200);
+  const nw = await res.json();
+  expect(nw.totalBaseMinor).toBe(10000);
+  expect(nw.accounts.map((a: any) => a.name)).toEqual(["Mine"]);
+});
+
+test("GET /networth?owner=household (and default) includes shared accounts", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+
+  const mine = await seedAccount({ name: "Mine", cls: "asset", currency: "USD", amountMinor: 10000, date: "2026-01-01", userId: "u1" });
+  await ownAccount(mine, ["u1"]);
+  const joint = await seedAccount({ name: "Joint", cls: "asset", currency: "USD", amountMinor: 20000, date: "2026-01-01", userId: "u1" });
+  await ownAccount(joint, ["u1", "u2"]);
+
+  const res = await app.handle(new Request("http://localhost/networth?owner=household", { headers: { cookie } }));
+  const nw = await res.json();
+  expect(nw.totalBaseMinor).toBe(30000);
+  const jothe = nw.accounts.find((a: any) => a.name === "Joint");
+  expect(jothe.shared).toBe(true);
+  expect(jothe.ownerIds.sort()).toEqual(["u1", "u2"]);
 });
