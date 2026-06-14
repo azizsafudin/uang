@@ -40,15 +40,15 @@ function Section({
 function MembersSection() {
   const { data: members = [] } = useLiveQuery(membersCollection);
   return (
-    <section className="rounded-2xl border border-border bg-card p-4">
-      <h2 className="mb-3 text-sm font-medium text-muted-foreground">Members</h2>
+    <Section eyebrow="Projections" title="Member birth years">
       <div className="space-y-3">
         {members.map((m) => (
           <div key={m.id} className="flex items-center justify-between gap-3">
             <Label className="flex-1">{m.name}</Label>
             <Input
               type="number"
-              min="0"
+              min={1900}
+              max={new Date().getFullYear()}
               className="w-32"
               placeholder="Birth year"
               defaultValue={m.birthYear ?? ""}
@@ -62,7 +62,7 @@ function MembersSection() {
           </div>
         ))}
       </div>
-    </section>
+    </Section>
   );
 }
 
