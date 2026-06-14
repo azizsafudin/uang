@@ -107,7 +107,7 @@ export const goals = sqliteTable("goals", {
   term: text("term").$type<"short" | "long">().notNull(),
   targetAmountMinor: integer("target_amount_minor").notNull(),
   currency: text("currency").notNull(),
-  targetDate: text("target_date").notNull(), // YYYY-MM-DD
+  targetDate: text("target_date"), // YYYY-MM-DD | null (null = indefinite, amount-only goal)
   ownerScope: text("owner_scope").notNull().default("household"),
   anchorDate: text("anchor_date"), // YYYY-MM-DD | null
   // Assumed planned saving toward this goal (base of the projected line).

@@ -46,12 +46,13 @@ export function GoalForm({
     e.preventDefault();
     const targetAmountMinor = toMinor(f.amount, currency);
     const monthlyContributionMinor = toMinor(f.contribution, currency);
+    const targetDate = f.targetDate || null; // empty -> indefinite goal
     if (editing) {
       goalsCollection.update(goal!.id, (draft) => {
         draft.name = f.name;
         draft.term = f.term;
         draft.targetAmountMinor = targetAmountMinor;
-        draft.targetDate = f.targetDate;
+        draft.targetDate = targetDate;
         draft.monthlyContributionMinor = monthlyContributionMinor;
       });
     } else {
@@ -61,7 +62,7 @@ export function GoalForm({
         term: f.term,
         targetAmountMinor,
         currency,
-        targetDate: f.targetDate,
+        targetDate,
         ownerScope: "household",
         anchorDate: null,
         monthlyContributionMinor,
@@ -109,8 +110,8 @@ export function GoalForm({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Target date</Label>
-              <Input type="date" value={f.targetDate} required
+              <Label>Target date <span className="text-muted-foreground">(optional)</span></Label>
+              <Input type="date" value={f.targetDate}
                 onChange={(e) => setF((p) => ({ ...p, targetDate: e.target.value }))} />
             </div>
             <div>

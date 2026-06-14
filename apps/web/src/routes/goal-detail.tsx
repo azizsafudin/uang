@@ -71,7 +71,8 @@ export function GoalDetailPage() {
               <Eyebrow className="mb-2">{p.goal.term === "short" ? "Short term" : "Long term"}</Eyebrow>
               <h1 className="font-heading text-3xl tracking-tight">{p.goal.name}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                {formatMoney(p.targetMinor, base)} by {formatDate(p.goal.targetDate)}
+                {formatMoney(p.targetMinor, base)}
+                {p.goal.targetDate ? ` by ${formatDate(p.goal.targetDate)}` : " · no deadline"}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -115,32 +116,37 @@ export function GoalDetailPage() {
                 targetMinor={p.targetMinor}
                 progressPct={p.progressPct}
               />
-              <dl className="mt-3 space-y-1 text-sm tabular-nums">
-                <div className="flex justify-between gap-3"><dt className="shrink-0 text-muted-foreground">Allocated</dt><dd>{formatMoney(p.allocatedMinor, base)}</dd></div>
-                <div className="flex justify-between gap-3"><dt className="shrink-0 text-muted-foreground">Target</dt><dd>{formatMoney(p.targetMinor, base)}</dd></div>
-                <div className="flex justify-between gap-3">
-                  <dt className="shrink-0 text-muted-foreground">Saving</dt>
-                  <dd>{p.monthlyContributionMinor > 0 ? `${formatMoney(p.monthlyContributionMinor, base)}/mo` : "—"}</dd>
+              <div className="mt-4 space-y-3 text-sm tabular-nums">
+                <div className="space-y-1">
+                  <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">Now</p>
+                  <div className="flex justify-between gap-3"><span className="shrink-0 text-muted-foreground">Allocated</span><span>{formatMoney(p.allocatedMinor, base)}</span></div>
+                  <div className="flex justify-between gap-3">
+                    <span className="shrink-0 text-muted-foreground">Saving</span>
+                    <span>{p.monthlyContributionMinor > 0 ? `${formatMoney(p.monthlyContributionMinor, base)}/mo` : "—"}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="shrink-0 text-muted-foreground">Required</dt>
-                  <dd>{p.requiredMonthlyMinor > 0 ? `${formatMoney(p.requiredMonthlyMinor, base)}/mo` : "—"}</dd>
+                <div className="space-y-1 border-t border-border/70 pt-3">
+                  <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">Projected</p>
+                  <div className="flex justify-between gap-3">
+                    <span className="shrink-0 text-muted-foreground">Reaches</span>
+                    <span>{p.reachDate ? formatDate(p.reachDate) : "—"}</span>
+                  </div>
+                  {p.goal.targetDate && p.projectedAtTargetMinor !== null && (
+                    <>
+                      <div className="flex justify-between gap-3">
+                        <span className="shrink-0 text-muted-foreground">By {formatDate(p.goal.targetDate)}</span>
+                        <span>{formatMoney(p.projectedAtTargetMinor, base)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="shrink-0 text-muted-foreground">{p.onTrack ? "Surplus" : "Shortfall"}</span>
+                        <span className={p.onTrack ? "" : "text-destructive"}>
+                          {formatMoney(Math.abs(p.projectedAtTargetMinor - p.targetMinor), base)}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="mt-2 flex justify-between gap-3 border-t border-border/70 pt-2">
-                  <dt className="shrink-0 text-muted-foreground">Projected</dt>
-                  <dd>{formatMoney(p.projectedAtTargetMinor, base)}</dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="shrink-0 text-muted-foreground">{p.onTrack ? "Surplus" : "Shortfall"}</dt>
-                  <dd className={p.onTrack ? "text-foreground" : "text-destructive"}>
-                    {formatMoney(Math.abs(p.projectedAtTargetMinor - p.targetMinor), base)}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="shrink-0 text-muted-foreground">Reaches</dt>
-                  <dd>{p.reachDate ? formatDate(p.reachDate) : "—"}</dd>
-                </div>
-              </dl>
+              </div>
             </section>
 
             <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5">

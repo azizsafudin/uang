@@ -35,7 +35,7 @@ export function GoalProjectionChart({
 }: {
   series: GoalProjectionPoint[];
   targetMinor: number;
-  targetDate: string;
+  targetDate: string | null;
   baseCurrency: string;
 }) {
   return (
@@ -63,7 +63,7 @@ export function GoalProjectionChart({
         />
         <ReferenceLine y={targetMinor} stroke="var(--chart-3)" strokeDasharray="4 4"
           label={{ value: "Target", position: "insideTopRight", fontSize: 10 }} />
-        <ReferenceLine x={targetDate} stroke="var(--border)" strokeDasharray="3 3" />
+        {targetDate && <ReferenceLine x={targetDate} stroke="var(--border)" strokeDasharray="3 3" />}
         {/* One trajectory: solid for realized past, dashed forecast for the future. */}
         <Line dataKey="actual" type="monotone" stroke="var(--color-actual)" strokeWidth={2} dot={false} connectNulls={false} />
         <Line dataKey="projected" type="monotone" stroke="var(--color-projected)" strokeWidth={2} strokeDasharray="5 3" dot={false} connectNulls={false} />

@@ -23,14 +23,14 @@ export type GoalAnalysis = {
   name: string;
   term: "short" | "long";
   targetAmountMinor: number; // base currency
-  targetDate: string;
+  targetDate: string | null; // null = indefinite (amount-only) goal
   currency: string;
   allocatedMinor: number;
   progressPct: number;
   monthlyContributionMinor: number;   // the goal's planned saving
-  requiredMonthlyMinor: number;       // contribution needed to hit target
-  projectedAtTargetMinor: number;     // where the plan lands by the target date
-  onTrack: boolean;                   // projected >= target
+  requiredMonthlyMinor: number;       // contribution needed to hit target by the date (0 if indefinite)
+  projectedAtTargetMinor: number | null; // where the plan lands by the target date (null if indefinite)
+  onTrack: boolean;                   // dated: projected >= target; indefinite: reachable
   reachDate: string | null;          // YYYY-MM-DD the plan first reaches target (null = not within ~100y)
   sources: GoalSource[];
 };
@@ -67,16 +67,21 @@ function goalPlanMath(params: {
   monthlyContributionMinor: number;
   targetMinor: number;
   planRateBps: number;
-  monthsToTarget: number;
-}): { requiredMonthlyMinor: number; projectedAtTargetMinor: number; onTrack: boolean; reachMonths: number | null } {
+  monthsToTarget: number | null; // null = indefinite (no deadline)
+}): { requiredMonthlyMinor: number; projectedAtTargetMinor: number | null; onTrack: boolean; reachMonths: number | null } {
   const { allocatedMinor, monthlyContributionMinor, targetMinor, planRateBps, monthsToTarget } = params;
+  // When (with growth + contribution) the balance first reaches the target. Search
+  // well past any deadline so a behind/indefinite goal still gets a completion date.
+  const cap = Math.max((monthsToTarget ?? 0) * 3, 1200);
+  const reachMonths = monthsToReachMinor(allocatedMinor, monthlyContributionMinor, targetMinor, planRateBps, cap);
+  if (monthsToTarget === null) {
+    // Indefinite: no deadline, so no required rate or dated projection — just whether
+    // (and when) the amount is reached.
+    return { requiredMonthlyMinor: 0, projectedAtTargetMinor: null, onTrack: reachMonths !== null, reachMonths };
+  }
   const grownAllocated = compoundMonthlyMinor(allocatedMinor, planRateBps, monthsToTarget);
   const requiredMonthlyMinor = requiredMonthlyContributionMinor(targetMinor - grownAllocated, planRateBps, monthsToTarget);
   const projectedAtTargetMinor = grownAllocated + annuityFutureValueMinor(monthlyContributionMinor, planRateBps, monthsToTarget);
-  // When (with growth + contribution) the balance first reaches the target. Search
-  // well past the target date so a behind goal still gets an (later) completion date.
-  const cap = Math.max(monthsToTarget * 3, 1200);
-  const reachMonths = monthsToReachMinor(allocatedMinor, monthlyContributionMinor, targetMinor, planRateBps, cap);
   return { requiredMonthlyMinor, projectedAtTargetMinor, onTrack: projectedAtTargetMinor >= targetMinor, reachMonths };
 }
 
@@ -131,7 +136,7 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
     const targetBase = await targetInBaseMinor(g, base);
     targetBaseById.set(g.id, targetBase);
     goalInputs.push({
-      id: g.id, targetAmountMinor: targetBase, targetYear: yearOf(g.targetDate),
+      id: g.id, targetAmountMinor: targetBase, targetYear: g.targetDate ? yearOf(g.targetDate) : null,
       ownerScope: g.ownerScope, term: g.term, sortOrder: g.sortOrder,
     });
   }
@@ -143,7 +148,7 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
   for (const g of goalRows) {
     const targetBase = targetBaseById.get(g.id) ?? g.targetAmountMinor;
     const alloc = allocById.get(g.id)!;
-    const monthsToTarget = monthsBetween(todayISO, g.targetDate);
+    const monthsToTarget = g.targetDate ? monthsBetween(todayISO, g.targetDate) : null;
     const m = goalPlanMath({
       allocatedMinor: alloc.allocatedMinor,
       monthlyContributionMinor: g.monthlyContributionMinor,
@@ -187,13 +192,13 @@ export type GoalProjectionPoint = {
 
 export type GoalProjectionResult = {
   baseCurrency: string;
-  goal: { id: string; name: string; term: "short" | "long"; targetDate: string; currency: string };
+  goal: { id: string; name: string; term: "short" | "long"; targetDate: string | null; currency: string };
   targetMinor: number;
   allocatedMinor: number;
   progressPct: number;
   monthlyContributionMinor: number;
   requiredMonthlyMinor: number;
-  projectedAtTargetMinor: number;
+  projectedAtTargetMinor: number | null;
   onTrack: boolean;
   reachDate: string | null; // YYYY-MM-DD the plan first reaches target (null = not within ~100y)
   sources: GoalSource[];
@@ -229,7 +234,7 @@ export async function goalProjection(
     const tb = await targetInBaseMinor(g, base);
     targetBaseById.set(g.id, tb);
     goalInputs.push({
-      id: g.id, targetAmountMinor: tb, targetYear: yearOf(g.targetDate),
+      id: g.id, targetAmountMinor: tb, targetYear: g.targetDate ? yearOf(g.targetDate) : null,
       ownerScope: g.ownerScope, term: g.term, sortOrder: g.sortOrder,
     });
   }
@@ -250,7 +255,7 @@ export async function goalProjection(
   }));
 
   const contribution = goal.monthlyContributionMinor;
-  const monthsToTarget = monthsBetween(todayISO, goal.targetDate);
+  const monthsToTarget = goal.targetDate ? monthsBetween(todayISO, goal.targetDate) : null;
   const m = goalPlanMath({
     allocatedMinor: allocatedToday,
     monthlyContributionMinor: contribution,
@@ -258,6 +263,10 @@ export async function goalProjection(
     planRateBps,
     monthsToTarget,
   });
+
+  // Chart horizon: to the deadline for dated goals; to the reach month for
+  // indefinite goals (fall back to 30y if the amount isn't reached within the cap).
+  const horizonMonths = monthsToTarget ?? (m.reachMonths ?? 360);
 
   const series: GoalProjectionPoint[] = [];
 
@@ -274,13 +283,13 @@ export async function goalProjection(
   series.push({ date: todayISO, actual: allocatedToday, projected: allocatedToday });
 
   // Future: step so a far-dated goal stays under ~120 points; always include the
-  // target month, and the reach month (if it falls within the horizon) so the chart
-  // can mark exactly where the projected line crosses the target.
-  const step = Math.max(1, Math.ceil(monthsToTarget / 120));
+  // horizon end, and the reach month (if within the horizon) so the line clearly
+  // meets the target there.
+  const step = Math.max(1, Math.ceil(horizonMonths / 120));
   const monthsSet = new Set<number>();
-  for (let mo = step; mo < monthsToTarget; mo += step) monthsSet.add(mo);
-  if (monthsToTarget > 0) monthsSet.add(monthsToTarget);
-  if (m.reachMonths !== null && m.reachMonths > 0 && m.reachMonths <= monthsToTarget) monthsSet.add(m.reachMonths);
+  for (let mo = step; mo < horizonMonths; mo += step) monthsSet.add(mo);
+  if (horizonMonths > 0) monthsSet.add(horizonMonths);
+  if (m.reachMonths !== null && m.reachMonths > 0 && m.reachMonths <= horizonMonths) monthsSet.add(m.reachMonths);
   const futureMonths = [...monthsSet].sort((a, b) => a - b);
   for (const mo of futureMonths) {
     const date = addMonthsISO(todayISO, mo);

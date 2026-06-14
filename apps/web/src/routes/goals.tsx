@@ -20,9 +20,9 @@ import {
 
 type GoalAnalysis = {
   id: string; name: string; term: "short" | "long"; targetAmountMinor: number;
-  targetDate: string; currency: string; allocatedMinor: number; progressPct: number;
+  targetDate: string | null; currency: string; allocatedMinor: number; progressPct: number;
   monthlyContributionMinor: number; requiredMonthlyMinor: number;
-  projectedAtTargetMinor: number; onTrack: boolean; reachDate: string | null;
+  projectedAtTargetMinor: number | null; onTrack: boolean; reachDate: string | null;
   sources: Array<{ accountId: string; name: string; allocatedMinor: number }>;
 };
 type AnalysisResponse = {
@@ -66,7 +66,8 @@ function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; bas
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{g.name}</p>
           <p className="text-xs text-muted-foreground">
-            {formatMoney(g.targetAmountMinor, g.currency)} by {formatDate(g.targetDate)}
+            {formatMoney(g.targetAmountMinor, g.currency)}
+            {g.targetDate ? ` by ${formatDate(g.targetDate)}` : " · no deadline"}
           </p>
           {a && (
             <>
@@ -82,7 +83,9 @@ function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; bas
                   <span>
                     {a.onTrack
                       ? `Reaches ${a.reachDate ? formatDate(a.reachDate) : "target"}`
-                      : `${formatMoney(a.targetAmountMinor - a.projectedAtTargetMinor, base)} short`}
+                      : a.projectedAtTargetMinor !== null
+                        ? `${formatMoney(a.targetAmountMinor - a.projectedAtTargetMinor, base)} short`
+                        : "Not reachable"}
                   </span>
                 </div>
               </div>

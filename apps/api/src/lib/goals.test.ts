@@ -146,3 +146,29 @@ test("goalProjection: past actual then a single projected trajectory toward targ
   expect((last.projected ?? 0)).toBeGreaterThan(15_000_000); // grew at the plan rate
   expect(r.projectedAtTargetMinor).toBe(last.projected); // the final projected point
 });
+
+test("goals: an indefinite (no target date) goal reports a reach date, no required rate", async () => {
+  await initAndLogin({ baseCurrency: "USD" });
+  const [owner] = await db.select().from(user);
+  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 1_000_000, ownerId: owner.id });
+
+  await db.insert(goals).values({
+    id: "indef", name: "Wealth", term: "long", targetAmountMinor: 50_000_000, currency: "USD",
+    targetDate: null, ownerScope: "household", anchorDate: null,
+    monthlyContributionMinor: 1_000_000, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
+  });
+
+  const a = (await analyzeGoals()).goals.find((g) => g.id === "indef")!;
+  expect(a.targetDate).toBeNull();
+  expect(a.requiredMonthlyMinor).toBe(0);          // no deadline -> no required rate
+  expect(a.projectedAtTargetMinor).toBeNull();     // no date to project to
+  expect(a.reachDate).not.toBeNull();              // but it does reach the amount
+  expect(a.onTrack).toBe(true);                    // reachable within the cap
+
+  const proj = await goalProjection("indef", 2);
+  if (!proj) throw new Error("expected a projection");
+  expect(proj.goal.targetDate).toBeNull();
+  // The projected line runs to the reach month and ends at/above the target.
+  const last = proj.series[proj.series.length - 1];
+  expect((last.projected ?? 0)).toBeGreaterThanOrEqual(proj.targetMinor);
+});

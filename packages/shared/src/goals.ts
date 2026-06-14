@@ -105,9 +105,9 @@ export type GoalTerm = "short" | "long";
 
 export type GoalInput = {
   id: string;
-  targetAmountMinor: number; // already in base currency
-  targetYear: number;        // year component of targetDate
-  ownerScope: string;        // 'household' | a userId
+  targetAmountMinor: number;   // already in base currency
+  targetYear: number | null;   // year component of targetDate; null = indefinite (no deadline)
+  ownerScope: string;          // 'household' | a userId
   term: GoalTerm;
   sortOrder: number;
 };
@@ -140,9 +140,10 @@ export type AllocationResult = {
 };
 
 // Age of an account's youngest owner in a given year; +Infinity when unknown
-// (mirrors the curve: unknown birth year => age-gates don't bind).
-function ownerAgeInYear(a: AllocAccount, year: number): number {
-  if (a.ownerBirthYears.length === 0) return Number.POSITIVE_INFINITY;
+// (mirrors the curve: unknown birth year => age-gates don't bind) or when the
+// goal is indefinite (no deadline => an account counts if it ever unlocks).
+function ownerAgeInYear(a: AllocAccount, year: number | null): number {
+  if (year === null || a.ownerBirthYears.length === 0) return Number.POSITIVE_INFINITY;
   return year - Math.max(...a.ownerBirthYears);
 }
 
@@ -183,9 +184,12 @@ export function allocateGoals(params: {
   const remaining = new Map<string, number>();
   for (const a of accounts) if (a.baseMinor > 0) remaining.set(a.id, a.baseMinor);
 
-  // Soonest target first; tie-break short before long, then sortOrder.
+  // Soonest deadline first (indefinite goals have no deadline -> last claim on
+  // funds); tie-break short before long, then sortOrder.
   const ordered = [...goals].sort((g1, g2) => {
-    if (g1.targetYear !== g2.targetYear) return g1.targetYear - g2.targetYear;
+    const y1 = g1.targetYear ?? Number.POSITIVE_INFINITY;
+    const y2 = g2.targetYear ?? Number.POSITIVE_INFINITY;
+    if (y1 !== y2) return y1 - y2;
     if (g1.term !== g2.term) return g1.term === "short" ? -1 : 1;
     return g1.sortOrder - g2.sortOrder;
   });
