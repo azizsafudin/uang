@@ -142,3 +142,38 @@ test("allocateGoals: liabilities / negative balances never fund a goal", () => {
   expect(r.goals[0].allocatedMinor).toBe(1_000_000);
   expect(r.unallocatedMinor).toBe(0);
 });
+
+import { goalOnTrack } from "./goals";
+
+test("goalOnTrack: zero planning rate is hand-computable; ahead when actual exceeds plan", () => {
+  // target 1_000_000, start-at-anchor 100_000, 100 months to target, 20 elapsed.
+  // plan rate 0 -> requiredPmt = (1_000_000 - 100_000) / 100 = 9_000/mo.
+  // onPlanToday = 100_000 + 9_000*20 = 280_000.
+  const r = goalOnTrack({
+    targetMinor: 1_000_000, startAnchorMinor: 100_000, allocatedTodayMinor: 300_000,
+    planRateBps: 0, monthsAnchorToToday: 20, monthsAnchorToTarget: 100,
+  });
+  expect(r.onPlanTodayMinor).toBe(280_000);
+  expect(r.aheadByMinor).toBe(20_000);
+  expect(r.onTrack).toBe(true);
+});
+
+test("goalOnTrack: behind when actual is below the on-plan value", () => {
+  const r = goalOnTrack({
+    targetMinor: 1_000_000, startAnchorMinor: 100_000, allocatedTodayMinor: 250_000,
+    planRateBps: 0, monthsAnchorToToday: 20, monthsAnchorToTarget: 100,
+  });
+  expect(r.onPlanTodayMinor).toBe(280_000);
+  expect(r.aheadByMinor).toBe(-30_000);
+  expect(r.onTrack).toBe(false);
+});
+
+test("goalOnTrack: a brand-new goal (no time elapsed) is on track by construction", () => {
+  const r = goalOnTrack({
+    targetMinor: 1_000_000, startAnchorMinor: 250_000, allocatedTodayMinor: 250_000,
+    planRateBps: 800, monthsAnchorToToday: 0, monthsAnchorToTarget: 120,
+  });
+  expect(r.onPlanTodayMinor).toBe(250_000); // start grown 0 months + 0 contributions
+  expect(r.aheadByMinor).toBe(0);
+  expect(r.onTrack).toBe(true);
+});

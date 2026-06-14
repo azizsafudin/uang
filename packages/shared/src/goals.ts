@@ -205,3 +205,40 @@ export function allocateGoals(params: {
   const byId = new Map(out.map((g) => [g.id, g]));
   return { goals: goals.map((g) => byId.get(g.id)!), unallocatedMinor: unallocated };
 }
+
+export type OnTrack = {
+  onPlanTodayMinor: number;
+  aheadByMinor: number; // actual - on-plan (negative => behind)
+  onTrack: boolean;
+};
+
+// Per-goal glide-path check. The plan is fixed at the anchor: grow the
+// allocated-at-anchor start to the target at `planRateBps` and add the level
+// contribution that closes the remaining gap by `monthsAnchorToTarget`. The
+// on-plan value today is the start grown to today plus that contribution's
+// annuity FV over the elapsed months. We are on track iff today's actual
+// allocation is at least the on-plan value.
+export function goalOnTrack(params: {
+  targetMinor: number;
+  startAnchorMinor: number;
+  allocatedTodayMinor: number;
+  planRateBps: number;
+  monthsAnchorToToday: number;
+  monthsAnchorToTarget: number;
+}): OnTrack {
+  const {
+    targetMinor, startAnchorMinor, allocatedTodayMinor,
+    planRateBps, monthsAnchorToToday, monthsAnchorToTarget,
+  } = params;
+
+  const startGrownToTarget = compoundMonthlyMinor(startAnchorMinor, planRateBps, monthsAnchorToTarget);
+  const planGap = targetMinor - startGrownToTarget;
+  const requiredPmt = requiredMonthlyContributionMinor(planGap, planRateBps, monthsAnchorToTarget);
+
+  const startGrownToToday = compoundMonthlyMinor(startAnchorMinor, planRateBps, monthsAnchorToToday);
+  const contributedToToday = annuityFutureValueMinor(requiredPmt, planRateBps, monthsAnchorToToday);
+  const onPlanTodayMinor = startGrownToToday + contributedToToday;
+
+  const aheadByMinor = allocatedTodayMinor - onPlanTodayMinor;
+  return { onPlanTodayMinor, aheadByMinor, onTrack: aheadByMinor >= 0 };
+}
