@@ -46,7 +46,7 @@ const configuredWebOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
 // better-auth may invoke this with no request during init, so guard for it.
 const trustedOrigins = isValidHttpUrl(configuredWebOrigin)
   ? [configuredWebOrigin]
-  : (request: Request) => {
+  : (request?: Request) => {
       try {
         return [new URL(request?.url ?? "").origin];
       } catch {
