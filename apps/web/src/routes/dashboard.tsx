@@ -61,8 +61,8 @@ export function DashboardPage() {
   const [owner, setOwner] = useState("household");
   const [editingTiles, setEditingTiles] = useState(false);
 
-  // The account list + group totals always reflect the whole household, so the
-  // list never changes when you toggle the headline.
+  // Always fetch the whole-household list once; the owner toggle then filters it
+  // client-side (see `visibleForOwner` below) so we don't refetch per owner.
   const { data: listData } = useQuery({
     queryKey: ["networth", "household"],
     queryFn: () => fetchNw("household"),
