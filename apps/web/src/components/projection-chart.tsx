@@ -115,6 +115,8 @@ export function ProjectionChart() {
       contributionMinor: a.contributionMinor,
       contributionUntilAge: a.contributionUntilAge,
       compoundInterval: a.compoundInterval,
+      isLiability: false,
+      loanTermMonths: null,
     }));
 
     const birthYears = members.map((m) => m.birthYear).filter((y): y is number => y != null);
