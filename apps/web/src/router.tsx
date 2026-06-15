@@ -20,6 +20,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
 
@@ -39,6 +40,9 @@ const appLayoutRoute = createRoute({
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-1 h-4" />
             <AppBreadcrumb />
+            <div className="ml-auto flex items-center gap-1">
+              <ThemeToggle />
+            </div>
           </header>
           <Outlet />
         </SidebarInset>
