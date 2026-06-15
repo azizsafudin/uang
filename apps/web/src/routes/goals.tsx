@@ -12,6 +12,7 @@ import { GoalForm } from "@/components/goal-form";
 import { GoalDonut } from "@/components/goal-donut";
 import { useDestructiveAction } from "@/lib/use-destructive-action";
 import { AppShell } from "@/components/app-layout";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -149,17 +150,19 @@ export function GoalsPage() {
 
   return (
     <AppShell actions={<GoalForm defaultCurrency={base || undefined} />}>
-      <div className="mb-6 flex items-baseline justify-between">
-        <h1 className="font-heading text-3xl tracking-tight">Goals</h1>
-        {analysisQ.data && analysisQ.data.unallocatedMinor !== 0 && (
-          <span className="text-sm text-muted-foreground">
-            Unallocated:{" "}
-            <span className="font-medium tabular-nums text-foreground">
-              <Money minor={analysisQ.data.unallocatedMinor} currency={base} />
+      <PageHeader
+        title="Goals"
+        actions={
+          analysisQ.data && analysisQ.data.unallocatedMinor !== 0 ? (
+            <span className="text-sm text-muted-foreground">
+              Unallocated:{" "}
+              <span className="font-medium tabular-nums text-foreground">
+                <Money minor={analysisQ.data.unallocatedMinor} currency={base} />
+              </span>
             </span>
-          </span>
-        )}
-      </div>
+          ) : undefined
+        }
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">

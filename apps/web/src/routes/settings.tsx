@@ -5,6 +5,7 @@ import { SCALE } from "@uang/shared";
 import { api } from "@/lib/api";
 import { fxCollection, membersCollection, newId } from "@/lib/collections";
 import { AppShell, Eyebrow } from "@/components/app-layout";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -167,7 +168,7 @@ export function SettingsPage() {
 
   return (
     <AppShell>
-      <h1 className="mb-6 font-heading text-3xl tracking-tight">Settings</h1>
+      <PageHeader title="Settings" />
 
       <div className="space-y-5">
         <Section

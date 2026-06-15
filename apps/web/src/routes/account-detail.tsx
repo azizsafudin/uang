@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { Money } from "@/components/money.tsx";
 import { subtypeLabel, classLabel } from "@/components/labels";
 import { AppShell, Eyebrow } from "@/components/app-layout";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -149,23 +150,20 @@ export function AccountDetailPage() {
         </div>
       )}
 
-      <header>
-        <Eyebrow>
-          {classLabel(account.class)} · {subtypeLabel(account.subtype)} · {account.currency}
-        </Eyebrow>
-        <h1 className="mt-2 font-heading text-3xl tracking-tight">{account.name}</h1>
-        <p
-          data-testid="account-total"
-          className="mt-1 font-heading text-4xl tabular-nums tracking-tight"
-        >
-          {posLoading || !pos ? "—" : <Money minor={pos.totalMinor} currency={account.currency} />}
+      <PageHeader
+        eyebrow={`${classLabel(account.class)} · ${subtypeLabel(account.subtype)} · ${account.currency}`}
+        title={account.name}
+        description={
+          <span data-testid="account-total">
+            {posLoading || !pos ? "—" : <Money minor={pos.totalMinor} currency={account.currency} />}
+          </span>
+        }
+      />
+      {pos && pos.missing && (
+        <p className="-mt-4 mb-6 text-sm text-destructive">
+          Some positions are missing a price or FX rate.
         </p>
-        {pos && pos.missing && (
-          <p className="mt-1 text-sm text-destructive">
-            Some positions are missing a price or FX rate.
-          </p>
-        )}
-      </header>
+      )}
 
       <div className="mt-5">
         <AddTransactionDialog accountId={id} accountCurrency={account.currency} />

@@ -12,6 +12,7 @@ import { GoalForm } from "@/components/goal-form";
 import { GoalDonut, sourceColor } from "@/components/goal-donut";
 import { GoalProjectionChart, type GoalProjectionPoint } from "@/components/goal-projection-chart";
 import { AppShell, Eyebrow } from "@/components/app-layout";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -65,47 +66,49 @@ export function GoalDetailPage() {
         <div className="h-[420px] animate-pulse rounded-2xl bg-muted/40" />
       ) : (
         <>
-          <div className="mb-6 flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <Eyebrow className="mb-2">{p.goal.targetDate ? "Goal" : "Goal · no deadline"}</Eyebrow>
-              <h1 className="font-heading text-3xl tracking-tight">{p.goal.name}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
+          <PageHeader
+            eyebrow={p.goal.targetDate ? "Goal" : "Goal · no deadline"}
+            title={p.goal.name}
+            description={
+              <>
                 <Money minor={p.targetMinor} currency={base} />
                 {p.goal.targetDate ? ` by ${formatDate(p.goal.targetDate)}` : " · no deadline"}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Badge variant={p.onTrack ? "default" : "destructive"}>
-                {p.onTrack ? "On track" : "Behind"}
-              </Badge>
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Goal actions" />}>
-                  ⋮
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={() =>
-                      confirm({
-                        title: "Delete goal?",
-                        description: `"${p.goal.name}" will be permanently removed. This can't be undone.`,
-                        onConfirm: async () => {
-                          goalsCollection.delete(id);
-                          await nav({ to: "/goals" });
-                        },
-                      })
-                    }
-                  >
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {row && (
-                <GoalForm goal={row} defaultCurrency={base || undefined} open={editOpen} onOpenChange={setEditOpen} hideTrigger />
-              )}
-            </div>
-          </div>
+              </>
+            }
+            actions={
+              <>
+                <Badge variant={p.onTrack ? "default" : "destructive"}>
+                  {p.onTrack ? "On track" : "Behind"}
+                </Badge>
+                <DropdownMenu>
+                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Goal actions" />}>
+                    ⋮
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setEditOpen(true)}>Edit</DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive"
+                      onClick={() =>
+                        confirm({
+                          title: "Delete goal?",
+                          description: `"${p.goal.name}" will be permanently removed. This can't be undone.`,
+                          onConfirm: async () => {
+                            goalsCollection.delete(id);
+                            await nav({ to: "/goals" });
+                          },
+                        })
+                      }
+                    >
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {row && (
+                  <GoalForm goal={row} defaultCurrency={base || undefined} open={editOpen} onOpenChange={setEditOpen} hideTrigger />
+                )}
+              </>
+            }
+          />
 
           <div className="grid gap-4 md:grid-cols-[260px_1fr]">
             <section className="rounded-2xl border border-border bg-card p-4">
