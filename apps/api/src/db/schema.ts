@@ -26,6 +26,17 @@ export const accounts = sqliteTable("accounts", {
   earlyHaircutBps: integer("early_haircut_bps").notNull().default(0),
   illiquid: integer("illiquid").notNull().default(0),
   liquidationAge: integer("liquidation_age"),
+  // Decumulation (withdrawals) for projections. 'none' = pure accumulation.
+  spendType: text("spend_type", { enum: ["none", "once", "monthly", "percent"] })
+    .notNull()
+    .default("none"),
+  spendAmountMinor: integer("spend_amount_minor"), // base minor: 'once' lump / 'monthly' per-month; null otherwise
+  spendRateBps: integer("spend_rate_bps"),         // 'percent' annual % of balance (400 = 4%/yr); null otherwise
+  spendStartKind: text("spend_start_kind", { enum: ["age", "target"] })
+    .notNull()
+    .default("age"),
+  spendStartAge: integer("spend_start_age"),               // when spendStartKind = 'age'
+  spendStartTargetMinor: integer("spend_start_target_minor"), // base minor; when spendStartKind = 'target'
   groupId: text("group_id"),   // nullable logical FK → groups.id
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
