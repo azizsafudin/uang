@@ -7,6 +7,9 @@ export const settings = sqliteTable("settings", {
   // Projection assumptions (slice 2). Both editable in Settings.
   contributionGrowthRateBps: integer("contribution_growth_rate_bps").notNull().default(800),
   projectionEndAge: integer("projection_end_age").notNull().default(90),
+  // Ordered list of enabled dashboard tile ids, JSON-encoded. Per-household
+  // (the singleton row). Default: Assets, Liabilities, Goals on track.
+  dashboardTiles: text("dashboard_tiles").notNull().default('["assets","liabilities","goalsOnTrack"]'),
   createdAt: integer("created_at").notNull(),
 });
 
