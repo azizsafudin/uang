@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { Pencil } from "lucide-react";
 import { api } from "@/lib/api";
-import { AccountForm } from "@/components/account-form";
 import { AppShell } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { NetWorthChart } from "@/components/net-worth-chart";
@@ -11,6 +10,7 @@ import { DashboardSection, type AccountValuation } from "@/components/dashboard-
 import { DashboardHero } from "@/components/dashboard-hero";
 import { DashboardTiles } from "@/components/dashboard-tiles/dashboard-tiles";
 import { groupsCollection } from "@/lib/collections";
+import { visibleForOwner } from "@/lib/account-grouping";
 import { TILE_REGISTRY, type TileData } from "@/lib/dashboard-tiles/registry";
 
 type NetWorth = {
@@ -83,7 +83,8 @@ export function DashboardPage() {
   const { data: analysis } = useQuery({ queryKey: ["goals", "analysis"], queryFn: fetchAnalysis });
 
   const base = listData?.baseCurrency ?? "";
-  const accounts = listData?.accounts ?? [];
+  const allAccounts = listData?.accounts ?? [];
+  const accounts = visibleForOwner(allAccounts, owner);
 
   const points = seriesData?.points ?? [];
   const periodDeltaMinor =
@@ -164,7 +165,6 @@ export function DashboardPage() {
               baseCurrency={base}
               sectionTotalMinor={sectionTotal}
               hasData={!!listData}
-              actions={cls === "asset" ? <AccountForm defaultCurrency={base || undefined} /> : undefined}
             />
           );
         })}
