@@ -49,6 +49,7 @@ export async function chatJson(
         response_format: { type: "json_object" },
         temperature: 0,
       }),
+      signal: AbortSignal.timeout(30_000),
     });
   } catch (e) {
     throw new AiError("ai_unavailable", e instanceof Error ? e.message : "request failed");
@@ -87,6 +88,12 @@ Rules: use the real header names from the sample verbatim; infer the date format
 values using only the listed tokens; pick "sign" so money leaving the account is negative; if
 debits and credits are in two separate columns, use {"mode":"debitCredit","debitColumn":...,
 "creditColumn":...,"decimal":...,"thousands":...} instead of the single-amount shape.`;
+
+// Cap a CSV sample to the header line + the first 20 data rows, so we never
+// ship a whole statement file to the model.
+export function capSample(content: string): string {
+  return content.split(/\r?\n/).slice(0, 21).join("\n");
+}
 
 type Chat = (cfg: AiConfig, system: string, user: string) => Promise<unknown>;
 const defaultChat: Chat = (cfg, s, u) => chatJson(cfg, s, u);

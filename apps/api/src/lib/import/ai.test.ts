@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { synthesizeCsvConfig, AiError, type AiConfig } from "./ai";
+import { synthesizeCsvConfig, capSample, AiError, type AiConfig } from "./ai";
 
 const cfg: AiConfig = { baseUrl: "http://x/v1", model: "m" };
 const goodConfig = {
@@ -20,6 +20,16 @@ test("synthesize returns a validated config from the model's JSON", async () => 
 test("synthesize rejects model output that fails config validation", async () => {
   const chat = async () => ({ version: 1, format: "csv" }); // incomplete
   await expect(synthesizeCsvConfig("x", cfg, chat)).rejects.toThrow(AiError);
+});
+
+test("capSample trims a 100-row CSV to the header + 20 rows (21 lines)", () => {
+  const header = "Date,Desc,Amount";
+  const rows = Array.from({ length: 100 }, (_, i) => `2026-01-${i + 1},X,-1.00`);
+  const csv = [header, ...rows].join("\n");
+  const out = capSample(csv);
+  const lines = out.split("\n");
+  expect(lines.length).toBe(21);
+  expect(lines[0]).toBe(header);
 });
 
 import { chatJson } from "./ai";
