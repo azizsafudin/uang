@@ -36,3 +36,27 @@ export function Eyebrow({
     </div>
   );
 }
+
+// A titled card section with an eyebrow, used to group settings/projection forms.
+export function Section({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 md:p-6">
+      <Eyebrow className="mb-2.5">{eyebrow}</Eyebrow>
+      <h2 className="font-heading text-xl tracking-tight">{title}</h2>
+      {description && (
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      )}
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
