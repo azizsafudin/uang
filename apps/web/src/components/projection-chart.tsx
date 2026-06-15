@@ -15,6 +15,7 @@ import {
 
 type NwAccount = {
   id: string;
+  class: "asset" | "liability";
   baseMinor: number;
   ownerIds: string[];
   growthRateBps: number;
@@ -32,6 +33,7 @@ type NwAccount = {
   contributionMinor: number;
   contributionUntilAge: number | null;
   compoundInterval: "monthly" | "quarterly" | "annually";
+  loanTermMonths: number | null;
 };
 type NwResponse = { baseCurrency: string; accounts: NwAccount[] };
 type Member = { id: string; name: string; birthYear: number | null };
@@ -115,8 +117,8 @@ export function ProjectionChart() {
       contributionMinor: a.contributionMinor,
       contributionUntilAge: a.contributionUntilAge,
       compoundInterval: a.compoundInterval,
-      isLiability: false,
-      loanTermMonths: null,
+      isLiability: a.class === "liability",
+      loanTermMonths: a.loanTermMonths,
     }));
 
     const birthYears = members.map((m) => m.birthYear).filter((y): y is number => y != null);
