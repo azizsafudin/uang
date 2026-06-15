@@ -327,6 +327,11 @@ test("amortize 0% loan over multiple years", () => {
   expect(projectAccountSeries(a, 3, 2030, null)).toEqual([-240_000, -120_000, 0, 0]);
 });
 
+test("amortize 0% 18-month loan: partial balance at year 1, zero at year 2", () => {
+  const a = loan({ baseMinor: -180_000, growthRateBps: 0, loanTermMonths: 18 });
+  expect(projectAccountSeries(a, 2, 2030, null)).toEqual([-180_000, -60_000, 0]);
+});
+
 test("amortized loan with interest ends exactly at 0 after the term", () => {
   const a = loan({ baseMinor: -2_000_000, growthRateBps: 500, loanTermMonths: 48 });
   const series = projectAccountSeries(a, 5, 2030, null);
