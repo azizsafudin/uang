@@ -37,6 +37,23 @@ test("periodChange is unavailable without a delta", () => {
   expect(getTile("periodChange")!.isAvailable({ ...base, periodDeltaMinor: null })).toBe(false);
 });
 
+test("simpleIncome applies the 4% rule to net worth (annual + monthly)", () => {
+  const tile = getTile("simpleIncome")!;
+  // Net worth = assets minus liabilities (liabilities stored negative).
+  const nwData: TileData = {
+    ...base,
+    accounts: [
+      { class: "asset", baseMinor: 50_000_000, illiquid: false },
+      { class: "liability", baseMinor: -10_000_000, illiquid: false },
+    ],
+  };
+  // net worth 40,000,000 -> 4% = 1,600,000/yr -> /12 = 133,333/mo
+  expect(tile.isAvailable(nwData)).toBe(true);
+  expect(tile.value(nwData)).toBe(1_600_000);
+  expect(tile.subMoney!(nwData)).toBe(133_333);
+  expect(tile.isAvailable({ ...nwData, accounts: [] })).toBe(false);
+});
+
 test("registry ids are unique", () => {
   const ids = TILE_REGISTRY.map((t) => t.id);
   expect(new Set(ids).size).toBe(ids.length);

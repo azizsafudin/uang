@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Money } from "@/components/money.tsx";
-import { TILE_REGISTRY, getTile, DEFAULT_TILES, type TileData } from "@/lib/dashboard-tiles/registry";
+import { TILE_REGISTRY, getTile, DEFAULT_TILES, type Tile, type TileData } from "@/lib/dashboard-tiles/registry";
 import { cn } from "@/lib/utils";
 
 function SortableTile({ id, children }: { id: string; children: React.ReactNode }) {
@@ -49,7 +49,10 @@ export function DashboardTiles({
       return data as unknown as SettingsData;
     },
   });
-  const enabled: string[] = settings?.dashboardTiles ?? DEFAULT_TILES;
+  // At most three tiles can be shown beside the vault; cap the enabled set so the
+  // display, edit-mode checkboxes, and persisted list all stay consistent.
+  const MAX_VISIBLE = 3;
+  const enabled: string[] = (settings?.dashboardTiles ?? DEFAULT_TILES).slice(0, MAX_VISIBLE);
 
   const [draft, setDraft] = useState<string[] | null>(null);
   const order = draft ?? enabled;
@@ -64,17 +67,22 @@ export function DashboardTiles({
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  // Visible (non-edit) tiles: enabled ∩ available, in saved order.
+  // Visible (non-edit) tiles: enabled ∩ available, in saved order, capped at
+  // two so the companion column stays compact beside the net-worth vault.
   const visible = useMemo(
-    () => order.map(getTile).filter((t): t is NonNullable<typeof t> => !!t && t.isAvailable(data)),
+    () =>
+      order
+        .map(getTile)
+        .filter((t): t is NonNullable<typeof t> => !!t && t.isAvailable(data))
+        .slice(0, MAX_VISIBLE),
     [order, data],
   );
 
   if (!editing) {
     return (
-      <div data-testid="dashboard-tiles" className="grid grid-rows-2 gap-4">
+      <div data-testid="dashboard-tiles" className="grid auto-rows-fr gap-4">
         {visible.map((t) => (
-          <TileCard key={t.id} label={t.label} valueNode={renderValue(t.id, t.value(data), baseCurrency)} subtitle={t.subtitle?.(data)} />
+          <TileCard key={t.id} tile={t} data={data} baseCurrency={baseCurrency} />
         ))}
       </div>
     );
@@ -84,11 +92,13 @@ export function DashboardTiles({
   const editOrder = order.filter((id) => getTile(id));
   const missing = TILE_REGISTRY.map((t) => t.id).filter((id) => !editOrder.includes(id));
   const allInOrder = [...editOrder, ...missing];
+  // At most two tiles can be shown, so block enabling a third.
+  const atLimit = editOrder.length >= MAX_VISIBLE;
 
   return (
     <div data-testid="dashboard-tiles-edit" className="rounded-[14px] border border-dashed border-border p-4">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Edit tiles</span>
+        <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Edit tiles · pick up to 3</span>
         <Button
           type="button"
           size="icon-sm"
@@ -119,12 +129,15 @@ export function DashboardTiles({
             {allInOrder.map((id) => {
               const tile = getTile(id)!;
               const isEnabled = order.includes(id);
+              const blocked = !isEnabled && atLimit;
               return (
                 <SortableTile key={id} id={id}>
-                  <label className="flex items-center gap-2 text-sm">
+                  <label className={cn("flex items-center gap-2 text-sm", blocked && "opacity-50")}>
                     <Checkbox
                       checked={isEnabled}
+                      disabled={blocked}
                       onCheckedChange={(v) => {
+                        if (v && atLimit) return;
                         setDraft(v ? [...order, id] : order.filter((x) => x !== id));
                       }}
                     />
@@ -141,17 +154,29 @@ export function DashboardTiles({
   );
 }
 
-function renderValue(id: string, value: number, currency: string): React.ReactNode {
-  if (id === "goalsOnTrack") return <span className="tabular-nums">{value}</span>;
-  return <Money minor={value} currency={currency} />;
-}
-
-function TileCard({ label, valueNode, subtitle }: { label: string; valueNode: React.ReactNode; subtitle?: string }) {
+function TileCard({ tile, data, baseCurrency }: { tile: Tile; data: TileData; baseCurrency: string }) {
+  const isCount = tile.id === "goalsOnTrack";
   return (
     <div className="flex flex-col justify-center rounded-[14px] border border-border bg-card px-5 py-4">
-      <div className="text-[11px] uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className="mt-1 font-heading text-[1.6rem] tabular-nums">{valueNode}</div>
-      {subtitle && <div className="mt-0.5 text-xs text-muted-foreground">{subtitle}</div>}
+      <div className="text-[11px] uppercase tracking-widest text-muted-foreground">{tile.label}</div>
+      <div className="mt-1 font-heading text-[1.6rem] tabular-nums">
+        {isCount ? (
+          <span>{tile.value(data)}</span>
+        ) : (
+          <>
+            <Money minor={tile.value(data)} currency={baseCurrency} />
+            {tile.valueSuffix && <span className="text-base text-muted-foreground">{tile.valueSuffix}</span>}
+          </>
+        )}
+      </div>
+      {tile.subMoney ? (
+        <div className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+          <Money minor={tile.subMoney(data)} currency={baseCurrency} />
+          {tile.subMoneySuffix}
+        </div>
+      ) : tile.subtitle ? (
+        <div className="mt-0.5 text-xs text-muted-foreground">{tile.subtitle(data)}</div>
+      ) : null}
     </div>
   );
 }
