@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` ADD `loan_term_months` integer;

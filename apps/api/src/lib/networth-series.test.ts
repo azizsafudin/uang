@@ -84,8 +84,8 @@ test("weekly points are ascending, anchored on `to`, with as-of values", async (
     "2026-01-01", "2026-01-08", "2026-01-15", "2026-01-22", "2026-01-29", "2026-02-05",
   ]);
   // All weeks before Feb 1 see only the opening (100000); 02-05 sees both (150000).
-  expect(series.points[0]).toEqual({ date: "2026-01-01", totalBaseMinor: 100000 });
-  expect(series.points.at(-1)).toEqual({ date: "2026-02-05", totalBaseMinor: 150000 });
+  expect(series.points[0]).toEqual({ date: "2026-01-01", totalBaseMinor: 100000, netDepositsBaseMinor: 100000 });
+  expect(series.points.at(-1)).toEqual({ date: "2026-02-05", totalBaseMinor: 150000, netDepositsBaseMinor: 150000 });
 });
 
 test("omitting `to` anchors the last point on today", async () => {
@@ -108,7 +108,7 @@ test("owner filter restricts to that member's sole-owned accounts", async () => 
 
   const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-01", owner: "u1" });
 
-  expect(series.points).toEqual([{ date: "2026-01-01", totalBaseMinor: 10000 }]);
+  expect(series.points).toEqual([{ date: "2026-01-01", totalBaseMinor: 10000, netDepositsBaseMinor: 10000 }]);
 });
 
 test("from after to yields no points but still reports base currency", async () => {
@@ -118,4 +118,54 @@ test("from after to yields no points but still reports base currency", async () 
 
   expect(series.points).toEqual([]);
   expect(series.baseCurrency).toBe("EUR");
+});
+
+test("net deposits accumulate from standalone cash flows", async () => {
+  await seedSettings("USD");
+  const acc = createId();
+  await db.insert(accounts).values({
+    id: acc, name: "Brokerage", class: "asset", subtype: "investment", currency: "USD",
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
+  });
+  const usd = await ensureCurrency("USD");
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: usd, date: "2026-01-01",
+    unitsDelta: 5000 * S, unitPriceScaled: S, feesMinor: 0, notes: null, createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: usd, date: "2026-01-15",
+    unitsDelta: -1000 * S, unitPriceScaled: S, feesMinor: 0, notes: null, createdAt: nowEpoch(), createdBy: "u",
+  });
+
+  const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-15" });
+  const byDate = new Map(series.points.map((p) => [p.date, p.netDepositsBaseMinor]));
+  expect(byDate.get("2026-01-01")).toBe(500000);  // +$5000
+  expect(byDate.get("2026-01-15")).toBe(400000);  // +$5000 − $1000
+});
+
+test("a buy's linked cash leg is excluded from net deposits", async () => {
+  await seedSettings("USD");
+  const acc = createId();
+  await db.insert(accounts).values({
+    id: acc, name: "Brokerage", class: "asset", subtype: "investment", currency: "USD",
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
+  });
+  const usd = await ensureCurrency("USD");
+  const stock = createId();
+  await db.insert(instruments).values({
+    id: stock, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  const buyId = createId();
+  await db.insert(transactions).values({
+    id: buyId, accountId: acc, instrumentId: stock, date: "2026-01-01",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null, createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: usd, date: "2026-01-01",
+    unitsDelta: -1000 * S, unitPriceScaled: S, feesMinor: 0, notes: null,
+    linkedTransactionId: buyId, createdAt: nowEpoch(), createdBy: "u",
+  });
+
+  const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-01" });
+  expect(series.points[0].netDepositsBaseMinor).toBe(0); // cash leg excluded
 });

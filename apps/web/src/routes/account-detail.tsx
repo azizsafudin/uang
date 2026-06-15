@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { accountsCollection } from "@/lib/collections";
 import { AccountInfoCard } from "@/components/account-info-card";
+import { AccountProjectionCard } from "@/components/account-projection-card";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
 import { ImportDialog } from "@/components/import-dialog";
 import { usePositions, PositionsPanel, HistoryPanel } from "@/components/account-history";
@@ -183,6 +184,9 @@ export function AccountDetailPage() {
           <TabsTrigger value="history" className="flex-none px-3">
             History
           </TabsTrigger>
+          <TabsTrigger value="projections" className="flex-none px-3">
+            Projections
+          </TabsTrigger>
           <TabsTrigger value="details" className="flex-none px-3">
             Details
           </TabsTrigger>
@@ -193,6 +197,9 @@ export function AccountDetailPage() {
         </TabsContent>
         <TabsContent value="history" className="mt-5">
           <HistoryPanel accountId={id} />
+        </TabsContent>
+        <TabsContent value="projections" className="mt-5">
+          <AccountProjectionCard account={account} />
         </TabsContent>
         <TabsContent value="details" className="mt-5">
           <AccountInfoCard account={account} />

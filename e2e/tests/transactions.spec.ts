@@ -35,16 +35,20 @@ test("buy a stock with a cash leg, set price, see value and gain roll up", async
     await expect(dialog).toBeHidden();
   });
 
-  await test.step("the stock position appears with no price; the cash outflow is recorded", async () => {
+  await test.step("the buy seeds its trade price → position is valued at cost; cash outflow recorded", async () => {
     await page.reload();
-    await expect(page.getByTestId("position-row").filter({ hasText: "Acme Corp" })).toContainText("no price");
+    // The trade records a price observation at its date, so the holding is valued at
+    // its $100 cost immediately (10 × $100 = $1,000.00) with zero gain — no manual price needed.
+    const row = page.getByTestId("position-row").filter({ hasText: "Acme Corp" });
+    await expect(row).toContainText("1,000.00");
+    await expect(row).not.toContainText("no price");
     // The cash leg is a −1,000 USD outflow; a non-positive cash position is not listed
     // under Positions, but the leg is recorded in History (a separate tab).
     await page.getByRole("tab", { name: "History" }).click();
     await expect(page.getByTestId("tx-row").filter({ hasText: "USD" })).toContainText("-1000");
   });
 
-  await test.step("set a price → market value and gain appear", async () => {
+  await test.step("set a higher price → market value and gain appreciate", async () => {
     await page.getByRole("tab", { name: "Positions" }).click();
     const row = page.getByTestId("position-row").filter({ hasText: "Acme Corp" });
     await row.getByRole("button", { name: "Price" }).click();

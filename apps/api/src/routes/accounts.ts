@@ -64,6 +64,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
           contributionMinor: body.contributionMinor ?? 0,
           contributionUntilAge: body.contributionUntilAge ?? null,
           compoundInterval: body.compoundInterval ?? "annually",
+          loanTermMonths: body.loanTermMonths ?? null,
         });
       } catch (e) {
         if (isUniqueViolation(e)) {
@@ -102,6 +103,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         contributionMinor: t.Optional(t.Number()),
         contributionUntilAge: t.Optional(t.Union([t.Number(), t.Null()])),
         compoundInterval: t.Optional(t.Union([t.Literal("monthly"), t.Literal("quarterly"), t.Literal("annually")])),
+        loanTermMonths: t.Optional(t.Union([t.Number(), t.Null()])),
       }),
     },
   )
@@ -170,6 +172,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
       if (body.contributionMinor !== undefined) update.contributionMinor = body.contributionMinor;
       if (body.contributionUntilAge !== undefined) update.contributionUntilAge = body.contributionUntilAge;
       if (body.compoundInterval !== undefined) update.compoundInterval = body.compoundInterval;
+      if (body.loanTermMonths !== undefined) update.loanTermMonths = body.loanTermMonths;
       await db.update(accounts).set(update).where(eq(accounts.id, params.id));
       return { ok: true };
     },
@@ -195,6 +198,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         contributionMinor: t.Optional(t.Number()),
         contributionUntilAge: t.Optional(t.Union([t.Number(), t.Null()])),
         compoundInterval: t.Optional(t.Union([t.Literal("monthly"), t.Literal("quarterly"), t.Literal("annually")])),
+        loanTermMonths: t.Optional(t.Union([t.Number(), t.Null()])),
       }),
     },
   )

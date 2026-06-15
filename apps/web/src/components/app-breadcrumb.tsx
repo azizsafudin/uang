@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useLiveQuery } from "@tanstack/react-db";
-import { accountsCollection, goalsCollection } from "@/lib/collections";
+import { accountsCollection, goalsCollection, instrumentsCollection } from "@/lib/collections";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,7 +11,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
-type Crumb = { label: string; to?: "/" | "/goals" };
+type Crumb = { label: string; to?: "/" | "/goals" | "/instruments" };
 
 // The id segment of a /goals/:id detail path, else null.
 function goalIdFromPath(pathname: string): string | null {
@@ -25,13 +25,27 @@ function accountIdFromPath(pathname: string): string | null {
   return m ? m[1] : null;
 }
 
-function crumbsFor(pathname: string, goalName?: string, accountName?: string): Crumb[] {
+// The id segment of an /instruments/:id detail path, else null.
+function instrumentIdFromPath(pathname: string): string | null {
+  const m = pathname.match(/^\/instruments\/([^/]+)/);
+  return m ? m[1] : null;
+}
+
+function crumbsFor(
+  pathname: string,
+  goalName?: string,
+  accountName?: string,
+  instrumentName?: string,
+): Crumb[] {
   if (pathname === "/") return [{ label: "Dashboard" }];
   if (pathname.startsWith("/projections")) return [{ label: "Projections" }];
   if (pathname.startsWith("/settings")) return [{ label: "Settings" }];
   if (pathname.startsWith("/goals/"))
     return [{ label: "Goals", to: "/goals" }, { label: goalName ?? "Goal" }];
   if (pathname.startsWith("/goals")) return [{ label: "Goals" }];
+  if (pathname.startsWith("/instruments/"))
+    return [{ label: "Instruments", to: "/instruments" }, { label: instrumentName ?? "Instrument" }];
+  if (pathname.startsWith("/instruments")) return [{ label: "Instruments" }];
   if (pathname.startsWith("/accounts/"))
     return [{ label: "Dashboard", to: "/" }, { label: accountName ?? "Account" }];
   return [{ label: "uang." }];
@@ -48,7 +62,11 @@ export function AppBreadcrumb() {
   const accountId = accountIdFromPath(pathname);
   const { data: accounts = [] } = useLiveQuery(accountsCollection);
   const accountName = accountId ? accounts.find((a) => a.id === accountId)?.name : undefined;
-  const crumbs = crumbsFor(pathname, goalName, accountName);
+  // Same live-name treatment for the instrument-detail crumb.
+  const instrumentId = instrumentIdFromPath(pathname);
+  const { data: instruments = [] } = useLiveQuery(instrumentsCollection);
+  const instrumentName = instrumentId ? instruments.find((x) => x.id === instrumentId)?.name : undefined;
+  const crumbs = crumbsFor(pathname, goalName, accountName, instrumentName);
 
   return (
     <Breadcrumb>

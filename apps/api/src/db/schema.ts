@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, uniqueIndex, primaryKey, index } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 export const settings = sqliteTable("settings", {
   id: integer("id").primaryKey(), // always 1
@@ -52,6 +53,8 @@ export const accounts = sqliteTable("accounts", {
   compoundInterval: text("compound_interval", { enum: ["monthly", "quarterly", "annually"] })
     .notNull()
     .default("annually"),
+  // Liabilities only: remaining loan term in months. null = no term set (held flat).
+  loanTermMonths: integer("loan_term_months"),
   groupId: text("group_id"),   // nullable logical FK → groups.id
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
@@ -62,6 +65,7 @@ export const groups = sqliteTable("groups", {
   name: text("name").notNull(),
   class: text("class").$type<"asset" | "liability">().notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  color: text("color"), // nullable; semantic palette key (see group-colors.ts) or null = default
   createdAt: integer("created_at").notNull(),
 });
 
@@ -73,7 +77,11 @@ export const instruments = sqliteTable("instruments", {
   kind: text("kind").$type<"currency" | "stock" | "etf" | "fund" | "crypto" | "other">().notNull(),
   currency: text("currency").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+  // A symbol identifies one instrument globally. Case-insensitive so "aapl" and
+  // "AAPL" can't both exist (symbols are also uppercased on write). NULL symbols
+  // are exempt — SQLite treats multiple NULLs as distinct, so symbol-less
+  // instruments are unconstrained.
+}, (t) => [uniqueIndex("instruments_symbol_uq").on(sql`upper(${t.symbol})`)]);
 
 export const transactions = sqliteTable("transactions", {
   id: text("id").primaryKey(),
@@ -85,6 +93,7 @@ export const transactions = sqliteTable("transactions", {
   feesMinor: integer("fees_minor").notNull().default(0),
   notes: text("notes"),
   importBatchId: text("import_batch_id"), // nullable logical FK → import_batches.id (traceability)
+  linkedTransactionId: text("linked_transaction_id"), // nullable FK → transactions.id (e.g. a buy/sell's cash leg)
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
 });

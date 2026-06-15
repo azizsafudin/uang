@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { Pencil } from "lucide-react";
 import { api } from "@/lib/api";
-import { AccountForm } from "@/components/account-form";
 import { AppShell } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { NetWorthChart } from "@/components/net-worth-chart";
@@ -11,6 +10,7 @@ import { DashboardSection, type AccountValuation } from "@/components/dashboard-
 import { DashboardHero } from "@/components/dashboard-hero";
 import { DashboardTiles } from "@/components/dashboard-tiles/dashboard-tiles";
 import { groupsCollection } from "@/lib/collections";
+import { visibleForOwner } from "@/lib/account-grouping";
 import { TILE_REGISTRY, type TileData } from "@/lib/dashboard-tiles/registry";
 
 type NetWorth = {
@@ -61,8 +61,8 @@ export function DashboardPage() {
   const [owner, setOwner] = useState("household");
   const [editingTiles, setEditingTiles] = useState(false);
 
-  // The account list + group totals always reflect the whole household, so the
-  // list never changes when you toggle the headline.
+  // Always fetch the whole-household list once; the owner toggle then filters it
+  // client-side (see `visibleForOwner` below) so we don't refetch per owner.
   const { data: listData } = useQuery({
     queryKey: ["networth", "household"],
     queryFn: () => fetchNw("household"),
@@ -83,7 +83,8 @@ export function DashboardPage() {
   const { data: analysis } = useQuery({ queryKey: ["goals", "analysis"], queryFn: fetchAnalysis });
 
   const base = listData?.baseCurrency ?? "";
-  const accounts = listData?.accounts ?? [];
+  const allAccounts = listData?.accounts ?? [];
+  const accounts = visibleForOwner(allAccounts, owner);
 
   const points = seriesData?.points ?? [];
   const periodDeltaMinor =
@@ -149,7 +150,17 @@ export function DashboardPage() {
       <div className="mt-9 space-y-8">
         {CLASS_SECTIONS.map(({ cls, label }) => {
           const sectionAccounts = accounts.filter((a) => a.class === cls);
-          const sectionGroups = (allGroups ?? []).filter((g) => g.class === cls);
+          const sectionAllAccounts = allAccounts.filter((a) => a.class === cls);
+          const sectionGroups = (allGroups ?? [])
+            .filter((g) => g.class === cls)
+            .filter((g) => {
+              if (owner === "household") return true;
+              // Keep genuinely-empty groups (drag-in target); hide groups that
+              // have household members but none visible for the selected owner.
+              const hasHouseholdMembers = sectionAllAccounts.some((a) => a.groupId === g.id);
+              const hasVisibleMembers = sectionAccounts.some((a) => a.groupId === g.id);
+              return !hasHouseholdMembers || hasVisibleMembers;
+            });
           const sectionTotal = sectionAccounts
             .filter((a) => !a.missingRate)
             .reduce((sum, a) => sum + a.baseMinor, 0);
@@ -164,7 +175,6 @@ export function DashboardPage() {
               baseCurrency={base}
               sectionTotalMinor={sectionTotal}
               hasData={!!listData}
-              actions={cls === "asset" ? <AccountForm defaultCurrency={base || undefined} /> : undefined}
             />
           );
         })}

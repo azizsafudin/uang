@@ -54,7 +54,8 @@ export async function createAccount(
   page: Page,
   opts: { name: string; currency?: string },
 ) {
-  await page.getByRole("button", { name: "Add account" }).click();
+  await page.getByRole("button", { name: "Assets actions" }).click();
+  await page.getByRole("menuitem", { name: "Add account" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByTestId("account-name").fill(opts.name);
   await selectCurrency(page, dialog, "account-currency", opts.currency ?? "USD");

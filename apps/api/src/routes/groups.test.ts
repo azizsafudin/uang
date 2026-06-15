@@ -117,3 +117,84 @@ test("delete group nullifies groupId on member accounts", async () => {
   const remaining = await db.select().from(groups);
   expect(remaining.length).toBe(0);
 });
+
+test("PATCH persists a color and GET returns it", async () => {
+  const app = makeApp(groupsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const create = await app.handle(
+    new Request("http://localhost/groups", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "Property", class: "asset" }),
+    }),
+  );
+  const { id } = await create.json();
+
+  const patch = await app.handle(
+    new Request(`http://localhost/groups/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ color: "blue" }),
+    }),
+  );
+  expect(patch.status).toBe(200);
+
+  const [row] = await db.select().from(groups).where(eq(groups.id, id));
+  expect(row.color).toBe("blue");
+
+  const list = await app.handle(
+    new Request("http://localhost/groups", { headers: { cookie } }),
+  );
+  const rows = await list.json();
+  expect(rows.find((g: { id: string }) => g.id === id)?.color).toBe("blue");
+});
+
+test("PATCH can clear a color with null", async () => {
+  const app = makeApp(groupsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const create = await app.handle(
+    new Request("http://localhost/groups", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "Cash", class: "asset", color: "teal" }),
+    }),
+  );
+  const { id } = await create.json();
+
+  const patch = await app.handle(
+    new Request(`http://localhost/groups/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ color: null }),
+    }),
+  );
+  expect(patch.status).toBe(200);
+
+  const [row] = await db.select().from(groups).where(eq(groups.id, id));
+  expect(row.color).toBeNull();
+});
+
+test("PATCH rejects an unknown color key", async () => {
+  const app = makeApp(groupsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const create = await app.handle(
+    new Request("http://localhost/groups", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "Bad", class: "asset" }),
+    }),
+  );
+  const { id } = await create.json();
+
+  const patch = await app.handle(
+    new Request(`http://localhost/groups/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ color: "chartreuse" }),
+    }),
+  );
+  expect(patch.status).toBe(422);
+});

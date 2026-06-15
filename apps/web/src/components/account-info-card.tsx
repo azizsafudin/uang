@@ -57,6 +57,7 @@ export function AccountInfoCard({ account }: Props) {
       name: newGroupName.trim(),
       class: account.class,
       sortOrder: 0,
+      color: null,
       createdAt: Math.floor(Date.now() / 1000),
     });
     setGroupId(id);

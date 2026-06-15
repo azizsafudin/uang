@@ -19,7 +19,10 @@ type Props = {
   account: Account;
   baseCurrency: string;
   isLast: boolean;
-  dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>;
+  // When true, the whole row is the drag handle (reorder mode) and navigation
+  // is suppressed so dragging doesn't open the account.
+  dragWholeRow?: boolean;
   isDragging?: boolean;
   // When provided, the row is a button that calls this (e.g. open an edit dialog)
   // instead of linking to the account detail page.
@@ -46,6 +49,7 @@ export function AccountRow({
   baseCurrency,
   isLast,
   dragHandleProps,
+  dragWholeRow,
   isDragging,
   onSelect,
   trailing,
@@ -93,27 +97,36 @@ export function AccountRow({
   );
 
   const innerClass = "flex flex-1 items-center gap-3 min-w-0";
+  const wholeRowDrag = Boolean(dragWholeRow && dragHandleProps);
 
   return (
     <div
       data-testid="account-row"
+      {...(wholeRowDrag ? dragHandleProps : {})}
       className={cn(
         "group relative flex items-center gap-2 pl-2 pr-4 py-3 transition-colors hover:bg-accent",
         !isLast && "border-b border-border/70",
+        wholeRowDrag && "cursor-grab touch-none active:cursor-grabbing",
         isDragging && "opacity-50",
       )}
     >
       {dragHandleProps && (
         <span
-          {...dragHandleProps}
-          className="shrink-0 cursor-grab touch-none text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
+          {...(wholeRowDrag ? {} : dragHandleProps)}
+          className={cn(
+            "shrink-0 text-muted-foreground/40 transition-colors",
+            !wholeRowDrag &&
+              "cursor-grab touch-none hover:text-muted-foreground active:cursor-grabbing",
+          )}
           aria-label="Drag to reorder"
         >
           <GripVertical size={14} />
         </span>
       )}
 
-      {onSelect ? (
+      {wholeRowDrag ? (
+        <div className={innerClass}>{inner}</div>
+      ) : onSelect ? (
         <button type="button" onClick={onSelect} className={cn(innerClass, "text-left")}>
           {inner}
         </button>

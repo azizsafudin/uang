@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { currencyDecimals } from "@uang/shared";
+import { currencyDecimals, loanMonthlyPaymentMinor } from "@uang/shared";
 import { accountsCollection, type AccountRow } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,23 @@ const toMajor = (minor: number, currency: string) =>
   String(minor / 10 ** currencyDecimals(currency));
 const toMinor = (major: string, currency: string) =>
   Math.round((parseFloat(major) || 0) * 10 ** currencyDecimals(currency));
+
+// Loan term <-> months. UI edits years + months; storage is total months.
+const splitTerm = (months: number | null) => ({
+  years: months == null ? "" : String(Math.floor(months / 12)),
+  months: months == null ? "" : String(months % 12),
+});
+const joinTerm = (years: string, months: string): number | null => {
+  const y = parseInt(years, 10) || 0;
+  const m = parseInt(months, 10) || 0;
+  const total = y * 12 + m;
+  return total > 0 ? total : null;
+};
+const fmtMajor = (minor: number, currency: string) =>
+  (minor / 10 ** currencyDecimals(currency)).toLocaleString(undefined, {
+    minimumFractionDigits: currencyDecimals(currency),
+    maximumFractionDigits: currencyDecimals(currency),
+  });
 
 type SpendType = AccountRow["spendType"];
 type SpendStartKind = AccountRow["spendStartKind"];
@@ -59,6 +76,9 @@ function seedForm(account: AccountRow, base: string) {
     spendStartAge: account.spendStartAge == null ? "" : String(account.spendStartAge),
     spendStartTarget:
       account.spendStartTargetMinor == null ? "" : toMajor(account.spendStartTargetMinor, base),
+    loanRatePct: toPct(account.growthRateBps),
+    loanTermYears: splitTerm(account.loanTermMonths).years,
+    loanTermMonths: splitTerm(account.loanTermMonths).months,
   };
 }
 
@@ -80,6 +100,15 @@ export function AccountProjectionForm({
 
   async function save() {
     accountsCollection.update(account.id, (draft) => {
+      if (isLiability) {
+        // Single loan model: interest rate + remaining term. Balance comes from
+        // transactions; withdrawal/accessibility/contribution are not used.
+        draft.growthRateBps = fromPct(f.loanRatePct);
+        draft.loanTermMonths = joinTerm(f.loanTermYears, f.loanTermMonths);
+        draft.spendType = "none";
+        draft.contributionMinor = 0;
+        return;
+      }
       draft.growthRateBps = fromPct(f.growthPct);
       draft.accessibleFromAge = parseInt(f.accessibleFromAge, 10) || 0;
       draft.earlyWithdrawal = f.earlyWithdrawal;
@@ -91,8 +120,8 @@ export function AccountProjectionForm({
       draft.contributionUntilAge =
         f.contributionUntilAge === "" ? null : parseInt(f.contributionUntilAge, 10);
       draft.compoundInterval = f.compoundInterval;
-      // Decumulation. Liabilities never withdraw.
-      const spendType: SpendType = isLiability ? "none" : f.spendType;
+      // Decumulation.
+      const spendType: SpendType = f.spendType;
       draft.spendType = spendType;
       draft.spendAmountMinor =
         spendType === "once" || spendType === "monthly"
@@ -113,210 +142,268 @@ export function AccountProjectionForm({
     onClose();
   }
 
+  const termMonths = joinTerm(f.loanTermYears, f.loanTermMonths);
+  const paymentMinor = loanMonthlyPaymentMinor(
+    account.balanceMinor,
+    fromPct(f.loanRatePct),
+    termMonths ?? 0,
+  );
+
   return (
     <div>
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Annual growth %">
-            <Input
-              type="number"
-              step="any"
-              value={f.growthPct}
-              onChange={(e) => setF((p) => ({ ...p, growthPct: e.target.value }))}
-            />
-          </Field>
-          <Field label="Accessible from age">
-            <Input
-              type="number"
-              min="0"
-              value={f.accessibleFromAge}
-              onChange={(e) => setF((p) => ({ ...p, accessibleFromAge: e.target.value }))}
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Before that age">
-            <Select
-              value={f.earlyWithdrawal}
-              onValueChange={(v: string | null) =>
-                v && setF((p) => ({ ...p, earlyWithdrawal: v as AccountRow["earlyWithdrawal"] }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>
-                  {(v: unknown) => (String(v) === "penalty" ? "Withdraw with penalty" : "Locked")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Locked</SelectItem>
-                <SelectItem value="penalty">Withdraw with penalty</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Early penalty %">
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              value={f.earlyHaircutPct}
-              disabled={f.earlyWithdrawal !== "penalty"}
-              onChange={(e) => setF((p) => ({ ...p, earlyHaircutPct: e.target.value }))}
-            />
-          </Field>
-        </div>
-        <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-          <span className="text-sm">Illiquid (exclude from accessible)</span>
-          <Switch
-            checked={f.illiquid}
-            onCheckedChange={(v: boolean) => setF((p) => ({ ...p, illiquid: v }))}
-          />
-        </div>
-        {f.illiquid && (
-          <Field label="Liquidation age (optional)">
-            <Input
-              type="number"
-              min="0"
-              value={f.liquidationAge}
-              placeholder="never"
-              onChange={(e) => setF((p) => ({ ...p, liquidationAge: e.target.value }))}
-            />
-          </Field>
-        )}
-
-        <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
-          <Field label={`Monthly contribution (${baseCurrency})`}>
-            <Input
-              type="number"
-              step="any"
-              min="0"
-              placeholder="0"
-              value={f.contribution}
-              onChange={(e) => setF((p) => ({ ...p, contribution: e.target.value }))}
-            />
-          </Field>
-          <Field label="Contribute until age">
-            <Input
-              type="number"
-              min="0"
-              placeholder="no limit"
-              value={f.contributionUntilAge}
-              onChange={(e) => setF((p) => ({ ...p, contributionUntilAge: e.target.value }))}
-            />
-          </Field>
-          <Field label="Compound">
-            <Select
-              value={f.compoundInterval}
-              onValueChange={(v: string | null) =>
-                v && setF((p) => ({ ...p, compoundInterval: v as CompoundInterval }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue>{(v: unknown) => COMPOUND_LABELS[v as CompoundInterval]}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(COMPOUND_LABELS) as CompoundInterval[]).map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {COMPOUND_LABELS[k]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-
-        {!isLiability && (
-          <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
-            <Field label="Withdrawal">
-              <Select
-                value={f.spendType}
-                onValueChange={(v: string | null) =>
-                  v && setF((p) => ({ ...p, spendType: v as SpendType }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>{(v: unknown) => SPEND_LABELS[v as SpendType]}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(SPEND_LABELS) as SpendType[]).map((k) => (
-                    <SelectItem key={k} value={k}>
-                      {SPEND_LABELS[k]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {isLiability ? (
+          <div className="flex flex-col gap-4">
+            <Field label={`Outstanding balance (${account.currency})`}>
+              <Input
+                type="text"
+                value={fmtMajor(Math.abs(account.balanceMinor), account.currency)}
+                readOnly
+                disabled
+              />
             </Field>
-
-            {(f.spendType === "once" || f.spendType === "monthly") && (
-              <Field
-                label={
-                  f.spendType === "once" ? `Lump (${baseCurrency})` : `Per month (${baseCurrency})`
-                }
-              >
+            <div className="grid grid-cols-3 gap-4">
+              <Field label="Interest rate %/yr">
                 <Input
                   type="number"
                   step="any"
                   min="0"
-                  value={f.spendAmount}
-                  onChange={(e) => setF((p) => ({ ...p, spendAmount: e.target.value }))}
+                  value={f.loanRatePct}
+                  onChange={(e) => setF((p) => ({ ...p, loanRatePct: e.target.value }))}
+                />
+              </Field>
+              <Field label="Term (years)">
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={f.loanTermYears}
+                  onChange={(e) => setF((p) => ({ ...p, loanTermYears: e.target.value }))}
+                />
+              </Field>
+              <Field label="Term (months)">
+                <Input
+                  type="number"
+                  min="0"
+                  max="11"
+                  placeholder="0"
+                  value={f.loanTermMonths}
+                  onChange={(e) => setF((p) => ({ ...p, loanTermMonths: e.target.value }))}
+                />
+              </Field>
+            </div>
+            <Field label="Monthly payment (derived)">
+              <Input
+                type="text"
+                value={termMonths ? fmtMajor(paymentMinor, account.currency) : "—"}
+                readOnly
+                disabled
+              />
+            </Field>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Annual growth %">
+                <Input
+                  type="number"
+                  step="any"
+                  value={f.growthPct}
+                  onChange={(e) => setF((p) => ({ ...p, growthPct: e.target.value }))}
+                />
+              </Field>
+              <Field label="Accessible from age">
+                <Input
+                  type="number"
+                  min="0"
+                  value={f.accessibleFromAge}
+                  onChange={(e) => setF((p) => ({ ...p, accessibleFromAge: e.target.value }))}
+                />
+              </Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Before that age">
+                <Select
+                  value={f.earlyWithdrawal}
+                  onValueChange={(v: string | null) =>
+                    v && setF((p) => ({ ...p, earlyWithdrawal: v as AccountRow["earlyWithdrawal"] }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(v: unknown) => (String(v) === "penalty" ? "Withdraw with penalty" : "Locked")}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Locked</SelectItem>
+                    <SelectItem value="penalty">Withdraw with penalty</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Early penalty %">
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={f.earlyHaircutPct}
+                  disabled={f.earlyWithdrawal !== "penalty"}
+                  onChange={(e) => setF((p) => ({ ...p, earlyHaircutPct: e.target.value }))}
+                />
+              </Field>
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <span className="text-sm">Illiquid (exclude from accessible)</span>
+              <Switch
+                checked={f.illiquid}
+                onCheckedChange={(v: boolean) => setF((p) => ({ ...p, illiquid: v }))}
+              />
+            </div>
+            {f.illiquid && (
+              <Field label="Liquidation age (optional)">
+                <Input
+                  type="number"
+                  min="0"
+                  value={f.liquidationAge}
+                  placeholder="never"
+                  onChange={(e) => setF((p) => ({ ...p, liquidationAge: e.target.value }))}
                 />
               </Field>
             )}
 
-            {f.spendType === "percent" && (
-              <Field label="Withdrawal rate (%/yr)">
+            <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+              <Field label={`Monthly contribution (${baseCurrency})`}>
                 <Input
                   type="number"
                   step="any"
                   min="0"
-                  placeholder="4"
-                  value={f.spendRate}
-                  onChange={(e) => setF((p) => ({ ...p, spendRate: e.target.value }))}
+                  placeholder="0"
+                  value={f.contribution}
+                  onChange={(e) => setF((p) => ({ ...p, contribution: e.target.value }))}
                 />
               </Field>
-            )}
+              <Field label="Contribute until age">
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="no limit"
+                  value={f.contributionUntilAge}
+                  onChange={(e) => setF((p) => ({ ...p, contributionUntilAge: e.target.value }))}
+                />
+              </Field>
+              <Field label="Compound">
+                <Select
+                  value={f.compoundInterval}
+                  onValueChange={(v: string | null) =>
+                    v && setF((p) => ({ ...p, compoundInterval: v as CompoundInterval }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(v: unknown) => COMPOUND_LABELS[v as CompoundInterval]}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(COMPOUND_LABELS) as CompoundInterval[]).map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {COMPOUND_LABELS[k]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
 
-            {f.spendType !== "none" && (
-              <>
-                <Field label="Starts on">
-                  <Select
-                    value={f.spendStartKind}
-                    onValueChange={(v: string | null) =>
-                      v && setF((p) => ({ ...p, spendStartKind: v as SpendStartKind }))
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {(v: unknown) => (String(v) === "target" ? "Target balance" : "Owner age")}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="age">Owner age</SelectItem>
-                      <SelectItem value="target">Target balance</SelectItem>
-                    </SelectContent>
-                  </Select>
+            <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+              <Field label="Withdrawal">
+                <Select
+                  value={f.spendType}
+                  onValueChange={(v: string | null) =>
+                    v && setF((p) => ({ ...p, spendType: v as SpendType }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(v: unknown) => SPEND_LABELS[v as SpendType]}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(SPEND_LABELS) as SpendType[]).map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {SPEND_LABELS[k]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              {(f.spendType === "once" || f.spendType === "monthly") && (
+                <Field
+                  label={
+                    f.spendType === "once" ? `Lump (${baseCurrency})` : `Per month (${baseCurrency})`
+                  }
+                >
+                  <Input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={f.spendAmount}
+                    onChange={(e) => setF((p) => ({ ...p, spendAmount: e.target.value }))}
+                  />
                 </Field>
-                {f.spendStartKind === "age" ? (
-                  <Field label="Start at age">
-                    <Input
-                      type="number"
-                      min="0"
-                      value={f.spendStartAge}
-                      onChange={(e) => setF((p) => ({ ...p, spendStartAge: e.target.value }))}
-                    />
+              )}
+
+              {f.spendType === "percent" && (
+                <Field label="Withdrawal rate (%/yr)">
+                  <Input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="4"
+                    value={f.spendRate}
+                    onChange={(e) => setF((p) => ({ ...p, spendRate: e.target.value }))}
+                  />
+                </Field>
+              )}
+
+              {f.spendType !== "none" && (
+                <>
+                  <Field label="Starts on">
+                    <Select
+                      value={f.spendStartKind}
+                      onValueChange={(v: string | null) =>
+                        v && setF((p) => ({ ...p, spendStartKind: v as SpendStartKind }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue>
+                          {(v: unknown) => (String(v) === "target" ? "Target balance" : "Owner age")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="age">Owner age</SelectItem>
+                        <SelectItem value="target">Target balance</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </Field>
-                ) : (
-                  <Field label={`Target balance (${baseCurrency})`}>
-                    <Input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={f.spendStartTarget}
-                      onChange={(e) => setF((p) => ({ ...p, spendStartTarget: e.target.value }))}
-                    />
-                  </Field>
-                )}
-              </>
-            )}
+                  {f.spendStartKind === "age" ? (
+                    <Field label="Start at age">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={f.spendStartAge}
+                        onChange={(e) => setF((p) => ({ ...p, spendStartAge: e.target.value }))}
+                      />
+                    </Field>
+                  ) : (
+                    <Field label={`Target balance (${baseCurrency})`}>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={f.spendStartTarget}
+                        onChange={(e) => setF((p) => ({ ...p, spendStartTarget: e.target.value }))}
+                      />
+                    </Field>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

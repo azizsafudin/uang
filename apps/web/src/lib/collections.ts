@@ -75,6 +75,7 @@ export const accountsCollection = createCollection(
         contributionMinor: m.contributionMinor,
         contributionUntilAge: m.contributionUntilAge,
         compoundInterval: m.compoundInterval,
+        loanTermMonths: m.loanTermMonths ?? null,
       });
       if (error) throw new Error(String(error));
     },
@@ -102,6 +103,7 @@ export const accountsCollection = createCollection(
         contributionMinor: m.contributionMinor,
         contributionUntilAge: m.contributionUntilAge,
         compoundInterval: m.compoundInterval,
+        loanTermMonths: m.loanTermMonths ?? null,
       });
       if (error) throw new Error(String(error));
     },
@@ -171,6 +173,18 @@ export const instrumentsCollection = createCollection(
         currency: m.currency,
         symbol: m.symbol ?? undefined,
         isin: m.isin ?? undefined,
+      });
+      if (error) throw new Error(String(error));
+    },
+    onUpdate: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as InstrumentRow | undefined;
+      if (!m) return;
+      const { error } = await api.instruments({ id: m.id }).patch({
+        name: m.name,
+        symbol: m.symbol ?? undefined,
+        isin: m.isin ?? undefined,
+        kind: m.kind as "currency" | "stock" | "etf" | "fund" | "crypto" | "other",
+        currency: m.currency,
       });
       if (error) throw new Error(String(error));
     },
@@ -272,6 +286,7 @@ export type GroupRow = {
   name: string;
   class: "asset" | "liability";
   sortOrder: number;
+  color: string | null;
   createdAt: number;
 };
 
@@ -297,6 +312,7 @@ export const groupsCollection = createCollection(
         name: m.name,
         class: m.class,
         sortOrder: m.sortOrder,
+        color: m.color,
       });
       if (error) throw new Error(String(error));
     },
@@ -306,6 +322,7 @@ export const groupsCollection = createCollection(
       const { error } = await api.groups({ id: m.id }).patch({
         name: m.name,
         sortOrder: m.sortOrder,
+        color: m.color,
       });
       if (error) throw new Error(String(error));
     },

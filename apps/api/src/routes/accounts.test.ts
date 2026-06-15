@@ -349,6 +349,44 @@ test("PATCH /:id accepts groupId", async () => {
   expect(body.find((a: any) => a.id === accountId).groupId).toBe(groupId);
 });
 
+test("loanTermMonths round-trips: POST with field and PATCH update", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+
+  // Create a loan liability passing loanTermMonths in the POST body.
+  const create = await app.handle(new Request("http://localhost/accounts", {
+    method: "POST", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Car Loan",
+      class: "liability",
+      subtype: "loan",
+      currency: "USD",
+      growthRateBps: 300,
+      loanTermMonths: 60,
+    }),
+  }));
+  expect(create.status).toBe(200);
+  const { id } = await create.json();
+
+  // Verify POST-persisted value comes back via accounts list.
+  let list = await (await app.handle(new Request("http://localhost/accounts", { headers: { cookie } }))).json();
+  let a = list.find((x: any) => x.id === id);
+  expect(a.loanTermMonths).toBe(60);
+  expect(a.growthRateBps).toBe(300);
+
+  // PATCH with new values and verify round-trip.
+  const patch = await app.handle(new Request(`http://localhost/accounts/${id}`, {
+    method: "PATCH", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ growthRateBps: 500, loanTermMonths: 48 }),
+  }));
+  expect(patch.status).toBe(200);
+
+  list = await (await app.handle(new Request("http://localhost/accounts", { headers: { cookie } }))).json();
+  a = list.find((x: any) => x.id === id);
+  expect(a.loanTermMonths).toBe(48);
+  expect(a.growthRateBps).toBe(500);
+});
+
 test("PATCH /reorder updates sortOrder for accounts and groups", async () => {
   const app = makeApp(accountsRoutes, groupsRoutes);
   const { cookie } = await initAndLogin({ app });

@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { Money } from "@/components/money.tsx";
 import { Button } from "@/components/ui/button";
 import { UpdatePrice } from "@/components/update-price";
-import { transactionsCollection } from "@/lib/collections";
+import { EditTransactionDialog } from "@/components/edit-transaction-dialog";
+import { transactionsCollection, type TransactionRow } from "@/lib/collections";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +55,9 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 
 export function PositionsPanel({ accountId, accountCurrency }: { accountId: string; accountCurrency: string }) {
   const { data: pos } = usePositions(accountId);
-  const positions = (pos?.positions ?? []).filter((p) => p.units > 0);
+  // Show any open position, including negative ones (a liability's debt is a
+  // negative cash position). Only fully-closed (zero-unit) positions are hidden.
+  const positions = (pos?.positions ?? []).filter((p) => p.units !== 0);
 
   if (positions.length === 0) {
     return <EmptyState>Nothing held yet. Add a transaction to build a position.</EmptyState>;
@@ -123,6 +127,7 @@ export function HistoryPanel({ accountId }: { accountId: string }) {
   const qc = useQueryClient();
   const txCollection = transactionsCollection(accountId);
   const { data: txns } = useLiveQuery(txCollection);
+  const [editing, setEditing] = useState<TransactionRow | null>(null);
 
   async function delTx(id: string) {
     await txCollection.delete(id);
@@ -165,18 +170,36 @@ export function HistoryPanel({ accountId }: { accountId: string }) {
                 {t.unitsDelta >= 0 ? "+" : ""}
                 {amountMajor} {isCash ? t.instrument.currency : "units"}
               </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
-                onClick={() => delTx(t.id)}
-              >
-                Delete
-              </Button>
+              <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setEditing(t)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-destructive"
+                  onClick={() => delTx(t.id)}
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
           </div>
         );
       })}
+      {editing && (
+        <EditTransactionDialog
+          accountId={accountId}
+          tx={editing}
+          open={editing != null}
+          onOpenChange={(o) => !o && setEditing(null)}
+        />
+      )}
     </div>
   );
 }

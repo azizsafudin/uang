@@ -66,6 +66,7 @@ export type AccountValuation = {
   contributionMinor: number;
   contributionUntilAge: number | null;
   compoundInterval: "monthly" | "quarterly" | "annually";
+  loanTermMonths: number | null;
   groupId: string | null; sortOrder: number;
 };
 
@@ -119,6 +120,7 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
       contributionMinor: a.contributionMinor,
       contributionUntilAge: a.contributionUntilAge ?? null,
       compoundInterval: a.compoundInterval,
+      loanTermMonths: a.loanTermMonths ?? null,
       groupId: a.groupId ?? null,
       sortOrder: a.sortOrder,
     });
