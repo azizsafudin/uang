@@ -41,6 +41,7 @@ export type AccountValuation = {
   missingRate: boolean;
   ownerIds: string[];
   shared: boolean;
+  illiquid: boolean;
   groupId: string | null;
   sortOrder: number;
 };
@@ -60,6 +61,7 @@ type Props = {
   baseCurrency: string;
   sectionTotalMinor: number;
   hasData: boolean;
+  actions?: React.ReactNode; // rendered at the right of the section header
 };
 
 const OWNER_PREFIX = "owner:";
@@ -179,6 +181,7 @@ export function DashboardSection({
   baseCurrency,
   sectionTotalMinor,
   hasData,
+  actions,
 }: Props) {
   const qc = useQueryClient();
   const { data: users } = useUsers();
@@ -438,6 +441,7 @@ export function DashboardSection({
       <div className="mb-3 flex items-center justify-between">
         <Eyebrow>{label}</Eyebrow>
         <div className="flex items-center gap-3">
+          {actions}
           {hasData && accounts.length > 0 && (
             <span className="font-heading text-sm tabular-nums text-muted-foreground">
               <Money minor={sectionTotalMinor} currency={baseCurrency} />
