@@ -26,7 +26,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
     "/",
     async ({ body, isAdmin, set }: any) => {
       const touchesAi =
-        body.aiBaseUrl !== undefined || body.aiModel !== undefined || body.aiApiKey !== undefined;
+        body.aiBaseUrl !== undefined || body.aiModel !== undefined
+        || body.aiApiKey !== undefined || body.clearAi === true;
       if (touchesAi && !isAdmin) {
         set.status = 403;
         return { error: "admin_only" };
@@ -39,6 +40,12 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       if (body.aiModel !== undefined) update.aiModel = body.aiModel || null;
       // Empty/omitted aiApiKey preserves the stored key (write-only field).
       if (typeof body.aiApiKey === "string" && body.aiApiKey.length > 0) update.aiApiKey = body.aiApiKey;
+      // Explicit disconnect: wipe the whole provider, including the stored key.
+      if (body.clearAi === true) {
+        update.aiBaseUrl = null;
+        update.aiModel = null;
+        update.aiApiKey = null;
+      }
       if (Object.keys(update).length > 0) {
         await db.update(settings).set(update).where(eq(settings.id, 1));
       }
@@ -52,6 +59,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         aiBaseUrl: t.Optional(t.String()),
         aiModel: t.Optional(t.String()),
         aiApiKey: t.Optional(t.String()),
+        clearAi: t.Optional(t.Boolean()),
       }),
     },
   )

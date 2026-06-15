@@ -45,6 +45,35 @@ test("PATCH sets AI fields; GET returns aiApiKeySet not the key; empty key prese
   expect(got2.aiModel).toBe("llama3.2");
 });
 
+test("PATCH clearAi wipes base URL, model, and the stored key", async () => {
+  const { cookie } = await initAndLogin({ app });
+  await app.handle(new Request("http://localhost/settings", {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ aiBaseUrl: "http://localhost:11434/v1", aiModel: "llama3.1", aiApiKey: "sk-secret" }),
+  }));
+
+  await app.handle(new Request("http://localhost/settings", {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ clearAi: true }),
+  }));
+
+  const got = await (await app.handle(new Request("http://localhost/settings", { headers: { cookie } }))).json();
+  expect(got.aiBaseUrl).toBe("");
+  expect(got.aiModel).toBe("");
+  expect(got.aiApiKeySet).toBe(false);
+});
+
+test("non-admin member gets 403 when clearing AI settings", async () => {
+  const { cookie: adminCookie } = await initAndLogin({ app: appWithUsers });
+  const cookie = await memberCookie(adminCookie);
+  const denied = await appWithUsers.handle(new Request("http://localhost/settings", {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ clearAi: true }),
+  }));
+  expect(denied.status).toBe(403);
+  expect((await denied.json()).error).toBe("admin_only");
+});
+
 import { startMockAi } from "../lib/import/ai-server.test-helper";
 
 test("POST /settings/ai/test pings the configured provider", async () => {

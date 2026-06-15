@@ -221,6 +221,16 @@ export function SettingsPage() {
     }
   }
 
+  async function removeAi() {
+    const { error } = await api.settings.patch({ clearAi: true });
+    if (error) { setAiTestMsg("Couldn't remove the provider"); return; }
+    setAiBaseUrl(""); setAiModel(""); setAiApiKey(""); setAiApiKeySet(false);
+    setAiTestMsg("Provider removed");
+    await qc.invalidateQueries({ queryKey: ["settings"] });
+  }
+
+  const aiConfigured = !!(aiBaseUrl || aiModel || aiApiKeySet);
+
   const [fx, setFx] = useState({
     currency: "",
     date: new Date().toISOString().slice(0, 10),
@@ -453,6 +463,16 @@ export function SettingsPage() {
               >
                 Test connection
               </Button>
+              {aiConfigured && (
+                <Button
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={removeAi}
+                  data-testid="ai-remove"
+                >
+                  Remove
+                </Button>
+              )}
               {aiTestMsg && (
                 <span className="text-sm text-muted-foreground">
                   {aiTestMsg}
