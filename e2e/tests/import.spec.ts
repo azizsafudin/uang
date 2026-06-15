@@ -12,6 +12,9 @@ test("import a CSV statement into an account", async ({ page }) => {
   await page.goto("/");
   await createAccount(page, { name: "Checking", currency: "USD" });
 
+  // Live-query/optimistic timing: reload so the freshly-created account row is
+  // present before we click it (matches accounts.spec / transactions.spec).
+  await page.reload();
   await page.getByTestId("account-row").filter({ hasText: "Checking" }).click();
   await expect(page).toHaveURL(/\/accounts\//);
 
