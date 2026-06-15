@@ -54,7 +54,7 @@ export const transactionsRoutes = new Elysia()
             id: createId(), accountId: params.id, instrumentId: cl.instrumentId,
             date: body.date, unitsDelta: cl.unitsDelta,
             unitPriceScaled: cl.unitPriceScaled ?? CASH_PRICE, feesMinor: 0,
-            notes: cl.notes ?? null, createdAt: now, createdBy: userId!,
+            notes: cl.notes ?? null, linkedTransactionId: mainId, createdAt: now, createdBy: userId!,
           });
         } else {
           await db.insert(transactions).values({

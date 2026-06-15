@@ -155,3 +155,22 @@ test("PATCH editing a trade's price updates its trade-sourced price row", async 
   const [row] = await db.select().from(prices).where(eq(prices.instrumentId, stock));
   expect(row.priceScaled).toBe(60 * S);
 });
+
+test("POST with cashLeg links the cash leg to the main trade", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const acc = await seedAccount();
+  const stock = await seedInstrument("stock");
+  const usd = await seedInstrument("currency", "USD");
+
+  const create = await (await app.handle(new Request(`http://localhost/accounts/${acc}/transactions`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({
+      instrumentId: stock, date: "2026-01-01", unitsDelta: 10 * S, unitPriceScaled: 100 * S,
+      cashLeg: { instrumentId: usd, unitsDelta: -1000 * S },
+    }),
+  }))).json();
+
+  const leg = await db.select().from(transactions).where(eq(transactions.instrumentId, usd));
+  expect(leg.length).toBe(1);
+  expect(leg[0].linkedTransactionId).toBe(create.id);
+});
