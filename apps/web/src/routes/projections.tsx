@@ -1,9 +1,10 @@
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { membersCollection } from "@/lib/collections";
+import { accountsCollection, membersCollection } from "@/lib/collections";
 import { ProjectionChart } from "@/components/projection-chart";
-import { AppShell, Section } from "@/components/app-layout";
+import { AccountProjectionCard } from "@/components/account-projection-card";
+import { AppShell, Eyebrow, Section } from "@/components/app-layout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -95,6 +96,33 @@ function MembersSection() {
   );
 }
 
+function PerAccountSection() {
+  const { data: accounts = [] } = useLiveQuery(accountsCollection);
+  const settingsQ = useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const { data, error } = await api.settings.get();
+      if (error) throw new Error(String(error));
+      return data as unknown as { baseCurrency: string };
+    },
+  });
+  const base = settingsQ.data?.baseCurrency;
+  const visible = accounts
+    .filter((a) => a.isArchived === 0)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  if (!base || visible.length === 0) return null;
+
+  return (
+    <div className="space-y-4">
+      <Eyebrow>Per account</Eyebrow>
+      {visible.map((a) => (
+        <AccountProjectionCard key={a.id} account={a} baseCurrency={base} />
+      ))}
+    </div>
+  );
+}
+
 export function ProjectionsPage() {
   return (
     <AppShell>
@@ -105,6 +133,7 @@ export function ProjectionsPage() {
 
       <div className="space-y-5">
         <ProjectionChart />
+        <PerAccountSection />
         <MembersSection />
         <ProjectionAssumptionsSection />
       </div>

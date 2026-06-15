@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { accountsCollection } from "@/lib/collections";
 import { AccountInfoCard } from "@/components/account-info-card";
-import { AccountProjectionCard } from "@/components/account-projection-card";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
 import { ImportDialog } from "@/components/import-dialog";
 import { usePositions, PositionsPanel, HistoryPanel } from "@/components/account-history";
@@ -194,10 +193,7 @@ export function AccountDetailPage() {
           <HistoryPanel accountId={id} />
         </TabsContent>
         <TabsContent value="details" className="mt-5">
-          <div className="grid items-start gap-6 md:grid-cols-2">
-            <AccountInfoCard account={account} />
-            <AccountProjectionCard account={account} />
-          </div>
+          <AccountInfoCard account={account} />
           {dangerZone}
         </TabsContent>
       </Tabs>

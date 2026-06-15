@@ -64,6 +64,13 @@
       "when": 1781496701560,
       "tag": "0008_flat_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781503193653,
+      "tag": "0009_classy_maestro",
+      "breakpoints": true
     }
   ]
 }
