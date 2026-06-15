@@ -6,8 +6,9 @@ import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { validateParserConfig, validateFingerprint } from "../lib/import/validate";
 import { isUniqueViolation } from "../lib/db-errors";
-import { synthesizeCsvConfig, refineCsvConfig, AiError, type AiConfig } from "../lib/import/ai";
+import { synthesizeCsvConfig, refineCsvConfig, capSample, AiError, type AiConfig } from "../lib/import/ai";
 import { parseCsv } from "../lib/import/csv";
+import type { CsvParserConfig } from "../lib/import/types";
 
 async function loadAiConfig(): Promise<AiConfig | null> {
   const s = (await db.select().from(settings).where(eq(settings.id, 1)))[0];
@@ -91,13 +92,13 @@ export const importParsersRoutes = new Elysia()
       const cfg = await loadAiConfig();
       if (!cfg) { set.status = 422; return { error: "ai_not_configured" }; }
       try {
-        const config = await synthesizeCsvConfig(body.content, cfg);
+        const config = await synthesizeCsvConfig(capSample(body.content), cfg);
         return { config };
       } catch (e) {
         return aiErrorResponse(e, set);
       }
     },
-    { body: t.Object({ content: t.String() }) },
+    { body: t.Object({ content: t.String({ maxLength: 200_000 }) }) },
   )
   .post(
     "/import-parsers/refine",
@@ -106,7 +107,7 @@ export const importParsersRoutes = new Elysia()
       if (!cfg) { set.status = 422; return { error: "ai_not_configured" }; }
       try {
         const config = await refineCsvConfig(
-          body.content, body.config, body.instruction ?? "", body.errors ?? [], cfg,
+          capSample(body.content), body.config, body.instruction ?? "", body.errors ?? [], cfg,
         );
         return { config };
       } catch (e) {
@@ -115,22 +116,29 @@ export const importParsersRoutes = new Elysia()
     },
     {
       body: t.Object({
-        content: t.String(),
+        content: t.String({ maxLength: 200_000 }),
         config: t.Unknown(),
-        instruction: t.Optional(t.String()),
-        errors: t.Optional(t.Array(t.Object({ raw: t.Record(t.String(), t.String()), reason: t.String() }))),
+        instruction: t.Optional(t.String({ maxLength: 500 })),
+        errors: t.Optional(t.Array(t.Object({ raw: t.Record(t.String(), t.String()), reason: t.String() }), { maxItems: 50 })),
       }),
     },
   )
   .post(
     "/import-parsers/preview",
     async ({ body, set }: any) => {
-      let config;
+      let config: CsvParserConfig;
       try { config = validateParserConfig(body.config); }
       catch { set.status = 422; return { error: "invalid_config" }; }
-      const rows = parseCsv(body.content, config, (body.currency ?? "USD").toUpperCase());
-      const errorCount = rows.filter((r) => r.error || r.date === null || r.amountMinor === null).length;
-      return { rows: rows.slice(0, 5), total: rows.length, errorCount };
+      const all = parseCsv(body.content, config, (body.currency ?? "USD").toUpperCase());
+      const bad = all.filter((r) => r.error || r.date === null || r.amountMinor === null);
+      return {
+        rows: all.slice(0, 5).map((r) => ({
+          date: r.date, amountMinor: r.amountMinor, description: r.description, error: r.error ?? null,
+        })),
+        total: all.length,
+        errorCount: bad.length,
+        errors: bad.slice(0, 10).map((r) => ({ raw: r.raw, reason: r.error ?? "unparseable" })),
+      };
     },
-    { body: t.Object({ content: t.String(), config: t.Unknown(), currency: t.Optional(t.String()) }) },
+    { body: t.Object({ content: t.String({ maxLength: 200_000 }), config: t.Unknown(), currency: t.Optional(t.String()) }) },
   );

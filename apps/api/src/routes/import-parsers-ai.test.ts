@@ -83,6 +83,25 @@ test("preview parses the sample with a config and returns first rows + counts", 
   expect(out.total).toBe(2);
   expect(out.errorCount).toBe(0);
   expect(out.rows[0]).toMatchObject({ date: "2026-01-01", amountMinor: -450, description: "COFFEE" });
+  // rows must NOT carry the raw payload
+  expect("raw" in out.rows[0]).toBe(false);
+});
+
+test("preview projects error rows with raw + reason for bad rows", async () => {
+  const { cookie } = await initAndLogin({ app });
+  // Second row has an unparseable date.
+  const csv = "Date,Desc,Amount\n2026-01-01,COFFEE,-4.50\nnot-a-date,PAY,1000.00";
+  const res = await app.handle(new Request("http://localhost/import-parsers/preview", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ content: csv, config: CONFIG, currency: "USD" }),
+  }));
+  expect(res.status).toBe(200);
+  const out = await res.json();
+  expect(out.errorCount).toBe(1);
+  expect(Array.isArray(out.errors)).toBe(true);
+  expect(out.errors.length).toBe(1);
+  expect(out.errors[0].raw).toBeDefined();
+  expect(typeof out.errors[0].reason).toBe("string");
 });
 
 test("preview returns 422 on an invalid config", async () => {
