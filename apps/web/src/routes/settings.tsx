@@ -8,6 +8,7 @@ import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { CurrencySelect } from "@/components/currency-select";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
@@ -65,8 +66,7 @@ function ProjectionAssumptionsSection() {
       description="The annual return used to solve required goal contributions, and how far the projection curve runs."
     >
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label>Contribution return %</Label>
+        <Field label="Contribution return %">
           <Input
             type="number"
             step="any"
@@ -77,9 +77,8 @@ function ProjectionAssumptionsSection() {
               if (s && v !== s.contributionGrowthRateBps) patch({ contributionGrowthRateBps: v });
             }}
           />
-        </div>
-        <div>
-          <Label>Project until age</Label>
+        </Field>
+        <Field label="Project until age">
           <Input
             type="number"
             min={1}
@@ -90,7 +89,7 @@ function ProjectionAssumptionsSection() {
               if (s && v !== s.projectionEndAge) patch({ projectionEndAge: v });
             }}
           />
-        </div>
+        </Field>
       </div>
     </Section>
   );
@@ -178,19 +177,17 @@ export function SettingsPage() {
         >
           <form
             onSubmit={addFx}
-            className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4"
+            className="grid grid-cols-2 items-end gap-4 sm:grid-cols-4"
           >
-            <div>
-              <Label>Currency</Label>
+            <Field label="Currency">
               <CurrencySelect
                 data-testid="fx-currency"
                 value={fx.currency}
                 placeholder="Select"
                 onValueChange={(code) => setFx((p) => ({ ...p, currency: code }))}
               />
-            </div>
-            <div>
-              <Label>Date</Label>
+            </Field>
+            <Field label="Date">
               <Input
                 data-testid="fx-date"
                 type="date"
@@ -198,9 +195,8 @@ export function SettingsPage() {
                 onChange={(e) => setFx((p) => ({ ...p, date: e.target.value }))}
                 required
               />
-            </div>
-            <div>
-              <Label>Rate</Label>
+            </Field>
+            <Field label="Rate">
               <Input
                 data-testid="fx-rate"
                 type="number"
@@ -210,7 +206,7 @@ export function SettingsPage() {
                 onChange={(e) => setFx((p) => ({ ...p, rate: e.target.value }))}
                 required
               />
-            </div>
+            </Field>
             <Button type="submit">Add rate</Button>
           </form>
 
@@ -249,10 +245,9 @@ export function SettingsPage() {
         >
           <form
             onSubmit={addUser}
-            className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4"
+            className="grid grid-cols-2 items-end gap-4 sm:grid-cols-4"
           >
-            <div>
-              <Label>Name</Label>
+            <Field label="Name">
               <Input
                 data-testid="invite-name"
                 value={invite.name}
@@ -261,9 +256,8 @@ export function SettingsPage() {
                 }
                 required
               />
-            </div>
-            <div>
-              <Label>Email</Label>
+            </Field>
+            <Field label="Email">
               <Input
                 data-testid="invite-email"
                 type="email"
@@ -273,9 +267,8 @@ export function SettingsPage() {
                 }
                 required
               />
-            </div>
-            <div>
-              <Label>Password</Label>
+            </Field>
+            <Field label="Password">
               <Input
                 data-testid="invite-password"
                 type="password"
@@ -286,7 +279,7 @@ export function SettingsPage() {
                 minLength={8}
                 required
               />
-            </div>
+            </Field>
             <Button type="submit">Invite</Button>
           </form>
 

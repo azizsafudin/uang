@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CurrencySelect } from "@/components/currency-select";
 
@@ -55,9 +55,8 @@ export function OnboardingPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="space-y-3">
-            <div>
-              <Label>Household name</Label>
+          <form onSubmit={submit} className="space-y-4">
+            <Field label="Household name">
               <Input
                 data-testid="onboarding-household"
                 value={form.householdName}
@@ -65,24 +64,18 @@ export function OnboardingPage() {
                 placeholder="The Safudins"
                 required
               />
-            </div>
-            <div>
-              <Label>Base currency</Label>
+            </Field>
+            <Field label="Base currency" hint="The currency everything rolls up to.">
               <CurrencySelect
                 data-testid="onboarding-currency"
                 value={form.baseCurrency}
                 onValueChange={(code) => setForm({ ...form, baseCurrency: code })}
               />
-              <p className="mt-1 text-xs text-muted-foreground">
-                The currency everything rolls up to.
-              </p>
-            </div>
-            <div className="border-t border-border/70 pt-3">
-              <Label>Your name</Label>
+            </Field>
+            <Field label="Your name" className="border-t border-border/70 pt-4">
               <Input data-testid="onboarding-name" value={form.name} onChange={set("name")} required />
-            </div>
-            <div>
-              <Label>Email</Label>
+            </Field>
+            <Field label="Email">
               <Input
                 data-testid="onboarding-email"
                 type="email"
@@ -90,9 +83,8 @@ export function OnboardingPage() {
                 onChange={set("email")}
                 required
               />
-            </div>
-            <div>
-              <Label>Password</Label>
+            </Field>
+            <Field label="Password">
               <Input
                 data-testid="onboarding-password"
                 type="password"
@@ -101,7 +93,7 @@ export function OnboardingPage() {
                 minLength={8}
                 required
               />
-            </div>
+            </Field>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full">
               Create household

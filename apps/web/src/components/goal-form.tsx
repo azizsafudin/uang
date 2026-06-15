@@ -3,7 +3,7 @@ import { currencyDecimals } from "@uang/shared";
 import { goalsCollection, newId, type GoalRow } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -113,33 +113,28 @@ export function GoalForm({
       )}
       <DialogContent>
         <DialogHeader><DialogTitle>{editing ? "Edit goal" : "New goal"}</DialogTitle></DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
-          <div>
-            <Label>Name</Label>
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Name">
             <Input value={f.name} required onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))} />
-          </div>
-          <div>
-            <Label>Target ({currency})</Label>
+          </Field>
+          <Field label={`Target (${currency})`}>
             <Input type="number" step="any" value={f.amount} required
               onChange={(e) => setF((p) => ({ ...p, amount: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Target date <span className="text-muted-foreground">(optional)</span></Label>
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label={<>Target date <span className="text-muted-foreground">(optional)</span></>}>
               <Input type="date" value={f.targetDate}
                 onChange={(e) => setF((p) => ({ ...p, targetDate: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Monthly contribution ({currency})</Label>
+            </Field>
+            <Field label={`Monthly contribution (${currency})`}>
               <Input type="number" step="any" min="0" placeholder="0" value={f.contribution}
                 onChange={(e) => setF((p) => ({ ...p, contribution: e.target.value }))} />
-            </div>
+            </Field>
           </div>
 
           {/* Spend / decumulation: how this goal spends at/after its target date. */}
-          <div className="grid grid-cols-2 gap-3 border-t border-border/70 pt-3">
-            <div>
-              <Label>Spend</Label>
+          <div className="grid grid-cols-2 gap-4 border-t border-border/70 pt-4">
+            <Field label="Spend">
               <Select
                 value={f.spendType}
                 onValueChange={(v) => setF((p) => ({ ...p, spendType: v as SpendType }))}
@@ -151,25 +146,28 @@ export function GoalForm({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
             {(f.spendType === "once" || f.spendType === "monthly") && (
-              <div>
-                <Label>{f.spendType === "once" ? `Lump (${currency})` : `Per month (${currency})`}</Label>
+              <Field label={f.spendType === "once" ? `Lump (${currency})` : `Per month (${currency})`}>
                 <Input type="number" step="any" min="0" value={f.spendAmount}
                   onChange={(e) => setF((p) => ({ ...p, spendAmount: e.target.value }))} />
-              </div>
+              </Field>
             )}
             {f.spendType === "percent" && (
-              <div>
-                <Label>Withdrawal rate (%/yr)</Label>
+              <Field label="Withdrawal rate (%/yr)">
                 <Input type="number" step="any" min="0" placeholder="4" value={f.spendRate}
                   onChange={(e) => setF((p) => ({ ...p, spendRate: e.target.value }))} />
-              </div>
+              </Field>
             )}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <DialogFooter><Button type="submit">{editing ? "Save" : "Create"}</Button></DialogFooter>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit">{editing ? "Save" : "Create"}</Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

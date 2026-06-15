@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { signIn } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function LoginPage() {
@@ -40,25 +40,23 @@ export function LoginPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={submit} className="space-y-3">
-            <div>
-              <Label>Email</Label>
+          <form onSubmit={submit} className="space-y-4">
+            <Field label="Email">
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
-            </div>
-            <div>
-              <Label>Password</Label>
+            </Field>
+            <Field label="Password">
               <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-            </div>
+            </Field>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full">
               Sign in

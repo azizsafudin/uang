@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -140,9 +140,8 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
         <DialogHeader>
           <DialogTitle>Add transaction</DialogTitle>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
-          <div>
-            <Label>Instrument</Label>
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Instrument">
             <Select value={instrumentId} onValueChange={(v: string | null) => v && setInstrumentId(v)}>
               <SelectTrigger className="w-full" data-testid="tx-instrument">
                 <SelectValue>
@@ -168,35 +167,30 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
                 <SelectItem value={NEW_INSTRUMENT}>New instrument…</SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </Field>
 
           {instrumentId === NEW_CURRENCY && (
-            <div>
-              <Label>Currency code</Label>
+            <Field label="Currency code">
               <Input data-testid="tx-new-currency" value={newCurrency} maxLength={3}
                      onChange={(e) => setNewCurrency(e.target.value)} required />
-            </div>
+            </Field>
           )}
 
           {instrumentId === NEW_INSTRUMENT && (
-            <div className="grid grid-cols-2 gap-3 rounded-lg border border-border p-3">
-              <div className="col-span-2">
-                <Label>Name</Label>
+            <div className="grid grid-cols-2 gap-4 rounded-lg border border-border p-3">
+              <Field label="Name" className="col-span-2">
                 <Input data-testid="tx-instr-name" value={newInstr.name}
                        onChange={(e) => setNewInstr((p) => ({ ...p, name: e.target.value }))} required />
-              </div>
-              <div>
-                <Label>Symbol</Label>
+              </Field>
+              <Field label="Symbol">
                 <Input data-testid="tx-instr-symbol" value={newInstr.symbol}
                        onChange={(e) => setNewInstr((p) => ({ ...p, symbol: e.target.value }))} placeholder="optional" />
-              </div>
-              <div>
-                <Label>Currency</Label>
+              </Field>
+              <Field label="Currency">
                 <Input data-testid="tx-instr-currency" value={newInstr.currency} maxLength={3}
                        onChange={(e) => setNewInstr((p) => ({ ...p, currency: e.target.value }))} required />
-              </div>
-              <div className="col-span-2">
-                <Label>Kind</Label>
+              </Field>
+              <Field label="Kind" className="col-span-2">
                 <Select value={newInstr.kind} onValueChange={(v: string | null) => v && setNewInstr((p) => ({ ...p, kind: v }))}>
                   <SelectTrigger className="w-full"><SelectValue>{(v: unknown) => String(v)}</SelectValue></SelectTrigger>
                   <SelectContent>
@@ -207,7 +201,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
                     <SelectItem value="other">other</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
             </div>
           )}
 
@@ -216,17 +210,15 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
               Pick an instrument above — cash to record a deposit or withdrawal, or a security to buy or sell.
             </p>
           ) : isCurrencyMode ? (
-            <div>
-              <Label>Amount (+ add, − subtract)</Label>
+            <Field label="Amount (+ add, − subtract)">
               <Input data-testid="tx-amount" type="number" step="any" value={amount}
                      onChange={(e) => setAmount(e.target.value)}
                      className={cn("tabular-nums", !Number.isNaN(amountNum) && (amountNum < 0 ? "text-destructive" : "text-emerald-600"))}
                      required />
-            </div>
+            </Field>
           ) : (
             <>
-              <div>
-                <Label>Side</Label>
+              <Field label="Side">
                 <Select value={side} onValueChange={(v: string | null) => v && setSide(v as "buy" | "sell")}>
                   <SelectTrigger className="w-full" data-testid="tx-side"><SelectValue>{(v: unknown) => String(v) === "sell" ? "Sell" : "Buy"}</SelectValue></SelectTrigger>
                   <SelectContent>
@@ -234,28 +226,24 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
                     <SelectItem value="sell">Sell</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Units</Label>
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Units">
                   <Input data-testid="tx-units" type="number" step="any" value={units} onChange={(e) => setUnits(e.target.value)} required />
-                </div>
-                <div>
-                  <Label>Price ({securityCurrency})</Label>
+                </Field>
+                <Field label={`Price (${securityCurrency})`}>
                   <Input data-testid="tx-price" type="number" step="any" value={price} onChange={(e) => setPrice(e.target.value)} required />
-                </div>
-                <div>
-                  <Label>Fees</Label>
+                </Field>
+                <Field label="Fees">
                   <Input data-testid="tx-fees" type="number" step="any" value={fees} onChange={(e) => setFees(e.target.value)} placeholder="optional" />
-                </div>
+                </Field>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={recordCash} onChange={(e) => setRecordCash(e.target.checked)} data-testid="tx-record-cash" />
                 Also record cash {side === "buy" ? "outflow" : "inflow"} ({side === "buy" ? "−" : "+"}{cashAmount.toFixed(2)} {securityCurrency})
               </label>
               {recordCash && currencies.length > 0 && (
-                <div>
-                  <Label>Cash from</Label>
+                <Field label="Cash from">
                   <Select value={cashCurrencyId} onValueChange={(v: string | null) => v && setCashCurrencyId(v)}>
                     <SelectTrigger className="w-full"><SelectValue>{(v: unknown) => {
                       const i = currencies.find((c) => c.id === String(v));
@@ -265,23 +253,24 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
                       {currencies.map((i) => (<SelectItem key={i.id} value={i.id}>{i.symbol} — {i.name}</SelectItem>))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
               )}
             </>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Date</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Date">
               <Input data-testid="tx-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-            </div>
-            <div>
-              <Label>Notes</Label>
+            </Field>
+            <Field label="Notes">
               <Input data-testid="tx-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="optional" />
-            </div>
+            </Field>
           </div>
 
           <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button type="submit" disabled={!instrumentId}>Add</Button>
           </DialogFooter>
         </form>
