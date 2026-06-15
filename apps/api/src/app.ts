@@ -15,6 +15,7 @@ import { membersRoutes } from "./routes/members";
 import { settingsRoutes } from "./routes/settings";
 import { goalsRoutes } from "./routes/goals";
 import { exportRoutes } from "./routes/export";
+import { importRoutes } from "./routes/import";
 import { instrumentsRoutes } from "./routes/instruments";
 import { positionsRoutes } from "./routes/positions";
 import { pricesRoutes } from "./routes/prices";
@@ -44,6 +45,7 @@ export function createApiApp() {
     .use(settingsRoutes)
     .use(goalsRoutes)
     .use(exportRoutes)
+    .use(importRoutes)
     .use(instrumentsRoutes)
     .use(positionsRoutes)
     .use(pricesRoutes)

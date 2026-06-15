@@ -15,7 +15,8 @@
     "@uang/shared": "workspace:*",
     "better-auth": "latest",
     "drizzle-orm": "latest",
-    "elysia": "latest"
+    "elysia": "latest",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "drizzle-kit": "latest"

@@ -18,12 +18,17 @@ bunx playwright install chromium   # one-time, first run
 
 When you add or change a user-facing feature, add (or extend) a Playwright journey under `e2e/tests/<feature>.spec.ts` that walks the **happy path through the UI** end-to-end. This is the project's standard "did it actually work in the app?" gate — complementary to the unit/route tests, which own logic and edge cases.
 
+### Test loop
+
+- **While iterating, lean on unit/route tests.** They're cheap and fast, so they own the inner red-green loop. Don't run E2E after every step — it boots a full stack and is slow.
+- **At the end of a slice, run only the affected E2E specs** — the journeys for the feature areas the slice touched (e.g. `bun run e2e -- accounts.spec.ts ownership.spec.ts`). Keep them green before merging. Run the full suite (`bun run e2e`) before a release, or when a slice changes shared plumbing (auth, routing, the net-worth rollup) that could ripple across journeys.
+
 Checklist for a new feature:
 1. Add a `data-testid` to any element the test must address that isn't stably reachable by role/text (forms, hero numbers, rows). Keep them additive — no behavior change. Existing anchors live across `apps/web/src/**`.
 2. Write one `test()` per journey, organized with `test.step(...)`.
 3. `test.beforeEach` → `await backend.freshDb()`; for authenticated flows also `await seedHousehold(request, context, backend.apiURL)`.
 4. Assert against **server truth**: after an optimistic mutation, `await page.reload()` before asserting derived values (e.g. the net-worth hero) so you don't race the client cache.
-5. Run `bun run e2e` and keep it green before merging.
+5. At the end of the slice, run the affected specs (`bun run e2e -- <feature>.spec.ts ...`) and keep them green before merging.
 
 ## Harness (`tests/fixtures.ts`, `tests/helpers.ts`)
 

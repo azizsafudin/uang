@@ -46,6 +46,32 @@ async function fetchMembers(): Promise<Member[]> {
 
 const MILESTONE_COLORS = ["var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
+// Custom ReferenceLine label. Recharts injects `viewBox` (the line's rect: for a
+// vertical line, x is the line's pixel-x, y is the plot top, height is the plot
+// height). We draw the label *inside* the top of the plot and push each member
+// onto its own row so names at nearby milestone years don't collide or clip.
+function MilestoneLabel({
+  viewBox,
+  name,
+  age,
+  color,
+  row,
+}: {
+  viewBox?: { x?: number; y?: number; width?: number; height?: number };
+  name: string;
+  age: number;
+  color: string;
+  row: number;
+}) {
+  const x = viewBox?.x ?? 0;
+  const y = (viewBox?.y ?? 0) + 11 + row * 13;
+  return (
+    <text x={x} y={y} fill={color} fontSize={10} textAnchor="middle">
+      {name} {age}
+    </text>
+  );
+}
+
 export function ProjectionChart() {
   const [endAge, setEndAge] = useState(90);
   const nwQ = useQuery({ queryKey: ["networth", "household"], queryFn: fetchNetWorth });
@@ -95,6 +121,7 @@ export function ProjectionChart() {
           .map((ms) => ({
             ...ms,
             name: m.name,
+            row: memberIdx,
             color: MILESTONE_COLORS[memberIdx % MILESTONE_COLORS.length],
           })),
       );
@@ -124,7 +151,7 @@ export function ProjectionChart() {
         <p className="py-12 text-center text-sm text-muted-foreground">No accounts to project.</p>
       ) : (
         <ChartContainer config={chartConfig} className="h-[260px] w-full">
-          <LineChart data={rows} margin={{ left: 8, right: 8, top: 8 }}>
+          <LineChart data={rows} margin={{ left: 8, right: 8, top: 16 }}>
             <CartesianGrid vertical={false} />
             <XAxis dataKey="year" tickLine={false} axisLine={false} tickMargin={8} />
             <YAxis hide />
@@ -144,7 +171,14 @@ export function ProjectionChart() {
                 x={ms.year}
                 stroke={ms.color}
                 strokeDasharray="3 3"
-                label={{ value: `${ms.name} ${ms.age}`, position: "top", fontSize: 10 }}
+                label={
+                  <MilestoneLabel
+                    name={ms.name}
+                    age={ms.age}
+                    color={ms.color}
+                    row={ms.row}
+                  />
+                }
               />
             ))}
             <Line
