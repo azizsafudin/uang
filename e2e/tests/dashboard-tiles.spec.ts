@@ -22,7 +22,7 @@ test("dashboard shows hero + tiles, Add account in Assets header", async ({ page
   await expect(page.getByTestId("dashboard-tiles")).toContainText("Assets");
 });
 
-test("tile edit mode enables a tile and persists across reload", async ({ page }) => {
+test("tile edit mode swaps a tile within the 3-cap and persists across reload", async ({ page }) => {
   // Seed a liquid asset so the "Liquid assets" tile has data to render.
   await page.goto("/");
   await createAccount(page, { name: "Checking", currency: "USD" });
@@ -32,6 +32,10 @@ test("tile edit mode enables a tile and persists across reload", async ({ page }
   await page.goto("/");
 
   await page.getByRole("button", { name: "Edit tiles" }).click();
+  // The three default tiles fill the cap, so a fourth is blocked until a slot
+  // is freed. Confirm the cap, then swap one out for "Liquid assets".
+  await expect(page.getByRole("checkbox", { name: /Liquid assets/i })).toBeDisabled();
+  await page.getByRole("checkbox", { name: /Goals on track/i }).click();
   await page.getByRole("checkbox", { name: /Liquid assets/i }).click();
   await page.getByRole("button", { name: "Done editing tiles" }).click();
   await expect(page.getByTestId("dashboard-tiles")).toContainText("Liquid assets");
