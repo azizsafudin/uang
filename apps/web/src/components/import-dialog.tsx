@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
+import { currencyDecimals } from "@uang/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,9 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
 import { ImportReview } from "@/components/import-review";
 import type { CsvParserConfig, PdfParserConfig } from "../../../api/src/lib/import/types";
 
@@ -33,6 +37,12 @@ type PreviewRow = { date: string | null; amountMinor: number | null; description
 type PreviewError = { raw: Record<string, string>; reason: string };
 type Preview = { rows: PreviewRow[]; total: number; errorCount: number; errors: PreviewError[] };
 
+function fmtAmount(minor: number | null, currency: string): string {
+  if (minor === null) return "—";
+  const dp = currencyDecimals(currency);
+  return (minor / 10 ** dp).toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+
 function arrayBufferToBase64(buf: ArrayBuffer): string {
   let binary = "";
   const bytes = new Uint8Array(buf);
@@ -55,6 +65,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   const [batchId, setBatchId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [fileError, setFileError] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // CSV new-parser column mapping fields
@@ -86,7 +97,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
 
   function reset() {
     setFormat("csv"); setFilename(""); setContent(""); setPdfFingerprint(null); setDetect(null);
-    setHeaders([]); setParserId(""); setBatchId(null); setFileError("");
+    setHeaders([]); setParserId(""); setBatchId(null); setFileError(""); setDetailsOpen(false);
     setName(""); setDateCol(""); setDescCol(""); setAmountCol("");
     setDateFmt("YYYY-MM-DD"); setSign("negativeIsDebit");
     setTxnLine(""); setStartAfter(""); setStopAt(""); setMultiline(false);
@@ -204,12 +215,13 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   }, [content, parserId, format, dateCol, dateFmt, descCol, amountCol, sign, txnLine, startAfter, stopAt, multiline, accountCurrency]);
 
   async function runRefine(instruction: string) {
+    if (!instruction.trim() && !(preview && preview.errorCount > 0)) return;
     setAiBusy(true);
     try {
       const { data, error } = await api["import-parsers"].refine.post({
         content, config: buildConfig(), format, instruction, errors: preview?.errors ?? [],
       });
-      if (error || !data || !("config" in data)) { setAiMsg("Refine failed"); return; }
+      if (error || !data || !("config" in data)) { setAiMsg("Refine didn't work — try rewording it."); return; }
       applyConfig(data.config);
       setRefineText("");
       setAiMsg("");
@@ -222,7 +234,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
     setAiBusy(true);
     try {
       const { data, error } = await api["import-parsers"].synthesize.post({ content, format });
-      if (error || !data || !("config" in data)) { setAiMsg("AI couldn't generate — map manually"); return; }
+      if (error || !data || !("config" in data)) { setAiMsg("Couldn't read this layout. Open Parser details to map it yourself."); return; }
       applyConfig(data.config);
       setAiMsg("");
     } finally {
@@ -255,42 +267,45 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   const needsMapping = parserId === NEW_PARSER;
   const mappingReady = format === "pdf" ? !!txnLine : !!(dateCol && descCol && amountCol);
   const canRun = content !== "" && (!needsMapping || mappingReady);
+  const hasCandidates = (detect?.candidates.length ?? 0) > 0;
+  // With AI, the parser config lives behind a disclosure (results are the focus);
+  // without AI, mapping is the only path, so show the fields inline.
+  const showConfig = !aiEnabled || detailsOpen;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
       <DialogTrigger render={<Button variant="outline" />}>Import statement</DialogTrigger>
       <DialogContent className="sm:max-w-3xl">
-        <DialogHeader><DialogTitle>Import statement (CSV or PDF)</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Import statement</DialogTitle></DialogHeader>
 
         {batchId ? (
           <ImportReview batchId={batchId} accountCurrency={accountCurrency} onDone={() => { setOpen(false); reset(); }} />
         ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Statement file</Label>
-              <div
-                data-testid="import-dropzone"
-                onDragOver={(e) => { e.preventDefault(); }}
-                onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}
-                onClick={() => fileInputRef.current?.click()}
-                className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-input py-8 text-center text-sm text-muted-foreground hover:border-ring"
-              >
-                <span className="text-base">&#8593; Drop your statement here</span>
-                <span>or click to browse (.csv, .pdf){filename ? ` — ${filename}` : ""}</span>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,text/csv,.pdf,application/pdf"
-                  className="hidden"
-                  data-testid="import-file"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
-                />
-              </div>
-              {fileError && <p className="text-sm text-destructive" data-testid="import-file-error">{fileError}</p>}
+          <div className="space-y-5">
+            {/* Drop zone */}
+            <div
+              data-testid="import-dropzone"
+              onDragOver={(e) => { e.preventDefault(); }}
+              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}
+              onClick={() => fileInputRef.current?.click()}
+              className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-input py-8 text-center text-sm text-muted-foreground transition-colors hover:border-ring"
+            >
+              <span className="text-base">↑ Drop your statement here</span>
+              <span>or click to browse — CSV or PDF{filename ? ` · ${filename}` : ""}</span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv,.pdf,application/pdf"
+                className="hidden"
+                data-testid="import-file"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+              />
             </div>
+            {fileError && <p className="text-sm text-destructive" data-testid="import-file-error">{fileError}</p>}
 
-            {content && (
-              <div className="space-y-2">
+            {/* Saved-parser picker — only when an existing parser matches the file */}
+            {content && hasCandidates && (
+              <div className="space-y-1.5">
                 <Label>Parser</Label>
                 <Select value={parserId} onValueChange={(v: string | null) => v && setParserId(v)}>
                   <SelectTrigger data-testid="import-parser">
@@ -318,108 +333,107 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
               </div>
             )}
 
-            {needsMapping && (
+            {content && needsMapping && (
               <div className="space-y-4">
+                {/* Generate — the primary path when AI is configured */}
                 {aiEnabled && (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Button
                       type="button"
-                      variant="outline"
+                      className="w-full"
                       disabled={!content || aiBusy}
                       data-testid="ai-generate"
                       onClick={() => void generate()}
                     >
-                      {aiBusy ? "Generating…" : "✨ Generate with AI"}
+                      {aiBusy ? "Reading your statement…" : "✨ Generate with AI"}
                     </Button>
                     {aiMsg && <p className="text-sm text-muted-foreground">{aiMsg}</p>}
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 space-y-1">
-                    <Label>Parser name</Label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={filename} data-testid="parser-name" />
-                  </div>
+                {/* Results — the focus of the screen */}
+                <ResultsPreview preview={preview} currency={accountCurrency} aiEnabled={aiEnabled} ready={mappingReady} />
 
-                  {format === "pdf" ? (
-                    <>
-                      <div className="col-span-2 space-y-1">
-                        <Label>Transaction line regex</Label>
-                        <Input value={txnLine} onChange={(e) => setTxnLine(e.target.value)}
-                          placeholder="^(?<date>\\d{2}/\\d{2}/\\d{4})\\s+(?<description>.+?)\\s+(?<amount>-?[\\d,]+\\.\\d{2})$"
-                          data-testid="map-txnline" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Date format</Label>
-                        <Input value={dateFmt} onChange={(e) => setDateFmt(e.target.value)} data-testid="map-dateformat" />
-                      </div>
-                      <SignSelect sign={sign} setSign={setSign} />
-                      <div className="space-y-1">
-                        <Label>Region start (regex, optional)</Label>
-                        <Input value={startAfter} onChange={(e) => setStartAfter(e.target.value)} data-testid="map-startafter" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Region stop (regex, optional)</Label>
-                        <Input value={stopAt} onChange={(e) => setStopAt(e.target.value)} data-testid="map-stopat" />
-                      </div>
-                      <label className="col-span-2 flex items-center gap-2 text-sm">
-                        <input type="checkbox" checked={multiline} onChange={(e) => setMultiline(e.target.checked)} data-testid="map-multiline" />
-                        Append non-matching lines to the previous description
-                      </label>
-                    </>
-                  ) : (
-                    <>
-                      <ColumnPick label="Date column" value={dateCol} set={setDateCol} headers={headers} testId="map-date" />
-                      <div className="space-y-1">
-                        <Label>Date format</Label>
-                        <Input value={dateFmt} onChange={(e) => setDateFmt(e.target.value)} data-testid="map-dateformat" />
-                      </div>
-                      <ColumnPick label="Description column" value={descCol} set={setDescCol} headers={headers} testId="map-desc" />
-                      <ColumnPick label="Amount column" value={amountCol} set={setAmountCol} headers={headers} testId="map-amount" />
-                      <SignSelect sign={sign} setSign={setSign} />
-                    </>
-                  )}
-                </div>
-
-                {preview && (
-                  <div className="space-y-1 rounded-md border p-2 text-sm">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Preview</span>
-                      <span>{preview.total - preview.errorCount} ok &middot; {preview.errorCount} errors</span>
-                    </div>
-                    {preview.total === 0 && (
-                      <p className="text-muted-foreground">
-                        No transactions matched — check the {format === "pdf" ? "transaction-line regex and region anchors" : "column mapping"}
-                        {aiEnabled ? ", or use Refine to fix it" : ""}.
-                      </p>
-                    )}
-                    {preview.rows.map((r, i) => (
-                      <div key={i} className="flex justify-between tabular-nums">
-                        <span>{r.date ?? "—"}</span>
-                        <span className="flex-1 truncate px-2">{r.description}</span>
-                        <span>{r.amountMinor === null ? "—" : (r.amountMinor / 100).toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
+                {/* Refine — sits right under the results it changes */}
                 {aiEnabled && (
                   <div className="flex items-center gap-2">
                     <Input
                       value={refineText}
                       onChange={(e) => setRefineText(e.target.value)}
-                      placeholder="Tell the AI what's off…"
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void runRefine(refineText); } }}
+                      placeholder="Tell the AI what's off — e.g. “dates are DD/MM” or “ignore the balance column”"
+                      disabled={aiBusy || !mappingReady}
                       data-testid="ai-refine-input"
                     />
-                    <Button type="button" variant="outline" disabled={aiBusy || !content} data-testid="ai-refine"
-                      onClick={() => void runRefine(refineText)}>
-                      Refine
+                    <Button
+                      type="button" variant="outline"
+                      disabled={aiBusy || !mappingReady || !refineText.trim()}
+                      data-testid="ai-refine"
+                      onClick={() => void runRefine(refineText)}
+                    >
+                      {aiBusy ? "Refining…" : "Refine"}
                     </Button>
-                    {preview && preview.errorCount > 0 && (
-                      <Button type="button" variant="ghost" disabled={aiBusy} data-testid="ai-fix-errors"
-                        onClick={() => void runRefine("Fix the rows that failed to parse.")}>
-                        Ask AI to fix these
-                      </Button>
+                  </div>
+                )}
+
+                {/* Parser details — hidden by default when AI is on */}
+                {aiEnabled && (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                    data-testid="parser-details-toggle"
+                    onClick={() => setDetailsOpen((o) => !o)}
+                  >
+                    <span className={`transition-transform ${detailsOpen ? "rotate-90" : ""}`}>›</span>
+                    Parser details
+                  </button>
+                )}
+
+                {showConfig && (
+                  <div className="grid grid-cols-2 gap-3 rounded-lg border border-border/60 p-3">
+                    <div className="col-span-2 space-y-1.5">
+                      <Label>Parser name</Label>
+                      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={filename} data-testid="parser-name" />
+                    </div>
+
+                    {format === "pdf" ? (
+                      <>
+                        <div className="col-span-2 space-y-1.5">
+                          <Label>Transaction line pattern</Label>
+                          <Input value={txnLine} onChange={(e) => setTxnLine(e.target.value)}
+                            className="font-mono text-xs"
+                            placeholder="(?<date>…)\s+(?<description>…)\s+(?<amount>…)"
+                            data-testid="map-txnline" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Date format</Label>
+                          <Input value={dateFmt} onChange={(e) => setDateFmt(e.target.value)} data-testid="map-dateformat" />
+                        </div>
+                        <SignSelect sign={sign} setSign={setSign} />
+                        <div className="space-y-1.5">
+                          <Label>Region start (optional)</Label>
+                          <Input value={startAfter} onChange={(e) => setStartAfter(e.target.value)} className="font-mono text-xs" data-testid="map-startafter" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Region stop (optional)</Label>
+                          <Input value={stopAt} onChange={(e) => setStopAt(e.target.value)} className="font-mono text-xs" data-testid="map-stopat" />
+                        </div>
+                        <label className="col-span-2 flex items-center gap-2 text-sm text-muted-foreground">
+                          <input type="checkbox" checked={multiline} onChange={(e) => setMultiline(e.target.checked)} data-testid="map-multiline" />
+                          Append non-matching lines to the previous description
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        <ColumnPick label="Date column" value={dateCol} set={setDateCol} headers={headers} testId="map-date" />
+                        <div className="space-y-1.5">
+                          <Label>Date format</Label>
+                          <Input value={dateFmt} onChange={(e) => setDateFmt(e.target.value)} data-testid="map-dateformat" />
+                        </div>
+                        <ColumnPick label="Description column" value={descCol} set={setDescCol} headers={headers} testId="map-desc" />
+                        <ColumnPick label="Amount column" value={amountCol} set={setAmountCol} headers={headers} testId="map-amount" />
+                        <SignSelect sign={sign} setSign={setSign} />
+                      </>
                     )}
                   </div>
                 )}
@@ -438,12 +452,83 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   );
 }
 
+// The parsed-transactions preview: the result the user actually cares about.
+function ResultsPreview({ preview, currency, aiEnabled, ready }: {
+  preview: Preview | null; currency: string; aiEnabled: boolean; ready: boolean;
+}) {
+  if (!preview || !ready) {
+    return (
+      <div className="rounded-lg border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
+        {aiEnabled
+          ? "Generate a parser to preview your transactions, or open Parser details to map them yourself."
+          : "Map the columns below — your transactions will preview here."}
+      </div>
+    );
+  }
+
+  const ok = preview.total - preview.errorCount;
+
+  if (preview.total === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border/60 p-6 text-center" data-testid="import-preview">
+        <p className="font-medium">No transactions found</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {aiEnabled
+            ? "Tell the AI what to look for in the box below, or tweak Parser details."
+            : "Adjust the column mapping in Parser details."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2" data-testid="import-preview">
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-sm font-medium">Preview</h3>
+        <span className="text-xs tabular-nums text-muted-foreground" data-testid="preview-summary">
+          {ok} found{preview.errorCount > 0 ? ` · ${preview.errorCount} skipped` : ""}
+          {preview.total > preview.rows.length ? ` · first ${preview.rows.length} shown` : ""}
+        </span>
+      </div>
+      <div className="overflow-hidden rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-28">Date</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {preview.rows.map((r, i) => (
+              <TableRow key={i}>
+                <TableCell className="tabular-nums">
+                  {r.date ?? <span className="text-destructive">unreadable</span>}
+                </TableCell>
+                <TableCell className="max-w-[22rem] truncate">
+                  {r.description || <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{fmtAmount(r.amountMinor, currency)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      {preview.errorCount > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {preview.errorCount} line{preview.errorCount === 1 ? "" : "s"} couldn't be read and will be skipped.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SignSelect({ sign, setSign }: {
   sign: "negativeIsDebit" | "positiveIsDebit";
   setSign: (v: "negativeIsDebit" | "positiveIsDebit") => void;
 }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <Label>Amount sign</Label>
       <Select value={sign} onValueChange={(v: string | null) => v && setSign(v === "positiveIsDebit" ? "positiveIsDebit" : "negativeIsDebit")}>
         <SelectTrigger data-testid="map-sign">
@@ -464,7 +549,7 @@ function ColumnPick({ label, value, set, headers, testId }: {
   label: string; value: string; set: (v: string) => void; headers: string[]; testId: string;
 }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <Label>{label}</Label>
       <Select value={value} onValueChange={(v: string | null) => v && set(v)}>
         <SelectTrigger data-testid={testId}><SelectValue placeholder="Select column" /></SelectTrigger>

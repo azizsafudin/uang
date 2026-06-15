@@ -29,7 +29,7 @@ test("drop a CSV, map columns, see live preview, import", async ({ page }) => {
   await page.getByRole("option", { name: "Amount" }).click();
 
   // Live preview appears (debounced 400ms — Playwright auto-waits via toBeVisible)
-  await expect(dialog.getByText(/2 ok · 0 errors/)).toBeVisible();
+  await expect(dialog.getByTestId("preview-summary")).toContainText("2 found");
 
   await dialog.getByTestId("import-run").click();
   await expect(dialog.getByTestId("import-row")).toHaveCount(2);
