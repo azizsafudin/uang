@@ -29,6 +29,9 @@ type NwAccount = {
   spendStartKind: "age" | "target";
   spendStartAge: number | null;
   spendStartTargetMinor: number | null;
+  contributionMinor: number;
+  contributionUntilAge: number | null;
+  compoundInterval: "monthly" | "quarterly" | "annually";
 };
 type NwResponse = { baseCurrency: string; accounts: NwAccount[] };
 type Member = { id: string; name: string; birthYear: number | null };
@@ -108,6 +111,9 @@ export function ProjectionChart() {
       spendStartKind: a.spendStartKind,
       spendStartAge: a.spendStartAge,
       spendStartTargetMinor: a.spendStartTargetMinor,
+      contributionMinor: a.contributionMinor,
+      contributionUntilAge: a.contributionUntilAge,
+      compoundInterval: a.compoundInterval,
     }));
 
     const birthYears = members.map((m) => m.birthYear).filter((y): y is number => y != null);

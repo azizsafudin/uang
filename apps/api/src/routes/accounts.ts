@@ -61,6 +61,9 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
           spendStartKind: body.spendStartKind ?? "age",
           spendStartAge: body.spendStartAge ?? null,
           spendStartTargetMinor: body.spendStartTargetMinor ?? null,
+          contributionMinor: body.contributionMinor ?? 0,
+          contributionUntilAge: body.contributionUntilAge ?? null,
+          compoundInterval: body.compoundInterval ?? "annually",
         });
       } catch (e) {
         if (isUniqueViolation(e)) {
@@ -96,6 +99,9 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         spendStartKind: t.Optional(t.Union([t.Literal("age"), t.Literal("target")])),
         spendStartAge: t.Optional(t.Union([t.Number(), t.Null()])),
         spendStartTargetMinor: t.Optional(t.Union([t.Number(), t.Null()])),
+        contributionMinor: t.Optional(t.Number()),
+        contributionUntilAge: t.Optional(t.Union([t.Number(), t.Null()])),
+        compoundInterval: t.Optional(t.Union([t.Literal("monthly"), t.Literal("quarterly"), t.Literal("annually")])),
       }),
     },
   )
@@ -161,6 +167,9 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
       if (body.spendStartKind !== undefined) update.spendStartKind = body.spendStartKind;
       if (body.spendStartAge !== undefined) update.spendStartAge = body.spendStartAge;
       if (body.spendStartTargetMinor !== undefined) update.spendStartTargetMinor = body.spendStartTargetMinor;
+      if (body.contributionMinor !== undefined) update.contributionMinor = body.contributionMinor;
+      if (body.contributionUntilAge !== undefined) update.contributionUntilAge = body.contributionUntilAge;
+      if (body.compoundInterval !== undefined) update.compoundInterval = body.compoundInterval;
       await db.update(accounts).set(update).where(eq(accounts.id, params.id));
       return { ok: true };
     },
@@ -183,6 +192,9 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         spendStartKind: t.Optional(t.Union([t.Literal("age"), t.Literal("target")])),
         spendStartAge: t.Optional(t.Union([t.Number(), t.Null()])),
         spendStartTargetMinor: t.Optional(t.Union([t.Number(), t.Null()])),
+        contributionMinor: t.Optional(t.Number()),
+        contributionUntilAge: t.Optional(t.Union([t.Number(), t.Null()])),
+        compoundInterval: t.Optional(t.Union([t.Literal("monthly"), t.Literal("quarterly"), t.Literal("annually")])),
       }),
     },
   )

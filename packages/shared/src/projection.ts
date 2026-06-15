@@ -84,11 +84,25 @@ export type WithdrawalConfig = {
   spendStartTargetMinor: number | null; // start when this account's balance reaches this (base minor)
 };
 
-export type ProjectionAccount = AccessibilityConfig & WithdrawalConfig & {
-  baseMinor: number;      // current base-currency balance (signed)
-  growthRateBps: number;
-  ownerBirthYears: number[]; // owners' birth years; empty = unknown
+export type CompoundInterval = "monthly" | "quarterly" | "annually";
+
+function periodsPerYear(interval: CompoundInterval): number {
+  return interval === "monthly" ? 12 : interval === "quarterly" ? 4 : 1;
+}
+
+export type AccumulationConfig = {
+  contributionMinor: number;          // base minor, contributed per MONTH during accumulation
+  contributionUntilAge: number | null; // stop when youngest owner reaches this age; null = whole projection
+  compoundInterval: CompoundInterval;  // how often growth + contributions compound within a year
 };
+
+export type ProjectionAccount = AccessibilityConfig &
+  WithdrawalConfig &
+  AccumulationConfig & {
+    baseMinor: number;      // current base-currency balance (signed)
+    growthRateBps: number;
+    ownerBirthYears: number[]; // owners' birth years; empty = unknown
+  };
 
 export type ProjectionPoint = {
   year: number;
@@ -96,11 +110,14 @@ export type ProjectionPoint = {
   accessibleBaseMinor: number;
 };
 
-// Year-by-year balance for one account, modelling growth then withdrawal.
-// Offset 0 is today's balance, untouched. Each later year: grow at growthRateBps,
-// then (if the spend trigger has fired and the balance is positive) withdraw.
-// Withdrawals never push a balance below 0; naturally-negative balances (debt)
-// keep compounding and are never floored.
+// Year-by-year balance for one account: accumulate (contributions + growth,
+// compounded at the chosen interval), then withdraw. Offset 0 is today's balance,
+// untouched. Each later year runs `n` sub-periods (n = 12/4/1 for monthly/quarterly/
+// annually); each sub-period adds that period's share of the monthly contribution
+// then grows by rate/n. Contributions run until the youngest owner hits
+// contributionUntilAge (null = whole projection). Withdrawals are applied once per
+// year after accumulation; they never push a balance below 0, and naturally-negative
+// balances (debt) keep compounding and are never floored.
 export function projectAccountSeries(
   account: ProjectionAccount,
   span: number,
@@ -108,14 +125,30 @@ export function projectAccountSeries(
   youngestBirthYear: number | null,
 ): number[] {
   assertYears(span);
-  const factor = BPS + toBig(account.growthRateBps);
+  const n = periodsPerYear(account.compoundInterval);
+  const periods = BigInt(n);
+  const denom = BPS * periods;            // per-period growth: (denom + rate) / denom
+  const numer = denom + toBig(account.growthRateBps);
+  const monthsPerPeriod = BigInt(12 / n); // monthly contribution accrues over the period
   let b = toBig(account.baseMinor);
   const out: number[] = [fromBig(b)];
   let started = false;
   let finishedOnce = false;
   for (let offset = 1; offset <= span; offset++) {
     const year = fromYear + offset;
-    b = roundDiv(b * factor, BPS); // grow
+
+    // Accumulate: contributions (until the cutoff age) + growth, compounded n times.
+    const contributing =
+      account.contributionMinor > 0 &&
+      (account.contributionUntilAge === null ||
+        youngestBirthYear === null ||
+        year - youngestBirthYear < account.contributionUntilAge);
+    const contribPerPeriod = contributing
+      ? toBig(account.contributionMinor) * monthsPerPeriod
+      : 0n;
+    for (let p = 0; p < n; p++) {
+      b = roundDiv((b + contribPerPeriod) * numer, denom);
+    }
 
     if (account.spendType !== "none" && !started) {
       if (account.spendStartKind === "age") {

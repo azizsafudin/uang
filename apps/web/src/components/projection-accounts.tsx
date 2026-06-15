@@ -35,6 +35,18 @@ const pct = (bps: number) => `${bps / 100}%`;
 function ProjectionConfig({ account, baseCurrency }: { account: AccountRecord; baseCurrency: string }) {
   const isLiability = account.class === "liability";
 
+  const growth =
+    account.compoundInterval === "annually"
+      ? `${pct(account.growthRateBps)}/yr`
+      : `${pct(account.growthRateBps)}/yr · ${account.compoundInterval}`;
+
+  const contribution =
+    account.contributionMinor > 0
+      ? `+${formatMoney(account.contributionMinor, baseCurrency)}/mo${
+          account.contributionUntilAge != null ? ` until ${account.contributionUntilAge}` : ""
+        }`
+      : null;
+
   let withdrawal: string | null = null;
   if (!isLiability && account.spendType !== "none") {
     const when =
@@ -56,7 +68,8 @@ function ProjectionConfig({ account, baseCurrency }: { account: AccountRecord; b
 
   return (
     <>
-      <p className="text-sm font-medium tabular-nums">{pct(account.growthRateBps)}/yr</p>
+      <p className="text-sm font-medium tabular-nums">{growth}</p>
+      {contribution && <p className="text-xs text-primary">{contribution}</p>}
       <p className="text-xs text-muted-foreground">
         {withdrawal ?? (isLiability ? "—" : "no withdrawal")}
       </p>

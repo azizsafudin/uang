@@ -37,6 +37,13 @@ export const accounts = sqliteTable("accounts", {
     .default("age"),
   spendStartAge: integer("spend_start_age"),               // when spendStartKind = 'age'
   spendStartTargetMinor: integer("spend_start_target_minor"), // base minor; when spendStartKind = 'target'
+  // Accumulation: monthly contribution (base minor) until contributionUntilAge
+  // (null = whole projection), compounded at compoundInterval.
+  contributionMinor: integer("contribution_minor").notNull().default(0),
+  contributionUntilAge: integer("contribution_until_age"),
+  compoundInterval: text("compound_interval", { enum: ["monthly", "quarterly", "annually"] })
+    .notNull()
+    .default("annually"),
   groupId: text("group_id"),   // nullable logical FK → groups.id
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),

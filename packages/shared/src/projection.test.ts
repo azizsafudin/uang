@@ -94,11 +94,15 @@ test("accessibleValueMinor: rejects out-of-range earlyHaircutBps", () => {
   expect(() => accessibleValueMinor(100_000, 50, bad)).toThrow();
 });
 
-import { projectNetWorth, projectAccountSeries, milestoneYears, type ProjectionAccount, type WithdrawalConfig } from "./projection";
+import { projectNetWorth, projectAccountSeries, milestoneYears, type ProjectionAccount, type WithdrawalConfig, type AccumulationConfig } from "./projection";
 
 const noSpend: WithdrawalConfig = {
   spendType: "none", spendAmountMinor: null, spendRateBps: null,
   spendStartKind: "age", spendStartAge: null, spendStartTargetMinor: null,
+};
+
+const noAcc: AccumulationConfig = {
+  contributionMinor: 0, contributionUntilAge: null, compoundInterval: "annually",
 };
 
 test("milestoneYears: default 55/62/65", () => {
@@ -113,12 +117,12 @@ test("projectNetWorth: total grows; accessible respects unlocks", () => {
   const cash: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 0,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990], ...noSpend,
+    liquidationAge: null, ownerBirthYears: [1990], ...noSpend, ...noAcc,
   };
   const cpf: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990], ...noSpend,
+    liquidationAge: null, ownerBirthYears: [1990], ...noSpend, ...noAcc,
   };
   // 2030: owner age 40 -> CPF locked. 2045: owner age 55 -> CPF unlocks.
   const pts = projectNetWorth({ accounts: [cash, cpf], fromYear: 2030, toYear: 2045 });
@@ -130,7 +134,7 @@ test("projectNetWorth: shared account uses the youngest owner's age", () => {
   const shared: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1980, 1990], ...noSpend, // youngest born 1990
+    liquidationAge: null, ownerBirthYears: [1980, 1990], ...noSpend, ...noAcc, // youngest born 1990
   };
   const pts = projectNetWorth({ accounts: [shared], fromYear: 2040, toYear: 2045 });
   // 2040: younger is 50 -> locked. 2045: younger is 55 -> unlocked.
@@ -146,7 +150,7 @@ test("projectNetWorth: empty ownerBirthYears treats account as accessible", () =
   const noBirth: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [], ...noSpend,
+    liquidationAge: null, ownerBirthYears: [], ...noSpend, ...noAcc,
   };
   const pts = projectNetWorth({ accounts: [noBirth], fromYear: 2030, toYear: 2030 });
   expect(pts[0].accessibleBaseMinor).toBe(100_000);
@@ -156,7 +160,7 @@ test("projectNetWorth: empty ownerBirthYears treats account as accessible", () =
 
 const liquidSpend = {
   accessibleFromAge: 0, earlyWithdrawal: "none" as const, earlyHaircutBps: 0,
-  illiquid: false, liquidationAge: null, ...noSpend,
+  illiquid: false, liquidationAge: null, ...noSpend, ...noAcc,
 };
 
 test("withdrawal none: identical to compound-only baseline", () => {
@@ -229,4 +233,43 @@ test("liabilities keep compounding negative; withdrawal config ignored", () => {
   };
   const series = projectAccountSeries(a, 1, 2030, 1990);
   expect(series).toEqual([-100_000, -102_500]);
+});
+
+// --- Contributions + compound interval -------------------------------------
+
+test("monthly contribution compounds (annual interval): 12x/yr added before growth", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 0, growthRateBps: 1000, ownerBirthYears: [],
+    contributionMinor: 1_000, contributionUntilAge: null,
+  };
+  // y1: (0 + 12000) * 1.10 = 13200 ; y2: (13200 + 12000) * 1.10 = 27720
+  expect(projectAccountSeries(a, 2, 2030, null)).toEqual([0, 13_200, 27_720]);
+});
+
+test("contributions run until the cutoff age, then stop", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 0, growthRateBps: 0, ownerBirthYears: [2000],
+    contributionMinor: 1_000, contributionUntilAge: 30,
+  };
+  // 2029 (age 29) contributes; 2030 (age 30) and after do not.
+  expect(projectAccountSeries(a, 3, 2028, 2000)).toEqual([0, 12_000, 12_000, 12_000]);
+});
+
+test("no cutoff age + no birth year still contributes for the whole projection", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 0, growthRateBps: 0, ownerBirthYears: [],
+    contributionMinor: 1_000, contributionUntilAge: 40,
+  };
+  // Age can't be computed (no birth year) so the cutoff can't apply — keep contributing.
+  expect(projectAccountSeries(a, 2, 2030, null)).toEqual([0, 12_000, 24_000]);
+});
+
+test("compound interval: monthly > quarterly > annually for the same nominal rate", () => {
+  const base = { ...liquidSpend, baseMinor: 1_000_000, growthRateBps: 1200, ownerBirthYears: [] };
+  const annually = projectAccountSeries({ ...base, compoundInterval: "annually" }, 1, 2030, null)[1];
+  const quarterly = projectAccountSeries({ ...base, compoundInterval: "quarterly" }, 1, 2030, null)[1];
+  const monthly = projectAccountSeries({ ...base, compoundInterval: "monthly" }, 1, 2030, null)[1];
+  expect(annually).toBe(1_120_000);
+  expect(quarterly).toBeGreaterThan(annually);
+  expect(monthly).toBeGreaterThan(quarterly);
 });
