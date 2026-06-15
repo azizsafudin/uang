@@ -174,6 +174,18 @@ export const instrumentsCollection = createCollection(
       });
       if (error) throw new Error(String(error));
     },
+    onUpdate: async ({ transaction }) => {
+      const m = transaction.mutations[0]?.modified as InstrumentRow | undefined;
+      if (!m) return;
+      const { error } = await api.instruments({ id: m.id }).patch({
+        name: m.name,
+        symbol: m.symbol ?? undefined,
+        isin: m.isin ?? undefined,
+        kind: m.kind as "currency" | "stock" | "etf" | "fund" | "crypto" | "other",
+        currency: m.currency,
+      });
+      if (error) throw new Error(String(error));
+    },
   })
 );
 

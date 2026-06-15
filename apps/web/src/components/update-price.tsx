@@ -21,7 +21,7 @@ export function UpdatePrice({
   label,
 }: {
   instrumentId: string;
-  accountId: string;
+  accountId?: string;
   label?: string;
 }) {
   const qc = useQueryClient();
@@ -41,8 +41,9 @@ export function UpdatePrice({
       source: "manual",
       createdAt: Math.floor(Date.now() / 1000),
     });
-    await qc.invalidateQueries({ queryKey: ["positions", accountId] });
+    if (accountId) await qc.invalidateQueries({ queryKey: ["positions", accountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["instrument", instrumentId] });
     setOpen(false);
     setPrice("");
   }
