@@ -13,6 +13,7 @@ function num(v: unknown): number { if (typeof v !== "number") fail(); return v; 
 export function assertSafeRegex(src: string): string {
   if (src.length > 1000) fail();
   if (/\([^()]*[+*][^()]*\)[+*]/.test(src)) fail(); // (..+..)+ , (..*..)* , (\d+)*
+  if (/\([^()]*[+*][^()]*\)\{[0-9,]+\}/.test(src)) fail(); // (..+..){n,} , (..*..){n,}
   if (/[+*]{2,}/.test(src)) fail();                  // a++ , a** , a*+
   try { new RegExp(src); } catch { fail(); }
   return src;

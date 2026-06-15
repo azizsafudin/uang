@@ -63,6 +63,10 @@ test("validateParserConfig rejects a ReDoS-prone transactionLine (nested quantif
   expect(() => validateParserConfig({ ...PDF_OK, transactionLine: "(?<date>(a+)+)(?<amount>b)" })).toThrow();
 });
 
+test("validateParserConfig rejects a ReDoS-prone transactionLine with {n,} nesting", () => {
+  expect(() => validateParserConfig({ ...PDF_OK, transactionLine: "(?<date>(\\d+){2,})(?<amount>b)" })).toThrow();
+});
+
 test("validateParserConfig rejects an over-long transactionLine", () => {
   expect(() => validateParserConfig({ ...PDF_OK, transactionLine: "(?<date>a)(?<amount>b)" + "x".repeat(1001) })).toThrow();
 });

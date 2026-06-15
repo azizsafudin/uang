@@ -129,7 +129,8 @@ export const importParsersRoutes = new Elysia()
       let config: ParserConfig;
       try { config = validateParserConfig(body.config); }
       catch { set.status = 422; return { error: "invalid_config" }; }
-      if (config.format !== "csv") { set.status = 422; return { error: "invalid_config" }; }
+      // TODO(pdf-import): remove once this endpoint is format-aware (handles pdf)
+      if (config.format !== "csv") { set.status = 422; return { error: "unsupported_format" }; }
       const all = parseCsv(body.content, config, (body.currency ?? "USD").toUpperCase());
       const bad = all.filter((r) => r.error || r.date === null || r.amountMinor === null);
       return {

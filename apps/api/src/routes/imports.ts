@@ -48,6 +48,7 @@ export const importsRoutes = new Elysia()
       if (!parser) { set.status = 422; return { error: "unknown_parser" }; }
 
       const config = validateParserConfig(JSON.parse(parser.config));
+      // TODO(pdf-import): remove once this endpoint is format-aware (handles pdf)
       if (config.format !== "csv") { set.status = 422; return { error: "unsupported_format" }; }
       const canonical = parseCsv(body.content, config, account.currency);
 
