@@ -6,8 +6,9 @@ import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { validateParserConfig, validateFingerprint } from "../lib/import/validate";
 import { isUniqueViolation } from "../lib/db-errors";
-import { synthesizeCsvConfig, refineCsvConfig, capSample, AiError, type AiConfig } from "../lib/import/ai";
+import { synthesizeCsvConfig, refineCsvConfig, synthesizePdfConfig, refinePdfConfig, capSample, capPdfSample, AiError, type AiConfig } from "../lib/import/ai";
 import { parseCsv } from "../lib/import/csv";
+import { runPdfParser } from "../lib/import/pdf";
 import type { ParserConfig } from "../lib/import/types";
 
 async function loadAiConfig(): Promise<AiConfig | null> {
@@ -92,13 +93,18 @@ export const importParsersRoutes = new Elysia()
       const cfg = await loadAiConfig();
       if (!cfg) { set.status = 422; return { error: "ai_not_configured" }; }
       try {
-        const config = await synthesizeCsvConfig(capSample(body.content), cfg);
+        const config = body.format === "pdf"
+          ? await synthesizePdfConfig(capPdfSample(body.content), cfg)
+          : await synthesizeCsvConfig(capSample(body.content), cfg);
         return { config };
       } catch (e) {
         return aiErrorResponse(e, set);
       }
     },
-    { body: t.Object({ content: t.String({ maxLength: 200_000 }) }) },
+    { body: t.Object({
+      content: t.String({ maxLength: 200_000 }),
+      format: t.Optional(t.Union([t.Literal("csv"), t.Literal("pdf")])),
+    }) },
   )
   .post(
     "/import-parsers/refine",
@@ -106,9 +112,9 @@ export const importParsersRoutes = new Elysia()
       const cfg = await loadAiConfig();
       if (!cfg) { set.status = 422; return { error: "ai_not_configured" }; }
       try {
-        const config = await refineCsvConfig(
-          capSample(body.content), body.config, body.instruction ?? "", body.errors ?? [], cfg,
-        );
+        const config = body.format === "pdf"
+          ? await refinePdfConfig(capPdfSample(body.content), body.config, body.instruction ?? "", body.errors ?? [], cfg)
+          : await refineCsvConfig(capSample(body.content), body.config, body.instruction ?? "", body.errors ?? [], cfg);
         return { config };
       } catch (e) {
         return aiErrorResponse(e, set);
@@ -118,6 +124,7 @@ export const importParsersRoutes = new Elysia()
       body: t.Object({
         content: t.String({ maxLength: 200_000 }),
         config: t.Unknown(),
+        format: t.Optional(t.Union([t.Literal("csv"), t.Literal("pdf")])),
         instruction: t.Optional(t.String({ maxLength: 500 })),
         errors: t.Optional(t.Array(t.Object({ raw: t.Record(t.String(), t.String()), reason: t.String() }), { maxItems: 50 })),
       }),
@@ -129,9 +136,10 @@ export const importParsersRoutes = new Elysia()
       let config: ParserConfig;
       try { config = validateParserConfig(body.config); }
       catch { set.status = 422; return { error: "invalid_config" }; }
-      // TODO(pdf-import): remove once this endpoint is format-aware (handles pdf)
-      if (config.format !== "csv") { set.status = 422; return { error: "unsupported_format" }; }
-      const all = parseCsv(body.content, config, (body.currency ?? "USD").toUpperCase());
+      const currency = (body.currency ?? "USD").toUpperCase();
+      const all = config.format === "pdf"
+        ? runPdfParser(body.content, config, currency)
+        : parseCsv(body.content, config, currency);
       const bad = all.filter((r) => r.error || r.date === null || r.amountMinor === null);
       return {
         rows: all.slice(0, 5).map((r) => ({

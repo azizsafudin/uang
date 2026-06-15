@@ -112,3 +112,52 @@ test("preview returns 422 on an invalid config", async () => {
   }));
   expect(res.status).toBe(422);
 });
+
+const PDF_CONFIG = {
+  version: 1, format: "pdf",
+  region: { startAfter: "Transaction Details", stopAt: "Closing Balance" },
+  transactionLine: "^(?<date>\\d{2}/\\d{2}/\\d{4})\\s+(?<description>.+?)\\s+(?<amount>-?[\\d,]+\\.\\d{2})$",
+  date: { format: "DD/MM/YYYY" },
+  amount: { decimal: ".", thousands: ",", sign: "negativeIsDebit" },
+};
+const PDF_TEXT = "Transaction Details\n02/01/2026 COFFEE -4.50\nClosing Balance 9.00";
+
+test("synthesize with format:pdf returns a validated pdf config", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const mock = startMockAi(PDF_CONFIG);
+  try {
+    await enableAi(cookie, mock.baseUrl);
+    const res = await app.handle(new Request("http://localhost/import-parsers/synthesize", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ content: PDF_TEXT, format: "pdf" }),
+    }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).config.format).toBe("pdf");
+  } finally { mock.stop(); }
+});
+
+test("refine with format:pdf returns a validated pdf config", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const mock = startMockAi(PDF_CONFIG);
+  try {
+    await enableAi(cookie, mock.baseUrl);
+    const res = await app.handle(new Request("http://localhost/import-parsers/refine", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ content: PDF_TEXT, config: PDF_CONFIG, format: "pdf", instruction: "x", errors: [] }),
+    }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).config.format).toBe("pdf");
+  } finally { mock.stop(); }
+});
+
+test("preview parses PDF text with a pdf config", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const res = await app.handle(new Request("http://localhost/import-parsers/preview", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ content: PDF_TEXT, config: PDF_CONFIG, currency: "USD" }),
+  }));
+  expect(res.status).toBe(200);
+  const out = await res.json();
+  expect(out.total).toBe(1);
+  expect(out.rows[0]).toMatchObject({ date: "2026-01-02", amountMinor: -450, description: "COFFEE" });
+});

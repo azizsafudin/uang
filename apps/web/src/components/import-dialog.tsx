@@ -126,6 +126,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
         content, config: buildConfig(), instruction, errors: preview?.errors ?? [],
       });
       if (error || !data || !("config" in data)) { setAiMsg("Refine failed"); return; }
+      if (data.config.format !== "csv") { setAiMsg("Refine returned a non-CSV config"); return; }
       applyConfig(data.config);
       setRefineText("");
       setAiMsg("");
@@ -235,6 +236,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
                             setAiMsg("AI couldn't generate — map manually");
                             return;
                           }
+                          if (data.config.format !== "csv") { setAiMsg("AI couldn't generate — map manually"); return; }
                           applyConfig(data.config);
                           setAiMsg("");
                         } finally {
