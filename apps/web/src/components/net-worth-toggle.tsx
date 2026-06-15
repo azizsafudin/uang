@@ -21,7 +21,6 @@ export function NetWorthToggle({
       {options.map((o) => (
         <Button
           key={o.id}
-          size="sm"
           variant={value === o.id ? "default" : "outline"}
           onClick={() => onChange(o.id)}
           className={cn(value === o.id && "pointer-events-none")}

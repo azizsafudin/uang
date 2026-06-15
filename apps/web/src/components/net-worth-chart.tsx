@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { currencyDecimals, currencySymbol } from "@uang/shared";
 import { useMoney } from "@/lib/values-hidden";
 import { Button } from "@/components/ui/button";
+import { NetWorthToggle } from "@/components/net-worth-toggle";
 import { cn } from "@/lib/utils";
 import {
   ChartContainer,
@@ -84,7 +85,13 @@ async function fetchSeries(from: string, to: string, owner: string): Promise<Ser
   return data as unknown as Series;
 }
 
-export function NetWorthChart({ owner }: { owner: string }) {
+export function NetWorthChart({
+  owner,
+  onOwnerChange,
+}: {
+  owner: string;
+  onOwnerChange: (v: string) => void;
+}) {
   const money = useMoney();
   const [preset, setPreset] = useState<Preset>("1Y");
   // Custom range inputs (used only when preset === "Custom").
@@ -126,18 +133,21 @@ export function NetWorthChart({ owner }: { owner: string }) {
 
   return (
     <section data-testid="networth-chart" className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm md:px-6 md:py-5">
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {PRESETS.map((p) => (
-          <Button
-            key={p}
-            size="sm"
-            variant={preset === p ? "default" : "outline"}
-            onClick={() => setPreset(p)}
-            className={cn(preset === p && "pointer-events-none")}
-          >
-            {p}
-          </Button>
-        ))}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          {PRESETS.map((p) => (
+            <Button
+              key={p}
+              size="sm"
+              variant={preset === p ? "default" : "outline"}
+              onClick={() => setPreset(p)}
+              className={cn(preset === p && "pointer-events-none")}
+            >
+              {p}
+            </Button>
+          ))}
+        </div>
+        <NetWorthToggle value={owner} onChange={onOwnerChange} />
       </div>
 
       {preset === "Custom" && (

@@ -72,7 +72,7 @@ export function DashboardPage() {
       </section>
 
       <div className="mt-6">
-        <NetWorthChart owner={owner} />
+        <NetWorthChart owner={owner} onOwnerChange={setOwner} />
       </div>
 
       <div className="mt-9 space-y-8">
