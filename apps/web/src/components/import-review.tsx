@@ -97,9 +97,11 @@ export function ImportReview({ batchId, accountCurrency, onDone }: {
                     data-testid="import-row-include"
                   />
                 </TableCell>
-                <TableCell>{r.date ?? "—"}</TableCell>
-                <TableCell>{r.description}</TableCell>
-                <TableCell className="text-right tabular-nums">{fmt(r.amountMinor, accountCurrency)}</TableCell>
+                <TableCell className="whitespace-nowrap tabular-nums">{r.date ?? "—"}</TableCell>
+                <TableCell>
+                  <div className="max-w-[24rem] truncate" title={r.description}>{r.description}</div>
+                </TableCell>
+                <TableCell className="text-right tabular-nums whitespace-nowrap">{fmt(r.amountMinor, accountCurrency)}</TableCell>
                 <TableCell className="text-muted-foreground">{r.errorReason ?? r.status}</TableCell>
               </TableRow>
             ))}

@@ -303,33 +303,43 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
             </div>
             {fileError && <p className="text-sm text-destructive" data-testid="import-file-error">{fileError}</p>}
 
-            {/* Saved-parser picker — only when an existing parser matches the file */}
-            {content && hasCandidates && (
-              <div className="space-y-1.5">
-                <Label>Parser</Label>
-                <Select value={parserId} onValueChange={(v: string | null) => v && setParserId(v)}>
-                  <SelectTrigger data-testid="import-parser">
-                    <SelectValue>
-                      {(v: unknown) => {
-                        const val = typeof v === "string" ? v : "";
-                        if (!val) return "Choose a parser";
-                        if (val === NEW_PARSER) return "Create a new parser…";
-                        const c = detect?.candidates.find((x) => x.parserId === val);
-                        return c
-                          ? `${c.name}${c.confident ? " (match)" : ` (${Math.round(c.score * 100)}%)`}`
-                          : "Choose a parser";
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {detect?.candidates.map((c) => (
-                      <SelectItem key={c.parserId} value={c.parserId}>
-                        {c.name}{c.confident ? " (match)" : ` (${Math.round(c.score * 100)}%)`}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value={NEW_PARSER}>Create a new parser…</SelectItem>
-                  </SelectContent>
-                </Select>
+            {/* Parser: pick a saved match (when one exists) and name a new one inline */}
+            {content && (hasCandidates || needsMapping) && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {hasCandidates && (
+                  <div className="space-y-1.5">
+                    <Label>Parser</Label>
+                    <Select value={parserId} onValueChange={(v: string | null) => v && setParserId(v)}>
+                      <SelectTrigger data-testid="import-parser">
+                        <SelectValue>
+                          {(v: unknown) => {
+                            const val = typeof v === "string" ? v : "";
+                            if (!val) return "Choose a parser";
+                            if (val === NEW_PARSER) return "Create a new parser…";
+                            const c = detect?.candidates.find((x) => x.parserId === val);
+                            return c
+                              ? `${c.name}${c.confident ? " (match)" : ` (${Math.round(c.score * 100)}%)`}`
+                              : "Choose a parser";
+                          }}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {detect?.candidates.map((c) => (
+                          <SelectItem key={c.parserId} value={c.parserId}>
+                            {c.name}{c.confident ? " (match)" : ` (${Math.round(c.score * 100)}%)`}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={NEW_PARSER}>Create a new parser…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {needsMapping && (
+                  <div className="space-y-1.5">
+                    <Label>Parser name</Label>
+                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={filename} data-testid="parser-name" />
+                  </div>
+                )}
               </div>
             )}
 
@@ -391,11 +401,6 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
 
                 {showConfig && (
                   <div className="grid grid-cols-2 gap-3 rounded-lg border border-border/60 p-3">
-                    <div className="col-span-2 space-y-1.5">
-                      <Label>Parser name</Label>
-                      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={filename} data-testid="parser-name" />
-                    </div>
-
                     {format === "pdf" ? (
                       <>
                         <div className="col-span-2 space-y-1.5">
