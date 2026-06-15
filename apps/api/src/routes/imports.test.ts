@@ -1,6 +1,7 @@
 import { expect, test, beforeEach } from "bun:test";
+import { SCALE } from "@uang/shared";
 import { db } from "../db/client";
-import { accounts, importParsers, importBatches, importRows } from "../db/schema";
+import { accounts, importParsers, importBatches, importRows, transactions } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { createId, nowEpoch } from "../lib/ids";
@@ -71,6 +72,73 @@ test("GET batch returns batch + rows; PATCH row edits and toggles status", async
   const after = await db.select().from(importRows).where(eq(importRows.id, rowId));
   expect(after[0].status).toBe("excluded");
   expect(after[0].description).toBe("edited");
+});
+
+const S = Number(SCALE);
+
+test("commit inserts only 'new' rows as cash transactions and marks the batch committed", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const acc = await seedAccount();
+  const parserId = await seedParser(cookie);
+  const created = await (await app.handle(new Request(`http://localhost/accounts/${acc}/imports`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "feb.csv", content: CSV, parserId }),
+  }))).json();
+
+  // exclude the COFFEE row; only SALARY should commit
+  const coffee = created.rows.find((r: any) => r.description === "COFFEE");
+  await app.handle(new Request(`http://localhost/import-rows/${coffee.id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ status: "excluded" }),
+  }));
+
+  const res = await app.handle(new Request(`http://localhost/imports/${created.id}/commit`, {
+    method: "POST", headers: { cookie },
+  }));
+  expect(res.status).toBe(200);
+  const result = await res.json();
+  expect(result.committed).toBe(1);
+
+  const txns = await db.select().from(transactions).where(eq(transactions.accountId, acc));
+  expect(txns.length).toBe(1);
+  expect(txns[0].unitsDelta).toBe(2500 * S);     // +$2500 salary
+  expect(txns[0].notes).toBe("SALARY");
+  expect(txns[0].importBatchId).toBe(created.id);
+
+  const [batch] = await db.select().from(importBatches).where(eq(importBatches.id, created.id));
+  expect(batch.status).toBe("committed");
+});
+
+test("committed rows dedup against a second import", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const acc = await seedAccount();
+  const parserId = await seedParser(cookie);
+  const first = await (await app.handle(new Request(`http://localhost/accounts/${acc}/imports`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "feb.csv", content: CSV, parserId }),
+  }))).json();
+  await app.handle(new Request(`http://localhost/imports/${first.id}/commit`, { method: "POST", headers: { cookie } }));
+
+  const second = await (await app.handle(new Request(`http://localhost/accounts/${acc}/imports`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "feb-again.csv", content: CSV, parserId }),
+  }))).json();
+  expect(second.rowCountDuplicate).toBe(2);
+  expect(second.rowCountNew).toBe(0);
+});
+
+test("discard deletes the batch and its rows", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const acc = await seedAccount();
+  const parserId = await seedParser(cookie);
+  const created = await (await app.handle(new Request(`http://localhost/accounts/${acc}/imports`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "feb.csv", content: CSV, parserId }),
+  }))).json();
+  const res = await app.handle(new Request(`http://localhost/imports/${created.id}`, { method: "DELETE", headers: { cookie } }));
+  expect(res.status).toBe(200);
+  const rows = await db.select().from(importRows).where(eq(importRows.batchId, created.id));
+  expect(rows.length).toBe(0);
 });
 
 test("parse stages rows with dedup status and counts", async () => {
