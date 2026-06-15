@@ -9,12 +9,14 @@
     "db:migrate": "bun run src/db/migrate.ts"
   },
   "dependencies": {
-    "@uang/shared": "workspace:*",
-    "elysia": "latest",
     "@elysiajs/cors": "latest",
+    "@elysiajs/static": "^1.4.10",
     "@libsql/client": "latest",
+    "@uang/shared": "workspace:*",
+    "better-auth": "latest",
     "drizzle-orm": "latest",
-    "better-auth": "latest"
+    "elysia": "latest",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "drizzle-kit": "latest"

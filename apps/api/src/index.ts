@@ -1,6 +1,6 @@
 import { runMigrations } from "./db/migrate";
 import { backfillOwners } from "./lib/owners";
-import { createApp } from "./app";
+import { createWebApp } from "./app";
 
 const ephemeral = (process.env.DATABASE_URL ?? "").includes("/tmp/");
 if (process.env.NODE_ENV === "production" && (ephemeral || !process.env.DATABASE_URL)) {
@@ -14,7 +14,7 @@ if (process.env.NODE_ENV === "production" && (secret === "" || secret === "dev-s
 
 await runMigrations();
 await backfillOwners(); // idempotent: give pre-ownership accounts their creator as sole owner
-const app = createApp();
+const app = createWebApp();
 const port = Number(process.env.PORT ?? 3000);
 app.listen(port);
-console.log(`API listening on :${port}`);
+console.log(`Uang listening on :${port}`);

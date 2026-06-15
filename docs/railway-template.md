@@ -8,15 +8,15 @@ single-page web app.
 
 ## About Hosting azizsafudin/uang
 
-Hosting Uang means running two services from one monorepo: a Bun/ElysiaJS API and
-a static React (Vite) front end served by nginx. The API persists everything in an
-embedded SQLite (libSQL) database on a mounted volume, runs Drizzle migrations
-automatically on boot, and handles authentication with better-auth using secure
-session cookies. The two services are wired together through Railway reference
-variables, so the front end knows the API's URL and CORS/cookies work across both
-HTTPS domains. A generated 32-character auth secret and a persistent volume are
-provisioned for you, and both services can sleep when idle to keep a low-traffic,
-personal deployment inexpensive.
+Hosting Uang means running a single service from one monorepo: a Bun/ElysiaJS API
+that also serves the built React (Vite) front end from the same origin (the app at
+`/`, the API under `/api`). The service persists everything in an embedded SQLite
+(libSQL) database on a mounted volume, runs Drizzle migrations automatically on
+boot, and handles authentication with better-auth using secure session cookies.
+Because the app and API share one domain, there is no CORS or cross-service URL
+wiring — session cookies are first-party. A generated 32-character auth secret and
+a persistent volume are provisioned for you, and the service can sleep when idle to
+keep a low-traffic, personal deployment inexpensive.
 
 ## Common Use Cases
 
@@ -36,31 +36,26 @@ personal deployment inexpensive.
 - [Drizzle ORM](https://orm.drizzle.team) + [libSQL](https://github.com/tursodatabase/libsql) — database layer
 - [better-auth](https://www.better-auth.com) — authentication
 - [Vite](https://vite.dev) + [React](https://react.dev) — web front end
-- [Railway reference variables](https://docs.railway.com/reference/variables#reference-variables) — cross-service URL/secret wiring
+- [Railway reference variables](https://docs.railway.com/reference/variables#reference-variables) — auth URL/secret wiring
 
 ### Implementation Details
 
-Both services build from per-app Dockerfiles (`apps/api/Dockerfile`,
-`apps/web/Dockerfile`), selected via the `RAILWAY_DOCKERFILE_PATH` variable, and
-are linked by Railway reference variables. The API reads its persistent database
-from the mounted volume and the web build is pointed at the API's public domain at
-build time:
+The service builds from a single root `Dockerfile` (auto-detected by Railway with
+Root Directory `/`), which builds the React bundle and runs the Bun API that serves
+it. The API reads its persistent database from the mounted volume; the web bundle
+targets its own origin and the API infers its public URL from each request, so no
+domain or API-URL variables are needed:
 
 ```
-# api service
-RAILWAY_DOCKERFILE_PATH = apps/api/Dockerfile
-DATABASE_URL            = file:/data/uang.db
-BETTER_AUTH_SECRET      = ${{ secret(32) }}
-BETTER_AUTH_URL         = https://${{ RAILWAY_PUBLIC_DOMAIN }}
-WEB_ORIGIN              = https://${{ web.RAILWAY_PUBLIC_DOMAIN }}
-
-# web service
-RAILWAY_DOCKERFILE_PATH = apps/web/Dockerfile
-VITE_API_URL            = https://${{ api.RAILWAY_PUBLIC_DOMAIN }}
+DATABASE_URL       = file:/data/uang.db
+BETTER_AUTH_SECRET = ${{ secret(32) }}
 ```
 
 The API refuses to start in production without a persistent `DATABASE_URL` and a
-strong (32+ char) secret, and runs database migrations automatically on boot.
+strong (32+ char) secret, and runs database migrations automatically on boot. A
+public domain is generated for the service so it's reachable; no `BETTER_AUTH_URL`
+is wired because `RAILWAY_PUBLIC_DOMAIN` is empty in template deploys (a known
+Railway limitation), and the runtime inference avoids depending on it.
 
 ## Why Deploy azizsafudin/uang on Railway?
 
