@@ -21,8 +21,28 @@ import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ValuesHiddenProvider, useValuesHidden } from "@/lib/values-hidden";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
+
+function ValuePrivacyToggle() {
+  const { hidden, toggle } = useValuesHidden();
+  return (
+    <Button
+      type="button"
+      size="icon"
+      variant="ghost"
+      onClick={toggle}
+      aria-pressed={hidden}
+      aria-label={hidden ? "Show values" : "Hide values"}
+      title={hidden ? "Show values" : "Hide values"}
+    >
+      {hidden ? <EyeOff /> : <Eye />}
+    </Button>
+  );
+}
 
 // Pathless layout route: renders the sidebar shell once around every
 // authenticated route. Its id ("app") prefixes child route ids — hence
@@ -32,22 +52,25 @@ const appLayoutRoute = createRoute({
   id: "app",
   beforeLoad: requireInitializedAndAuthed,
   component: () => (
-    <TooltipProvider>
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset>
-          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 bg-background/95 px-4 backdrop-blur">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-1 h-4" />
-            <AppBreadcrumb />
-            <div className="ml-auto flex items-center gap-1">
-              <ThemeToggle />
-            </div>
-          </header>
-          <Outlet />
-        </SidebarInset>
-      </SidebarProvider>
-    </TooltipProvider>
+    <ValuesHiddenProvider>
+      <TooltipProvider>
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarInset>
+            <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 bg-background/95 px-4 backdrop-blur">
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-1 h-4" />
+              <AppBreadcrumb />
+              <div className="ml-auto flex items-center gap-1">
+                <ValuePrivacyToggle />
+                <ThemeToggle />
+              </div>
+            </header>
+            <Outlet />
+          </SidebarInset>
+        </SidebarProvider>
+      </TooltipProvider>
+    </ValuesHiddenProvider>
   ),
 });
 
