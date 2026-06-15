@@ -24,7 +24,13 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
   })
   .patch(
     "/",
-    async ({ body }: any) => {
+    async ({ body, isAdmin, set }: any) => {
+      const touchesAi =
+        body.aiBaseUrl !== undefined || body.aiModel !== undefined || body.aiApiKey !== undefined;
+      if (touchesAi && !isAdmin) {
+        set.status = 403;
+        return { error: "admin_only" };
+      }
       const update: Record<string, unknown> = {};
       if (body.contributionGrowthRateBps !== undefined) update.contributionGrowthRateBps = body.contributionGrowthRateBps;
       if (body.projectionEndAge !== undefined) update.projectionEndAge = body.projectionEndAge;
@@ -49,7 +55,11 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       }),
     },
   )
-  .post("/ai/test", async () => {
+  .post("/ai/test", async ({ isAdmin, set }: any) => {
+    if (!isAdmin) {
+      set.status = 403;
+      return { error: "admin_only" };
+    }
     const s = (await db.select().from(settings).where(eq(settings.id, 1)))[0];
     if (!s?.aiBaseUrl || !s?.aiModel) return { ok: false, message: "AI is not configured" };
     try {
