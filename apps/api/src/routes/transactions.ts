@@ -6,6 +6,7 @@ import { SCALE } from "@uang/shared";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { isUniqueViolation } from "../lib/db-errors";
+import { seedTradePrice } from "../lib/trade-prices";
 
 const CASH_PRICE = Number(SCALE); // currency instruments are priced at 1.0
 
@@ -29,7 +30,7 @@ export const transactionsRoutes = new Elysia()
   .post(
     "/accounts/:id/transactions",
     async ({ params, body, userId, set }: any) => {
-      const instr = await db.select({ id: instruments.id }).from(instruments).where(eq(instruments.id, body.instrumentId));
+      const instr = await db.select({ id: instruments.id, kind: instruments.kind }).from(instruments).where(eq(instruments.id, body.instrumentId));
       if (instr.length === 0) { set.status = 422; return { error: "unknown_instrument" }; }
 
       const now = nowEpoch();
@@ -70,6 +71,9 @@ export const transactionsRoutes = new Elysia()
         }
         throw e;
       }
+      if (instr[0].kind !== "currency" && body.unitPriceScaled != null) {
+        await seedTradePrice(body.instrumentId, body.date, body.unitPriceScaled);
+      }
       return { id: mainId };
     },
     {
@@ -93,6 +97,7 @@ export const transactionsRoutes = new Elysia()
   .patch(
     "/transactions/:id",
     async ({ params, body }: any) => {
+      const [tx] = await db.select().from(transactions).where(eq(transactions.id, params.id));
       const update: Record<string, unknown> = {};
       if (body.date !== undefined) update.date = body.date;
       if (body.unitsDelta !== undefined) update.unitsDelta = body.unitsDelta;
@@ -100,6 +105,15 @@ export const transactionsRoutes = new Elysia()
       if (body.feesMinor !== undefined) update.feesMinor = body.feesMinor;
       if (body.notes !== undefined) update.notes = body.notes;
       await db.update(transactions).set(update).where(eq(transactions.id, params.id));
+
+      if (tx) {
+        const [instr] = await db.select({ kind: instruments.kind }).from(instruments).where(eq(instruments.id, tx.instrumentId));
+        const date = body.date ?? tx.date;
+        const price = body.unitPriceScaled ?? tx.unitPriceScaled;
+        if (instr && instr.kind !== "currency" && price != null) {
+          await seedTradePrice(tx.instrumentId, date, price);
+        }
+      }
       return { ok: true };
     },
     {
