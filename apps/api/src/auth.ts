@@ -12,24 +12,32 @@ function isValidHttpUrl(value: string | undefined): value is string {
   }
 }
 
-// The single-service deploy intentionally does NOT hard-wire a public URL: on
-// Railway, `RAILWAY_PUBLIC_DOMAIN` is empty in template deploys (a known Railway
-// bug), so `BETTER_AUTH_URL=https://${{ RAILWAY_PUBLIC_DOMAIN }}` would collapse
-// to "https://". Instead we let better-auth infer the base URL from the request
-// (the app and API share one origin), and treat BETTER_AUTH_URL as an *optional*
-// override for custom domains. better-auth reads BETTER_AUTH_URL straight from
-// process.env, so an invalid value must be removed there — not just omitted from
-// options — or it picks it up and crash-loops on "Invalid base URL".
+// The single-service deploy intentionally does NOT hard-wire a public URL via a
+// derived template variable: on Railway, `BETTER_AUTH_URL=https://${{ RAILWAY_PUBLIC_DOMAIN }}`
+// is resolved once at deploy time and frozen — and RAILWAY_PUBLIC_DOMAIN is
+// often empty during a template deploy (a known Railway race), collapsing it to
+// "https://", which crash-loops better-auth. better-auth also reads
+// BETTER_AUTH_URL straight from process.env, so an invalid value must be removed
+// there — not just omitted from options — or it picks it up and crashes.
 if (process.env.BETTER_AUTH_URL && !isValidHttpUrl(process.env.BETTER_AUTH_URL)) {
   delete process.env.BETTER_AUTH_URL;
 }
-// Valid override → use it; otherwise infer from the request in production
-// (same-origin) and fall back to localhost in dev.
+
+// Resolve the public base URL with graceful fallbacks (Railway best practice):
+//   1. BETTER_AUTH_URL — explicit override, for custom domains / pinning.
+//   2. RAILWAY_PUBLIC_DOMAIN — read at runtime (not as a frozen derived var), so
+//      we get Railway's live domain as a stable absolute URL when present.
+//   3. undefined in production — let better-auth infer per-request (same-origin).
+//   4. localhost in dev.
+const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+const railwayURL = railwayDomain ? `https://${railwayDomain}` : undefined;
 const baseURL = isValidHttpUrl(process.env.BETTER_AUTH_URL)
   ? process.env.BETTER_AUTH_URL
-  : process.env.NODE_ENV === "production"
-    ? undefined
-    : "http://localhost:3000";
+  : isValidHttpUrl(railwayURL)
+    ? railwayURL
+    : process.env.NODE_ENV === "production"
+      ? undefined
+      : "http://localhost:3000";
 
 const configuredWebOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
 // Trust the configured web origin when valid; otherwise trust the request's own
