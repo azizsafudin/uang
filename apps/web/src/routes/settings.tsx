@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SCALE } from "@uang/shared";
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
 import { CurrencySelect } from "@/components/currency-select";
 import { useSession } from "@/lib/auth";
 import {
@@ -161,6 +162,64 @@ export function SettingsPage() {
       return (data as unknown as User[]) ?? [];
     },
   });
+
+  // AI provider settings
+  const [aiBaseUrl, setAiBaseUrl] = useState("");
+  const [aiModel, setAiModel] = useState("");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiApiKeySet, setAiApiKeySet] = useState(false);
+  const [aiTestMsg, setAiTestMsg] = useState("");
+
+  const settingsQ = useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const { data, error } = await api.settings.get();
+      if (error) throw new Error(String(error));
+      return data;
+    },
+  });
+
+  // Seed the AI inputs from the query data (not from queryFn side-effects), so
+  // they populate even when the ["settings"] query is already cached elsewhere.
+  const settingsData = settingsQ.data;
+  useEffect(() => {
+    if (settingsData && "aiBaseUrl" in settingsData) {
+      setAiBaseUrl(settingsData.aiBaseUrl ?? "");
+      setAiModel(settingsData.aiModel ?? "");
+      setAiApiKeySet(!!settingsData.aiApiKeySet);
+    }
+  }, [settingsData]);
+
+  async function saveAi() {
+    const payload: { aiBaseUrl: string; aiModel: string; aiApiKey?: string } = {
+      aiBaseUrl,
+      aiModel,
+    };
+    if (aiApiKey) payload.aiApiKey = aiApiKey;
+    const { error } = await api.settings.patch(payload);
+    if (error) {
+      setAiTestMsg("Save failed");
+      return;
+    }
+    setAiApiKey("");
+    setAiApiKeySet(aiApiKeySet || !!aiApiKey);
+    setAiTestMsg("Saved");
+    await qc.invalidateQueries({ queryKey: ["settings"] });
+  }
+
+  async function testAi() {
+    setAiTestMsg("Testing…");
+    const { data } = await api.settings.ai.test.post();
+    if (data && "ok" in data) {
+      setAiTestMsg(
+        data.ok
+          ? "Connection ok"
+          : `Failed: ${"message" in data && typeof data.message === "string" ? data.message : "error"}`,
+      );
+    } else {
+      setAiTestMsg("Failed: error");
+    }
+  }
 
   const [fx, setFx] = useState({
     currency: "",
@@ -338,6 +397,68 @@ export function SettingsPage() {
             <a href={`${API_URL}/export/csv`}>
               <Button variant="outline">Export as CSV (.zip)</Button>
             </a>
+          </div>
+        </Section>
+
+        <Section
+          eyebrow="AI"
+          title="Smart import (AI)"
+          description="Optional. Point at a local model (e.g. Ollama http://localhost:11434/v1) or a cloud endpoint. A cloud URL sends sample statement text to that provider; a local URL keeps it on this machine."
+        >
+          <div className="grid gap-3 sm:max-w-lg">
+            <Field label="Base URL">
+              <Input
+                value={aiBaseUrl}
+                onChange={(e) => setAiBaseUrl(e.target.value)}
+                placeholder="http://localhost:11434/v1"
+                data-testid="ai-base-url"
+              />
+            </Field>
+            <Field label="Model">
+              <Input
+                value={aiModel}
+                onChange={(e) => setAiModel(e.target.value)}
+                placeholder="llama3.1"
+                data-testid="ai-model"
+              />
+            </Field>
+            <Field
+              label={
+                <>
+                  API key{" "}
+                  {aiApiKeySet && (
+                    <Label className="text-muted-foreground font-normal">
+                      (set — leave blank to keep)
+                    </Label>
+                  )}
+                </>
+              }
+            >
+              <Input
+                type="password"
+                value={aiApiKey}
+                onChange={(e) => setAiApiKey(e.target.value)}
+                placeholder={aiApiKeySet ? "••••••••" : "optional"}
+                data-testid="ai-api-key"
+              />
+            </Field>
+            <div className="flex items-center gap-2">
+              <Button onClick={saveAi} data-testid="ai-save">
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                onClick={testAi}
+                data-testid="ai-test"
+              >
+                Test connection
+              </Button>
+              {aiTestMsg && (
+                <span className="text-sm text-muted-foreground">
+                  {aiTestMsg}
+                </span>
+              )}
+            </div>
           </div>
         </Section>
 

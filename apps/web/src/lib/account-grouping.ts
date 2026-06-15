@@ -38,6 +38,16 @@ export function homeBucketId(account: AccountValuation): string {
   return OWNER_PREFIX + ownerKey(account.ownerIds);
 }
 
+// Accounts visible for the dashboard owner toggle. "household" shows all;
+// a member id shows accounts they own — including shared accounts they co-own.
+export function visibleForOwner(
+  accounts: AccountValuation[],
+  owner: string,
+): AccountValuation[] {
+  if (owner === "household") return accounts;
+  return accounts.filter((a) => a.ownerIds.includes(owner));
+}
+
 export type Built = { order: string[]; members: Record<string, string[]> };
 
 // Group accounts into cards (real groups + per-owner buckets) and order the cards.

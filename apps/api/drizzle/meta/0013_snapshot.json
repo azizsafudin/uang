@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d0797a5e-f5ac-43d4-8292-9161acacb58d",
-  "prevId": "3c968eb3-25a4-4c72-9878-dc6ae1aa38f1",
+  "id": "a115be0c-f5c9-4611-a464-08ad445d19df",
+  "prevId": "d0797a5e-f5ac-43d4-8292-9161acacb58d",
   "tables": {
     "account_owners": {
       "name": "account_owners",
@@ -218,6 +218,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'annually'"
+        },
+        "loan_term_months": {
+          "name": "loan_term_months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "group_id": {
           "name": "group_id",
