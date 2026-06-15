@@ -1,6 +1,8 @@
 import { Elysia } from "elysia";
+import { zipSync, strToU8 } from "fflate";
 import { authGuard } from "../lib/auth-guard";
 import { sqlite } from "../db/client";
+import { buildCsvBundle } from "../lib/csv-bundle";
 
 export const exportRoutes = new Elysia()
   .use(authGuard)
@@ -20,6 +22,21 @@ export const exportRoutes = new Elysia()
       headers: {
         "content-type": "application/octet-stream",
         "content-disposition": `attachment; filename="uang-${today}.db"`,
+      },
+    });
+  })
+  .get("/export/csv", async () => {
+    const bundle = await buildCsvBundle();
+    const zipInput: Record<string, Uint8Array> = {};
+    for (const [name, text] of Object.entries(bundle)) {
+      zipInput[name] = strToU8(text);
+    }
+    const zipped = zipSync(zipInput);
+    const today = new Date().toISOString().slice(0, 10);
+    return new Response(zipped, {
+      headers: {
+        "content-type": "application/zip",
+        "content-disposition": `attachment; filename="uang-csv-${today}.zip"`,
       },
     });
   });
