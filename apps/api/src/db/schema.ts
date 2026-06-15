@@ -10,6 +10,11 @@ export const settings = sqliteTable("settings", {
   // Ordered list of enabled dashboard tile ids, JSON-encoded. Per-household
   // (the singleton row). Default: Assets, Liabilities, Goals on track.
   dashboardTiles: text("dashboard_tiles").notNull().default('["assets","liabilities","goalsOnTrack"]'),
+  // Smart import (AI). "AI enabled" iff aiBaseUrl AND aiModel are both set.
+  // Single OpenAI-compatible provider (local or cloud). Key is never returned to the client.
+  aiBaseUrl: text("ai_base_url"),
+  aiModel: text("ai_model"),
+  aiApiKey: text("ai_api_key"),
   createdAt: integer("created_at").notNull(),
 });
 

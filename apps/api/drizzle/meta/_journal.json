@@ -85,6 +85,13 @@
       "when": 1781506362903,
       "tag": "0011_fast_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1781512238124,
+      "tag": "0012_fast_secret_warriors",
+      "breakpoints": true
     }
   ]
 }
