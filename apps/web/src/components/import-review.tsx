@@ -13,7 +13,15 @@ type Row = {
   id: string; date: string | null; amountMinor: number | null;
   description: string; status: "new" | "duplicate" | "excluded" | "error"; errorReason: string | null;
 };
-type Batch = { id: string; accountId: string; rows: Row[] };
+type Batch = {
+  id: string;
+  accountId: string;
+  rows: Row[];
+  status?: string;
+  rowCountNew?: number;
+  rowCountDuplicate?: number;
+  rowCountError?: number;
+};
 
 function fmt(minor: number | null, currency: string): string {
   if (minor === null) return "—";
@@ -32,7 +40,7 @@ export function ImportReview({ batchId, accountCurrency, onDone }: {
   useEffect(() => {
     let cancelled = false;
     api.imports({ id: batchId }).get().then(({ data }) => {
-      if (!cancelled && data && "rows" in data) setBatch(data as Batch);
+      if (!cancelled && data && "rows" in data) setBatch(data);
     });
     return () => { cancelled = true; };
   }, [batchId]);
