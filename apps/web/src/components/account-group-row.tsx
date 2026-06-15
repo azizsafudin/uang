@@ -20,6 +20,7 @@ type Props = {
   onToggle: () => void;
   onRename?: (name: string) => void;
   onDelete?: () => void;
+  onAddAccount?: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
   isDragging?: boolean;
 };
@@ -33,6 +34,7 @@ export function AccountGroupRow({
   onToggle,
   onRename,
   onDelete,
+  onAddAccount,
   dragHandleProps,
   isDragging,
 }: Props) {
@@ -50,7 +52,7 @@ export function AccountGroupRow({
     setRenaming(false);
   }
 
-  const hasMenu = Boolean(onRename || onDelete);
+  const hasMenu = Boolean(onRename || onDelete || onAddAccount);
 
   const row = (
     <div
@@ -114,6 +116,10 @@ export function AccountGroupRow({
     <ContextMenu>
       <ContextMenuTrigger render={row} />
       <ContextMenuContent>
+        {onAddAccount && (
+          <ContextMenuItem onClick={onAddAccount}>Add account to this group</ContextMenuItem>
+        )}
+        {onAddAccount && (onRename || onDelete) && <ContextMenuSeparator />}
         {onRename && <ContextMenuItem onClick={startRename}>Rename</ContextMenuItem>}
         {onRename && onDelete && <ContextMenuSeparator />}
         {onDelete && (
