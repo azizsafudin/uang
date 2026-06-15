@@ -11,7 +11,7 @@ export async function seedHousehold(
   apiURL: string,
   baseCurrency = "USD",
 ) {
-  await request.post(`${apiURL}/onboarding/init`, {
+  await request.post(`${apiURL}/api/onboarding/init`, {
     data: {
       householdName: "E2E Household",
       baseCurrency,
