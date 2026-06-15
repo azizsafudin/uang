@@ -1,9 +1,13 @@
 # Text-PDF Parsing + AI Synthesis — Design (Spec 4)
 
 **Date:** 2026-06-15
-**Status:** Draft for handoff. Decisions below are proposed with rationale; the two flagged
-**Open Decisions** (PDF text library; rule vocabulary) should be confirmed at the start of the
-next context before writing the implementation plan.
+**Status:** Planned. All three Open Decisions resolved (2026-06-15) and the implementation plan is
+written at `docs/superpowers/plans/2026-06-15-pdf-parser-synthesis.md`. Resolutions:
+- **A (PDF library):** `unpdf@1.6.2`. Empirically verified under Bun — `extractText(bytes, {mergePages:false})`
+  works; **positioned items (`getTextContent`) throw `DataCloneError` under Bun**, so x/y column rules are not viable on this stack.
+- **B (rule vocabulary):** Tier 1 only (line-regex + region + multiline). Tier 2 deferred (also blocked by the Bun/pdf.js limitation above).
+- **C (binary transport):** Extract once, reuse the text path — `POST /imports/extract` (base64 bytes → `{text, fingerprint, candidates}`);
+  client reuses the existing `content`-based synthesize/refine/preview/import with `format:"pdf"`.
 **Builds on:** Spec 1 (import spine + CSV) and Spec 3 (AI parser synthesis). North star:
 `docs/superpowers/specs/2026-06-15-ai-parser-synthesis-design.md` ("drop any document").
 
