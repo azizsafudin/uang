@@ -53,7 +53,9 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 
 export function PositionsPanel({ accountId, accountCurrency }: { accountId: string; accountCurrency: string }) {
   const { data: pos } = usePositions(accountId);
-  const positions = (pos?.positions ?? []).filter((p) => p.units > 0);
+  // Show any open position, including negative ones (a liability's debt is a
+  // negative cash position). Only fully-closed (zero-unit) positions are hidden.
+  const positions = (pos?.positions ?? []).filter((p) => p.units !== 0);
 
   if (positions.length === 0) {
     return <EmptyState>Nothing held yet. Add a transaction to build a position.</EmptyState>;

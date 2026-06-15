@@ -20,7 +20,12 @@ type Props = {
   onToggle: () => void;
   onRename?: (name: string) => void;
   onDelete?: () => void;
-  dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
+  onAddAccount?: () => void;
+  addAccountLabel?: string;
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>;
+  // When true, the whole header is the drag handle (reorder mode) rather than
+  // just the grip icon.
+  dragWholeRow?: boolean;
   isDragging?: boolean;
 };
 
@@ -33,7 +38,10 @@ export function AccountGroupRow({
   onToggle,
   onRename,
   onDelete,
+  onAddAccount,
+  addAccountLabel = "Add account to this group",
   dragHandleProps,
+  dragWholeRow,
   isDragging,
 }: Props) {
   const [renaming, setRenaming] = useState(false);
@@ -50,20 +58,26 @@ export function AccountGroupRow({
     setRenaming(false);
   }
 
-  const hasMenu = Boolean(onRename || onDelete);
+  const hasMenu = Boolean(onRename || onDelete || onAddAccount);
+  const wholeRowDrag = Boolean(dragWholeRow && dragHandleProps);
 
   const row = (
     <div
+      {...(wholeRowDrag ? dragHandleProps : {})}
       className={cn(
         "flex w-full items-center gap-2 pl-2 pr-2 py-2.5 transition-colors",
         "bg-[color-mix(in_oklab,var(--color-primary)_6%,var(--color-card))]",
+        wholeRowDrag && "cursor-grab touch-none active:cursor-grabbing",
         isDragging && "opacity-50",
       )}
     >
       {dragHandleProps && (
         <span
-          {...dragHandleProps}
-          className="shrink-0 cursor-grab touch-none text-primary/50 transition-colors hover:text-primary active:cursor-grabbing"
+          {...(wholeRowDrag ? {} : dragHandleProps)}
+          className={cn(
+            "shrink-0 text-primary/50 transition-colors",
+            !wholeRowDrag && "cursor-grab touch-none hover:text-primary active:cursor-grabbing",
+          )}
           aria-label="Drag group"
         >
           <GripVertical size={14} />
@@ -114,6 +128,10 @@ export function AccountGroupRow({
     <ContextMenu>
       <ContextMenuTrigger render={row} />
       <ContextMenuContent>
+        {onAddAccount && (
+          <ContextMenuItem onClick={onAddAccount}>{addAccountLabel}</ContextMenuItem>
+        )}
+        {onAddAccount && (onRename || onDelete) && <ContextMenuSeparator />}
         {onRename && <ContextMenuItem onClick={startRename}>Rename</ContextMenuItem>}
         {onRename && onDelete && <ContextMenuSeparator />}
         {onDelete && (

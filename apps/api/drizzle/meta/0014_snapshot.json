@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a115be0c-f5c9-4611-a464-08ad445d19df",
-  "prevId": "d0797a5e-f5ac-43d4-8292-9161acacb58d",
+  "id": "2f80089f-3d13-4319-8478-3267550d5fac",
+  "prevId": "a115be0c-f5c9-4611-a464-08ad445d19df",
   "tables": {
     "account_owners": {
       "name": "account_owners",
@@ -1016,6 +1016,13 @@
         },
         "import_batch_id": {
           "name": "import_batch_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "linked_transaction_id": {
+          "name": "linked_transaction_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

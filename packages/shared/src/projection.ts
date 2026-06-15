@@ -40,6 +40,23 @@ export function projectSeries(
   return out;
 }
 
+// Fixed monthly payment (minor units, positive) that amortizes an outstanding
+// loan `balanceMinor` (magnitude; sign ignored) to zero over `termMonths` at
+// `annualRateBps` annual interest. Returns 0 when there is no term.
+export function loanMonthlyPaymentMinor(
+  balanceMinor: number,
+  annualRateBps: number,
+  termMonths: number,
+): number {
+  if (termMonths <= 0) return 0;
+  const principal = Math.abs(balanceMinor);
+  if (principal === 0) return 0;
+  if (annualRateBps === 0) return Math.round(principal / termMonths);
+  const r = annualRateBps / 120_000; // monthly rate fraction (bps / 10_000 / 12)
+  const payment = (principal * r) / (1 - Math.pow(1 + r, -termMonths));
+  return Math.round(payment);
+}
+
 export type EarlyWithdrawal = "none" | "penalty";
 
 export type AccessibilityConfig = {
@@ -99,9 +116,11 @@ export type AccumulationConfig = {
 export type ProjectionAccount = AccessibilityConfig &
   WithdrawalConfig &
   AccumulationConfig & {
-    baseMinor: number;      // current base-currency balance (signed)
-    growthRateBps: number;
+    baseMinor: number;      // current base-currency balance (signed; negative for debt)
+    growthRateBps: number;  // assets: growth rate; liabilities: annual loan interest rate
     ownerBirthYears: number[]; // owners' birth years; empty = unknown
+    isLiability: boolean;   // true => amortize as a loan instead of accumulate/withdraw
+    loanTermMonths: number | null; // remaining loan term; null/0 => no paydown (held flat)
   };
 
 export type ProjectionPoint = {
@@ -109,6 +128,42 @@ export type ProjectionPoint = {
   totalBaseMinor: number;
   accessibleBaseMinor: number;
 };
+
+// Year-by-year outstanding balance (negative) for a loan, amortized monthly and
+// sampled at each year end. Offset 0 is today's balance. With no term (or a
+// non-negative balance) the balance is held flat across the whole span.
+function amortizeLoanSeries(account: ProjectionAccount, span: number): number[] {
+  const start = toBig(account.baseMinor);
+  const term = account.loanTermMonths ?? 0;
+  // No term, or not actually a debt: hold flat.
+  if (term <= 0 || start >= 0n) {
+    return Array.from({ length: span + 1 }, () => fromBig(start));
+  }
+  const payment = toBig(loanMonthlyPaymentMinor(account.baseMinor, account.growthRateBps, term));
+  const rateBps = toBig(account.growthRateBps);
+  let owed = -start; // positive outstanding magnitude
+  const out: number[] = [fromBig(start)];
+  let month = 0;
+  for (let year = 1; year <= span; year++) {
+    for (let m = 0; m < 12; m++) {
+      month++;
+      if (owed <= 0n || month > term) {
+        owed = 0n;
+        continue;
+      }
+      if (month === term) {
+        owed = 0n; // final payment clears the remainder exactly
+        continue;
+      }
+      const interest = roundDiv(owed * rateBps, 120_000n); // owed * (rate/12)
+      let principalPaid = payment - interest;
+      if (principalPaid < 0n) principalPaid = 0n; // guard; formula keeps this positive
+      owed = principalPaid >= owed ? 0n : owed - principalPaid;
+    }
+    out.push(fromBig(-owed));
+  }
+  return out;
+}
 
 // Year-by-year balance for one account: accumulate (contributions + growth,
 // compounded at the chosen interval), then withdraw. Offset 0 is today's balance,
@@ -125,6 +180,7 @@ export function projectAccountSeries(
   youngestBirthYear: number | null,
 ): number[] {
   assertYears(span);
+  if (account.isLiability) return amortizeLoanSeries(account, span);
   const n = periodsPerYear(account.compoundInterval);
   const periods = BigInt(n);
   const denom = BPS * periods;            // per-period growth: (denom + rate) / denom

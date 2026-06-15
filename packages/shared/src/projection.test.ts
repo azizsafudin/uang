@@ -94,7 +94,7 @@ test("accessibleValueMinor: rejects out-of-range earlyHaircutBps", () => {
   expect(() => accessibleValueMinor(100_000, 50, bad)).toThrow();
 });
 
-import { projectNetWorth, projectAccountSeries, milestoneYears, type ProjectionAccount, type WithdrawalConfig, type AccumulationConfig } from "./projection";
+import { loanMonthlyPaymentMinor, projectNetWorth, projectAccountSeries, milestoneYears, type ProjectionAccount, type WithdrawalConfig, type AccumulationConfig } from "./projection";
 
 const noSpend: WithdrawalConfig = {
   spendType: "none", spendAmountMinor: null, spendRateBps: null,
@@ -117,12 +117,14 @@ test("projectNetWorth: total grows; accessible respects unlocks", () => {
   const cash: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 0,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990], ...noSpend, ...noAcc,
+    liquidationAge: null, ownerBirthYears: [1990], isLiability: false,
+    loanTermMonths: null, ...noSpend, ...noAcc,
   };
   const cpf: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990], ...noSpend, ...noAcc,
+    liquidationAge: null, ownerBirthYears: [1990], isLiability: false,
+    loanTermMonths: null, ...noSpend, ...noAcc,
   };
   // 2030: owner age 40 -> CPF locked. 2045: owner age 55 -> CPF unlocks.
   const pts = projectNetWorth({ accounts: [cash, cpf], fromYear: 2030, toYear: 2045 });
@@ -134,7 +136,8 @@ test("projectNetWorth: shared account uses the youngest owner's age", () => {
   const shared: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1980, 1990], ...noSpend, ...noAcc, // youngest born 1990
+    liquidationAge: null, ownerBirthYears: [1980, 1990], isLiability: false,
+    loanTermMonths: null, ...noSpend, ...noAcc, // youngest born 1990
   };
   const pts = projectNetWorth({ accounts: [shared], fromYear: 2040, toYear: 2045 });
   // 2040: younger is 50 -> locked. 2045: younger is 55 -> unlocked.
@@ -150,7 +153,8 @@ test("projectNetWorth: empty ownerBirthYears treats account as accessible", () =
   const noBirth: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [], ...noSpend, ...noAcc,
+    liquidationAge: null, ownerBirthYears: [], isLiability: false,
+    loanTermMonths: null, ...noSpend, ...noAcc,
   };
   const pts = projectNetWorth({ accounts: [noBirth], fromYear: 2030, toYear: 2030 });
   expect(pts[0].accessibleBaseMinor).toBe(100_000);
@@ -160,7 +164,8 @@ test("projectNetWorth: empty ownerBirthYears treats account as accessible", () =
 
 const liquidSpend = {
   accessibleFromAge: 0, earlyWithdrawal: "none" as const, earlyHaircutBps: 0,
-  illiquid: false, liquidationAge: null, ...noSpend, ...noAcc,
+  illiquid: false, liquidationAge: null, isLiability: false, loanTermMonths: null,
+  ...noSpend, ...noAcc,
 };
 
 test("withdrawal none: identical to compound-only baseline", () => {
@@ -272,4 +277,86 @@ test("compound interval: monthly > quarterly > annually for the same nominal rat
   expect(annually).toBe(1_120_000);
   expect(quarterly).toBeGreaterThan(annually);
   expect(monthly).toBeGreaterThan(quarterly);
+});
+
+// --- Loan amortization -------------------------------------------------------
+
+// Minimal liability/loan account factory. baseMinor is negative (debt).
+const loan = (over: Partial<ProjectionAccount>): ProjectionAccount => ({
+  baseMinor: 0,
+  growthRateBps: 0,
+  ownerBirthYears: [],
+  isLiability: true,
+  loanTermMonths: null,
+  accessibleFromAge: 0,
+  earlyWithdrawal: "none",
+  earlyHaircutBps: 0,
+  illiquid: false,
+  liquidationAge: null,
+  spendType: "none",
+  spendAmountMinor: null,
+  spendRateBps: null,
+  spendStartKind: "age",
+  spendStartAge: null,
+  spendStartTargetMinor: null,
+  contributionMinor: 0,
+  contributionUntilAge: null,
+  compoundInterval: "annually",
+  ...over,
+});
+
+test("loanMonthlyPaymentMinor: 20,000 @ 5% over 48 months ≈ 460.59", () => {
+  expect(loanMonthlyPaymentMinor(2_000_000, 500, 48)).toBe(46_059);
+});
+
+test("loanMonthlyPaymentMinor: 0% is straight-line", () => {
+  expect(loanMonthlyPaymentMinor(1_200_000, 0, 12)).toBe(100_000);
+});
+
+test("loanMonthlyPaymentMinor: no term => 0", () => {
+  expect(loanMonthlyPaymentMinor(1_200_000, 500, 0)).toBe(0);
+});
+
+test("amortize 0% loan pays down to exactly 0 within the term", () => {
+  const a = loan({ baseMinor: -120_000, growthRateBps: 0, loanTermMonths: 12 });
+  expect(projectAccountSeries(a, 2, 2030, null)).toEqual([-120_000, 0, 0]);
+});
+
+test("amortize 0% loan over multiple years", () => {
+  const a = loan({ baseMinor: -240_000, growthRateBps: 0, loanTermMonths: 24 });
+  expect(projectAccountSeries(a, 3, 2030, null)).toEqual([-240_000, -120_000, 0, 0]);
+});
+
+test("amortize 0% 18-month loan: partial balance at year 1, zero at year 2", () => {
+  const a = loan({ baseMinor: -180_000, growthRateBps: 0, loanTermMonths: 18 });
+  expect(projectAccountSeries(a, 2, 2030, null)).toEqual([-180_000, -60_000, 0]);
+});
+
+test("amortized loan with interest ends exactly at 0 after the term", () => {
+  const a = loan({ baseMinor: -2_000_000, growthRateBps: 500, loanTermMonths: 48 });
+  const series = projectAccountSeries(a, 5, 2030, null);
+  expect(series[0]).toBe(-2_000_000);
+  expect(series[4]).toBe(0);
+  expect(series[5]).toBe(0);
+  expect(series[1]).toBeGreaterThan(series[0]);
+  expect(series[2]).toBeGreaterThan(series[1]);
+  expect(series[3]).toBeGreaterThan(series[2]);
+});
+
+test("liability with no term is held flat (no growth, no paydown)", () => {
+  const a = loan({ baseMinor: -50_000, growthRateBps: 500, loanTermMonths: null });
+  expect(projectAccountSeries(a, 3, 2030, null)).toEqual([-50_000, -50_000, -50_000, -50_000]);
+});
+
+test("net worth rollup: asset grows, loan amortizes away", () => {
+  const asset = loan({
+    isLiability: false,
+    baseMinor: 1_000_000,
+    growthRateBps: 0,
+    loanTermMonths: null,
+  });
+  const debt = loan({ baseMinor: -120_000, growthRateBps: 0, loanTermMonths: 12 });
+  const pts = projectNetWorth({ accounts: [asset, debt], fromYear: 2030, toYear: 2031 });
+  expect(pts[0].totalBaseMinor).toBe(880_000);
+  expect(pts[1].totalBaseMinor).toBe(1_000_000);
 });

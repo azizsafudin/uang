@@ -19,14 +19,23 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { MoreVertical } from "lucide-react";
 import { api } from "@/lib/api";
 import { Money } from "@/components/money.tsx";
 import { cn } from "@/lib/utils";
 import { AccountRow } from "@/components/account-row";
 import { AccountGroupRow } from "@/components/account-group-row";
+import { AccountForm, type AccountFormInitial } from "@/components/account-form";
 import { Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { groupsCollection, newId, type GroupRow } from "@/lib/collections";
 import { useUsers, type Member } from "@/lib/use-users";
 import {
@@ -55,23 +64,25 @@ type Props = {
   baseCurrency: string;
   sectionTotalMinor: number;
   hasData: boolean;
-  actions?: React.ReactNode; // rendered at the right of the section header
 };
 
 function SortableCard({
   id,
   highlight,
+  disabled,
   children,
 }: {
   id: string;
   highlight?: boolean;
+  disabled?: boolean;
   children: (props: {
-    dragHandleProps: React.HTMLAttributes<HTMLSpanElement>;
+    dragHandleProps: React.HTMLAttributes<HTMLElement>;
     isDragging: boolean;
   }) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
+    disabled,
   });
   const style = { transform: CSS.Transform.toString(transform), transition };
   return (
@@ -91,16 +102,19 @@ function SortableCard({
 
 function SortableAccount({
   id,
+  disabled,
   children,
 }: {
   id: string;
+  disabled?: boolean;
   children: (props: {
-    dragHandleProps: React.HTMLAttributes<HTMLSpanElement>;
+    dragHandleProps: React.HTMLAttributes<HTMLElement>;
     isDragging: boolean;
   }) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
+    disabled,
   });
   const style = { transform: CSS.Transform.toString(transform), transition };
   return (
@@ -118,7 +132,6 @@ export function DashboardSection({
   baseCurrency,
   sectionTotalMinor,
   hasData,
-  actions,
 }: Props) {
   const qc = useQueryClient();
   const { data: users } = useUsers();
@@ -135,8 +148,16 @@ export function DashboardSection({
   }
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [reordering, setReordering] = useState(false);
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [addState, setAddState] = useState<{ open: boolean; initial?: AccountFormInitial }>({
+    open: false,
+  });
+
+  function openAddAccount(prefill?: Omit<AccountFormInitial, "class">) {
+    setAddState({ open: true, initial: { class: cls, ...prefill } });
+  }
 
   const [order, setOrder] = useState<string[]>([]);
   const [members, setMembers] = useState<Record<string, string[]>>({});
@@ -378,13 +399,21 @@ export function DashboardSection({
       <div className="mb-3 flex items-center justify-between">
         <Eyebrow>{label}</Eyebrow>
         <div className="flex items-center gap-3">
-          {actions}
           {hasData && accounts.length > 0 && (
             <span className="font-heading text-sm tabular-nums text-muted-foreground">
               <Money minor={sectionTotalMinor} currency={baseCurrency} />
             </span>
           )}
-          {newGroupOpen ? (
+          {reordering ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => setReordering(false)}
+            >
+              Done
+            </Button>
+          ) : newGroupOpen ? (
             <div className="flex items-center gap-1.5">
               <Input
                 autoFocus
@@ -421,17 +450,32 @@ export function DashboardSection({
               </Button>
             </div>
           ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-xs text-muted-foreground"
-              onClick={() => {
-                setNewGroupOpen(true);
-                setNewGroupName("");
-              }}
-            >
-              + New group
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" size="icon-sm" aria-label={`${label} actions`} />
+                }
+              >
+                <MoreVertical size={16} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => openAddAccount()}>Add account</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setNewGroupOpen(true);
+                    setNewGroupName("");
+                  }}
+                >
+                  New group
+                </DropdownMenuItem>
+                {hasCards && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setReordering(true)}>Reorder</DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
@@ -479,7 +523,12 @@ export function DashboardSection({
                 const expandedState = bucket ? !expanded.has(cardId) : expanded.has(cardId);
 
                 return (
-                  <SortableCard key={cardId} id={cardId} highlight={isDropTarget}>
+                  <SortableCard
+                    key={cardId}
+                    id={cardId}
+                    highlight={isDropTarget}
+                    disabled={!reordering}
+                  >
                     {({ dragHandleProps, isDragging }) => (
                       <div>
                         <AccountGroupRow
@@ -493,7 +542,16 @@ export function DashboardSection({
                             bucket ? undefined : (name) => void renameGroup(cardId, name)
                           }
                           onDelete={bucket ? undefined : () => void deleteGroup(cardId)}
-                          dragHandleProps={dragHandleProps}
+                          onAddAccount={() =>
+                            openAddAccount(
+                              bucket
+                                ? { ownerIds: ownerIdsOf(cardId) }
+                                : { groupId: cardId },
+                            )
+                          }
+                          addAccountLabel={bucket ? "Add account" : "Add account to this group"}
+                          dragHandleProps={reordering ? dragHandleProps : undefined}
+                          dragWholeRow={reordering}
                           isDragging={isDragging}
                         />
                         {isDropTarget && !expandedState && !bucket && (
@@ -516,13 +574,14 @@ export function DashboardSection({
                                   const acct = acctById.get(aid);
                                   if (!acct) return null;
                                   return (
-                                    <SortableAccount key={aid} id={aid}>
+                                    <SortableAccount key={aid} id={aid} disabled={!reordering}>
                                       {({ dragHandleProps: dp, isDragging: d }) => (
                                         <AccountRow
                                           account={acct}
                                           baseCurrency={baseCurrency}
                                           isLast={i === memberIds.length - 1}
-                                          dragHandleProps={dp}
+                                          dragHandleProps={reordering ? dp : undefined}
+                                          dragWholeRow={reordering}
                                           isDragging={d}
                                         />
                                       )}
@@ -542,6 +601,13 @@ export function DashboardSection({
           </SortableContext>
         </DndContext>
       )}
+      <AccountForm
+        open={addState.open}
+        onOpenChange={(v) => setAddState((s) => ({ ...s, open: v }))}
+        initial={addState.initial}
+        groups={groups}
+        defaultCurrency={baseCurrency || undefined}
+      />
     </section>
   );
 }

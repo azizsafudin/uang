@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
 import { SCALE, currencyDecimals } from "@uang/shared";
-import { instrumentsCollection, transactionsCollection, newId } from "@/lib/collections";
+import { accountsCollection, instrumentsCollection, transactionsCollection, newId } from "@/lib/collections";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const { data: instruments } = useLiveQuery(instrumentsCollection);
+  const { data: accounts } = useLiveQuery(accountsCollection);
 
   const currencies = useMemo(() => (instruments ?? []).filter((i) => i.kind === "currency"), [instruments]);
   const securities = useMemo(() => (instruments ?? []).filter((i) => i.kind !== "currency"), [instruments]);
@@ -49,14 +50,40 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
 
   const [date, setDate] = useState(today());
   const [notes, setNotes] = useState("");
+  const [splitApplied, setSplitApplied] = useState(false);
 
   const amountNum = parseFloat(amount);
+
+  // Loan-payment helper: on a liability with an interest rate, a positive cash
+  // payment is part interest, part principal. Only the principal pays down the
+  // balance, so we suggest the principal amount and prefill the interest in the
+  // note. One month of interest on the outstanding balance (matches projections).
+  const acctRow = (accounts ?? []).find((a) => a.id === accountId);
+  const dec = currencyDecimals(accountCurrency);
+  const loanRateBps = acctRow?.class === "liability" ? acctRow.growthRateBps : 0;
+  const outstandingMajor = acctRow ? Math.abs(acctRow.balanceMinor) / 10 ** dec : 0;
+  const monthlyInterestMajor = (outstandingMajor * (loanRateBps / 10000)) / 12;
+  const principalMajor = amountNum - monthlyInterestMajor;
+  const showLoanSplit =
+    isCurrencyMode &&
+    loanRateBps > 0 &&
+    (acctRow?.balanceMinor ?? 0) < 0 &&
+    !Number.isNaN(amountNum) &&
+    principalMajor > 0 &&
+    !splitApplied;
+
+  function applyLoanSplit() {
+    setAmount(principalMajor.toFixed(dec));
+    setNotes(`Interest: ${monthlyInterestMajor.toFixed(dec)} ${accountCurrency} (${loanRateBps / 100}%/yr)`);
+    setSplitApplied(true);
+  }
   const securityCurrency = instrumentId === NEW_INSTRUMENT ? newInstr.currency.toUpperCase() : selected?.currency ?? accountCurrency;
   const cashAmount = (parseFloat(units) || 0) * (parseFloat(price) || 0) + (parseFloat(fees) || 0);
 
   function reset() {
     setInstrumentId(""); setAmount(""); setUnits(""); setPrice(""); setFees("");
     setSide("buy"); setRecordCash(true); setCashCurrencyId(""); setDate(today()); setNotes("");
+    setSplitApplied(false);
     setNewInstr({ name: "", symbol: "", currency: accountCurrency, kind: "stock" });
     setNewCurrency(accountCurrency);
   }
@@ -211,12 +238,27 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
               Pick an instrument above — cash to record a deposit or withdrawal, or a security to buy or sell.
             </p>
           ) : isCurrencyMode ? (
-            <Field label="Amount (+ add, − subtract)">
-              <Input data-testid="tx-amount" type="number" step="any" value={amount}
-                     onChange={(e) => setAmount(e.target.value)}
-                     className={cn("tabular-nums", !Number.isNaN(amountNum) && (amountNum < 0 ? "text-destructive" : "text-emerald-600"))}
-                     required />
-            </Field>
+            <>
+              <Field label="Amount (+ add, − subtract)">
+                <Input data-testid="tx-amount" type="number" step="any" value={amount}
+                       onChange={(e) => { setAmount(e.target.value); setSplitApplied(false); }}
+                       className={cn("tabular-nums", !Number.isNaN(amountNum) && (amountNum < 0 ? "text-destructive" : "text-emerald-600"))}
+                       required />
+              </Field>
+              {showLoanSplit && (
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+                  <p className="text-muted-foreground">
+                    Loan payment: ~{monthlyInterestMajor.toFixed(dec)} {accountCurrency} interest this month ·{" "}
+                    {principalMajor.toFixed(dec)} principal.
+                  </p>
+                  <Button type="button" variant="outline" size="sm" className="mt-2"
+                          data-testid="tx-loan-split"
+                          onClick={applyLoanSplit}>
+                    Use principal {principalMajor.toFixed(dec)} + note interest
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <>
               <Field label="Side">

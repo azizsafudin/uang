@@ -75,6 +75,7 @@ export const accountsCollection = createCollection(
         contributionMinor: m.contributionMinor,
         contributionUntilAge: m.contributionUntilAge,
         compoundInterval: m.compoundInterval,
+        loanTermMonths: m.loanTermMonths ?? null,
       });
       if (error) throw new Error(String(error));
     },
@@ -102,6 +103,7 @@ export const accountsCollection = createCollection(
         contributionMinor: m.contributionMinor,
         contributionUntilAge: m.contributionUntilAge,
         compoundInterval: m.compoundInterval,
+        loanTermMonths: m.loanTermMonths ?? null,
       });
       if (error) throw new Error(String(error));
     },
