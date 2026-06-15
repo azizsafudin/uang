@@ -206,3 +206,68 @@ test("parse stages rows with dedup status and counts", async () => {
   expect(batch2.rowCountNew).toBe(1);
   expect(batch2.rowCountDuplicate).toBe(1); // second identical row flagged within-batch
 });
+
+// ---- PDF extract + staging tests ----
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const PDF_PARSER = {
+  version: 1, format: "pdf",
+  region: { startAfter: "Transaction Details", stopAt: "Closing Balance" },
+  transactionLine: "^(?<date>\\d{2}/\\d{2}/\\d{4})\\s+(?<description>.+?)\\s+(?<amount>-?[\\d,]+\\.\\d{2})$",
+  date: { format: "DD/MM/YYYY" },
+  amount: { decimal: ".", thousands: ",", sign: "negativeIsDebit" },
+};
+const PDF_FP = { format: "pdf", markers: ["dbs bank statement of account", "transaction details"] };
+const samplePdfB64 = () =>
+  readFileSync(join(import.meta.dir, "../lib/import/fixtures/sample-statement.pdf")).toString("base64");
+
+test("POST /imports/extract returns text + fingerprint + candidates for a PDF", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const res = await app.handle(new Request("http://localhost/imports/extract", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "stmt.pdf", file: samplePdfB64() }),
+  }));
+  expect(res.status).toBe(200);
+  const out = await res.json();
+  expect(out.text).toContain("COFFEE BEAN");
+  expect(out.fingerprint.format).toBe("pdf");
+  expect(Array.isArray(out.candidates)).toBe(true);
+});
+
+test("POST /imports/extract returns 422 pdf_no_text for an empty PDF", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const emptyB64 = readFileSync(join(import.meta.dir, "../lib/import/fixtures/sample-empty.pdf")).toString("base64");
+  const res = await app.handle(new Request("http://localhost/imports/extract", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "x.pdf", file: emptyB64 }),
+  }));
+  expect(res.status).toBe(422);
+  expect((await res.json()).error).toBe("pdf_no_text");
+});
+
+test("POST /accounts/:id/imports stages rows from extracted PDF text via a pdf parser", async () => {
+  const { cookie } = await initAndLogin({ app });
+  // 1) create an account using the same seedAccount helper as all other tests
+  const accountId = await seedAccount();
+  // 2) extract text from the fixture PDF
+  const ex = await app.handle(new Request("http://localhost/imports/extract", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "stmt.pdf", file: samplePdfB64() }),
+  }));
+  const text = (await ex.json()).text;
+  // 3) save a pdf parser
+  await app.handle(new Request("http://localhost/import-parsers", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ id: "pdfp", name: "DBS PDF", sourceFormat: "pdf", config: PDF_PARSER, fingerprint: PDF_FP, origin: "ai" }),
+  }));
+  // 4) stage the extracted text through the pdf parser
+  const res = await app.handle(new Request(`http://localhost/accounts/${accountId}/imports`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "stmt.pdf", content: text, parserId: "pdfp" }),
+  }));
+  expect(res.status).toBe(200);
+  const out = await res.json();
+  expect(out.rowCountNew).toBe(2);
+});

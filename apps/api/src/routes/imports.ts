@@ -7,11 +7,13 @@ import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { ensureCurrencyInstrument } from "../lib/instruments";
 import { parseCsv } from "../lib/import/csv";
-import { fingerprintCsv, matchParsers } from "../lib/import/detect";
+import { fingerprintCsv, matchParsers, fingerprintPdf, matchPdfParsers } from "../lib/import/detect";
 import { dedupHash } from "../lib/import/dedup";
 import { unitsDeltaToAmountMinor, amountMinorToUnitsDelta } from "../lib/import/amount";
 import { validateParserConfig, validateFingerprint } from "../lib/import/validate";
-import type { CsvFingerprint } from "../lib/import/types";
+import type { CsvFingerprint, ParserFingerprint } from "../lib/import/types";
+import { extractPdfText, PdfExtractError } from "../lib/import/pdf-text";
+import { runPdfParser } from "../lib/import/pdf";
 import { SCALE } from "@uang/shared";
 
 const fileHashOf = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -38,6 +40,32 @@ export const importsRoutes = new Elysia()
     },
     { body: t.Object({ filename: t.String(), content: t.String() }) },
   )
+  // ---- extract: PDF bytes -> text + fingerprint + ranked saved PDF parsers ----
+  .post(
+    "/imports/extract",
+    async ({ body, set }: any) => {
+      let text: string;
+      try {
+        text = await extractPdfText(new Uint8Array(Buffer.from(body.file, "base64")));
+      } catch (e) {
+        if (e instanceof PdfExtractError) { set.status = 422; return { error: e.code }; }
+        throw e;
+      }
+      const fp = fingerprintPdf(text);
+      const parsers = await db.select().from(importParsers).where(eq(importParsers.sourceFormat, "pdf"));
+      const valid: { id: string; name: string; fingerprint: ParserFingerprint }[] = [];
+      for (const p of parsers) {
+        try {
+          valid.push({ id: p.id, name: p.name, fingerprint: validateFingerprint(JSON.parse(p.fingerprint)) });
+        } catch {
+          // skip parsers whose stored fingerprint is malformed rather than crash extract
+        }
+      }
+      const candidates = matchPdfParsers(fp, valid);
+      return { text, fingerprint: fp, candidates };
+    },
+    { body: t.Object({ filename: t.String(), file: t.String({ maxLength: 20_000_000 }) }) },
+  )
   // ---- parse a file into a staged batch ----
   .post(
     "/accounts/:id/imports",
@@ -48,9 +76,9 @@ export const importsRoutes = new Elysia()
       if (!parser) { set.status = 422; return { error: "unknown_parser" }; }
 
       const config = validateParserConfig(JSON.parse(parser.config));
-      // TODO(pdf-import): remove once this endpoint is format-aware (handles pdf)
-      if (config.format !== "csv") { set.status = 422; return { error: "unsupported_format" }; }
-      const canonical = parseCsv(body.content, config, account.currency);
+      const canonical = config.format === "pdf"
+        ? runPdfParser(body.content, config, account.currency)
+        : parseCsv(body.content, config, account.currency);
 
       // Build the set of dedup hashes for already-committed cash transactions.
       const cashInstrumentId = await ensureCurrencyInstrument(account.currency);
