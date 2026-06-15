@@ -40,20 +40,23 @@ personal deployment inexpensive.
 
 ### Implementation Details
 
-Both services build from Dockerfiles via config-as-code (`apps/api/railway.json`,
-`apps/web/railway.json`) and are linked by Railway reference variables. The API
-reads its persistent database from the mounted volume and the web build is pointed
-at the API's public domain at build time:
+Both services build from per-app Dockerfiles (`apps/api/Dockerfile`,
+`apps/web/Dockerfile`), selected via the `RAILWAY_DOCKERFILE_PATH` variable, and
+are linked by Railway reference variables. The API reads its persistent database
+from the mounted volume and the web build is pointed at the API's public domain at
+build time:
 
 ```
 # api service
-DATABASE_URL      = file:/data/uang.db
-BETTER_AUTH_SECRET = ${{ secret(32) }}
-BETTER_AUTH_URL   = https://${{ RAILWAY_PUBLIC_DOMAIN }}
-WEB_ORIGIN        = https://${{ web.RAILWAY_PUBLIC_DOMAIN }}
+RAILWAY_DOCKERFILE_PATH = apps/api/Dockerfile
+DATABASE_URL            = file:/data/uang.db
+BETTER_AUTH_SECRET      = ${{ secret(32) }}
+BETTER_AUTH_URL         = https://${{ RAILWAY_PUBLIC_DOMAIN }}
+WEB_ORIGIN              = https://${{ web.RAILWAY_PUBLIC_DOMAIN }}
 
 # web service
-VITE_API_URL      = https://${{ api.RAILWAY_PUBLIC_DOMAIN }}
+RAILWAY_DOCKERFILE_PATH = apps/web/Dockerfile
+VITE_API_URL            = https://${{ api.RAILWAY_PUBLIC_DOMAIN }}
 ```
 
 The API refuses to start in production without a persistent `DATABASE_URL` and a
