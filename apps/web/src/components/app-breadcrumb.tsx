@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useLiveQuery } from "@tanstack/react-db";
-import { goalsCollection } from "@/lib/collections";
+import { accountsCollection, goalsCollection } from "@/lib/collections";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -19,7 +19,13 @@ function goalIdFromPath(pathname: string): string | null {
   return m ? m[1] : null;
 }
 
-function crumbsFor(pathname: string, goalName?: string): Crumb[] {
+// The id segment of an /accounts/:id detail path, else null.
+function accountIdFromPath(pathname: string): string | null {
+  const m = pathname.match(/^\/accounts\/([^/]+)/);
+  return m ? m[1] : null;
+}
+
+function crumbsFor(pathname: string, goalName?: string, accountName?: string): Crumb[] {
   if (pathname === "/") return [{ label: "Dashboard" }];
   if (pathname.startsWith("/projections")) return [{ label: "Projections" }];
   if (pathname.startsWith("/settings")) return [{ label: "Settings" }];
@@ -27,7 +33,7 @@ function crumbsFor(pathname: string, goalName?: string): Crumb[] {
     return [{ label: "Goals", to: "/goals" }, { label: goalName ?? "Goal" }];
   if (pathname.startsWith("/goals")) return [{ label: "Goals" }];
   if (pathname.startsWith("/accounts/"))
-    return [{ label: "Dashboard", to: "/" }, { label: "Account" }];
+    return [{ label: "Dashboard", to: "/" }, { label: accountName ?? "Account" }];
   return [{ label: "uang." }];
 }
 
@@ -38,7 +44,11 @@ export function AppBreadcrumb() {
   const goalId = goalIdFromPath(pathname);
   const { data: goals = [] } = useLiveQuery(goalsCollection);
   const goalName = goalId ? goals.find((g) => g.id === goalId)?.name : undefined;
-  const crumbs = crumbsFor(pathname, goalName);
+  // Same live-name treatment for the account-detail crumb.
+  const accountId = accountIdFromPath(pathname);
+  const { data: accounts = [] } = useLiveQuery(accountsCollection);
+  const accountName = accountId ? accounts.find((a) => a.id === accountId)?.name : undefined;
+  const crumbs = crumbsFor(pathname, goalName, accountName);
 
   return (
     <Breadcrumb>
