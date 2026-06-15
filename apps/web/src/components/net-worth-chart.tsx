@@ -14,7 +14,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 
-type SeriesPoint = { date: string; totalBaseMinor: number };
+type SeriesPoint = { date: string; totalBaseMinor: number; netDepositsBaseMinor: number };
 type Series = { baseCurrency: string; points: SeriesPoint[] };
 
 const PRESETS = ["YTD", "1M", "6M", "1Y", "3Y", "Custom"] as const;
@@ -22,6 +22,7 @@ type Preset = (typeof PRESETS)[number];
 
 const chartConfig = {
   net: { label: "Net worth", color: "var(--chart-1)" },
+  deposits: { label: "Net deposits", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
 function iso(d: Date): string {
@@ -112,6 +113,7 @@ export function NetWorthChart({
   const rows = (data?.points ?? []).map((p) => ({
     t: Date.parse(`${p.date}T00:00:00Z`),
     net: p.totalBaseMinor,
+    deposits: p.netDepositsBaseMinor,
   }));
 
   // A handful of evenly-spaced ticks (first/last pinned to the data edges),
@@ -207,6 +209,15 @@ export function NetWorthChart({
                   formatter={(value) => money(Number(value), base)}
                 />
               }
+            />
+            <Area
+              dataKey="deposits"
+              type="monotone"
+              fill="var(--color-deposits)"
+              fillOpacity={0.06}
+              stroke="var(--color-deposits)"
+              strokeWidth={2}
+              strokeDasharray="4 3"
             />
             <Area
               dataKey="net"
