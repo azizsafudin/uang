@@ -34,3 +34,50 @@ test("validateFingerprint accepts good and rejects bad fingerprints", () => {
   expect(() => validateFingerprint({ ...fp, headerColumns: "x" })).toThrow("invalid_fingerprint");
   expect(() => validateFingerprint({ ...fp, delimiter: ";;" })).toThrow("invalid_fingerprint");
 });
+
+// ---- PDF validation tests ----
+
+const PDF_OK = {
+  version: 1, format: "pdf",
+  region: { startAfter: "Transaction Details", stopAt: "Closing Balance" },
+  transactionLine: "^(?<date>\\d{2}/\\d{2}/\\d{4})\\s+(?<description>.+?)\\s+(?<amount>-?[\\d,]+\\.\\d{2})$",
+  date: { format: "DD/MM/YYYY" },
+  amount: { decimal: ".", thousands: ",", sign: "negativeIsDebit" },
+  multiline: { continuationAppendsTo: "description" },
+};
+
+test("validateParserConfig accepts a well-formed PDF config", () => {
+  const cfg = validateParserConfig(PDF_OK);
+  expect(cfg.format).toBe("pdf");
+  if (cfg.format !== "pdf") throw new Error("narrow");
+  expect(cfg.transactionLine).toContain("(?<date>");
+  expect(cfg.region?.startAfter).toBe("Transaction Details");
+  expect(cfg.multiline?.continuationAppendsTo).toBe("description");
+});
+
+test("validateParserConfig rejects a PDF config missing the date/amount named groups", () => {
+  expect(() => validateParserConfig({ ...PDF_OK, transactionLine: "^(.+)$" })).toThrow();
+});
+
+test("validateParserConfig rejects a ReDoS-prone transactionLine (nested quantifier)", () => {
+  expect(() => validateParserConfig({ ...PDF_OK, transactionLine: "(?<date>(a+)+)(?<amount>b)" })).toThrow();
+});
+
+test("validateParserConfig rejects an over-long transactionLine", () => {
+  expect(() => validateParserConfig({ ...PDF_OK, transactionLine: "(?<date>a)(?<amount>b)" + "x".repeat(1001) })).toThrow();
+});
+
+test("validateParserConfig rejects an uncompilable transactionLine", () => {
+  expect(() => validateParserConfig({ ...PDF_OK, transactionLine: "(?<date>(?<amount>" })).toThrow();
+});
+
+test("validateFingerprint accepts a PDF fingerprint", () => {
+  const fp = validateFingerprint({ format: "pdf", markers: ["dbs bank", "statement of account"] });
+  expect(fp.format).toBe("pdf");
+  if (fp.format !== "pdf") throw new Error("narrow");
+  expect(fp.markers).toEqual(["dbs bank", "statement of account"]);
+});
+
+test("validateFingerprint rejects a PDF fingerprint with non-string markers", () => {
+  expect(() => validateFingerprint({ format: "pdf", markers: [1, 2] })).toThrow();
+});

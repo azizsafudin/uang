@@ -7,7 +7,7 @@ export interface CanonicalRow {
   error?: string;                  // set when the row could not be parsed
 }
 
-// ---- Declarative parser config (v1: CSV only; union grows in later specs) ----
+// ---- Declarative parser config ----
 export interface CsvAmountSingle {
   mode: "single";
   column: string;
@@ -34,7 +34,17 @@ export interface CsvParserConfig {
   rowFilter?: { dropIfBlank?: Array<"date" | "amount" | "description"> };
 }
 
-export type ParserConfig = CsvParserConfig;
+export interface PdfParserConfig {
+  version: 1;
+  format: "pdf";
+  region?: { startAfter?: string; stopAt?: string }; // optional regex anchors bounding the txn section
+  transactionLine: string;        // JS regex source; MUST contain named groups (?<date>) and (?<amount>); (?<description>) optional
+  date: { format: string };       // tokens reused from Spec 1 parseDate: YYYY YY MMMM MMM MM M DD D
+  amount: { decimal: string; thousands: string; sign: "negativeIsDebit" | "positiveIsDebit" };
+  multiline?: { continuationAppendsTo: "description" }; // non-matching lines appended to previous row's description
+}
+
+export type ParserConfig = CsvParserConfig | PdfParserConfig;
 
 // ---- Detection fingerprint ----
 export interface CsvFingerprint {
@@ -42,4 +52,9 @@ export interface CsvFingerprint {
   delimiter: string;
   headerColumns: string[]; // normalized, sorted
 }
-export type ParserFingerprint = CsvFingerprint;
+export interface PdfFingerprint {
+  format: "pdf";
+  markers: string[]; // normalized (lowercased, trimmed) stable strings
+}
+
+export type ParserFingerprint = CsvFingerprint | PdfFingerprint;
