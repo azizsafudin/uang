@@ -12,9 +12,13 @@ Self-hosted, single-household personal finance. Monorepo: `apps/web` (SPA),
 
 ## Dev
 1. `bun install`
-2. API: `cd apps/api && DATABASE_URL=file:./data/dev.db BETTER_AUTH_SECRET=dev WEB_ORIGIN=http://localhost:5173 bun run dev`
-3. Web: `cd apps/web && VITE_API_URL=http://localhost:3000 bun run dev`
-4. Open http://localhost:5173 → complete first-run onboarding.
+2. `bun dev` — starts the API (`:3000`) and the Vite dev server (`:5173`) together.
+3. Open http://localhost:5173 → complete first-run onboarding.
+
+The Vite dev server proxies `/api` to the API, so the browser talks to a single
+origin (`:5173`) — same model as the deployed single service (no `VITE_API_URL`,
+no CORS, first-party cookies). The API runs on dev defaults; override via env if
+needed (see `.env.example`).
 
 ## Test
 ```
