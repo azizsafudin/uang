@@ -103,9 +103,11 @@ export function ProjectionsPage() {
       <PageHeader title="Projections" description="Total vs accessible net worth over time, at your assumed growth rates." />
       <div className="space-y-5">
         <ProjectionChart />
+        <div className="grid gap-5 md:grid-cols-2">
+          <MembersSection />
+          <ProjectionAssumptionsSection />
+        </div>
         <ProjectionAccounts />
-        <MembersSection />
-        <ProjectionAssumptionsSection />
       </div>
     </AppShell>
   );
