@@ -1,6 +1,21 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createHash } from "node:crypto";
 import { db } from "./db/client";
+
+// In tests we swap better-auth's default scrypt (intentionally CPU-hard) for a
+// plain SHA-256. The auth flow stays real — cookies, sessions, CSRF, the drizzle
+// adapter — but ~180 hash/verify calls across the suite stop dominating runtime.
+// Gated on the test signals only; production always uses better-auth's scrypt.
+const isTestEnv =
+  process.env.NODE_ENV === "test" || process.env.DATABASE_URL === ":memory:";
+
+const fastPassword = {
+  hash: (password: string) =>
+    Promise.resolve(createHash("sha256").update(password).digest("hex")),
+  verify: ({ hash, password }: { hash: string; password: string }) =>
+    Promise.resolve(createHash("sha256").update(password).digest("hex") === hash),
+};
 
 function isValidHttpUrl(value: string | undefined): value is string {
   if (!value) return false;
@@ -80,6 +95,7 @@ export const auth = betterAuth({
     enabled: true,
     // Open sign-up is gated by the onboarding flow + an admin-only invite path
     // (enforced in routes). better-auth itself allows sign-up; we wrap it.
+    ...(isTestEnv ? { password: fastPassword } : {}),
   },
   user: {
     additionalFields: {
