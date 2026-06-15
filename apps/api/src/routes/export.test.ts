@@ -37,6 +37,8 @@ test("GET /export with cookie returns 200, correct headers, and a SQLite file bo
   const disposition = res.headers.get("content-disposition") ?? "";
   expect(disposition).toContain("attachment");
   expect(disposition).toContain(".db");
+  // Filename carries the household slug (initAndLogin household is "Test").
+  expect(disposition).toContain("test.db");
 
   const buf = await res.arrayBuffer();
   expect(buf.byteLength).toBeGreaterThan(0);
@@ -74,7 +76,7 @@ test("GET /export/csv returns a zip containing the expected CSVs", async () => {
   );
   expect(res.status).toBe(200);
   expect(res.headers.get("content-type")).toBe("application/zip");
-  expect(res.headers.get("content-disposition") ?? "").toContain(".zip");
+  expect(res.headers.get("content-disposition") ?? "").toContain("test.zip");
 
   const buf = new Uint8Array(await res.arrayBuffer());
   const files = unzipSync(buf);

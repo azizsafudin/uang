@@ -3,6 +3,7 @@ import { zipSync, strToU8 } from "fflate";
 import { authGuard } from "../lib/auth-guard";
 import { sqlite } from "../db/client";
 import { buildCsvBundle } from "../lib/csv-bundle";
+import { exportBaseName } from "../lib/export-name";
 
 export const exportRoutes = new Elysia()
   .use(authGuard)
@@ -17,11 +18,12 @@ export const exportRoutes = new Elysia()
     const { Bun } = globalThis as unknown as { Bun: { file(path: string): Blob } };
     const file = Bun.file(tmpPath);
     const today = new Date().toISOString().slice(0, 10);
+    const base = await exportBaseName(today);
 
     return new Response(file, {
       headers: {
         "content-type": "application/octet-stream",
-        "content-disposition": `attachment; filename="uang-${today}.db"`,
+        "content-disposition": `attachment; filename="${base}.db"`,
       },
     });
   })
@@ -33,10 +35,11 @@ export const exportRoutes = new Elysia()
     }
     const zipped = zipSync(zipInput);
     const today = new Date().toISOString().slice(0, 10);
+    const base = await exportBaseName(today);
     return new Response(zipped, {
       headers: {
         "content-type": "application/zip",
-        "content-disposition": `attachment; filename="uang-csv-${today}.zip"`,
+        "content-disposition": `attachment; filename="${base}.zip"`,
       },
     });
   });
