@@ -14,6 +14,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { instrumentKindLabel } from "@/components/labels";
 
 const S = Number(SCALE);
 const NEW_CURRENCY = "__new_currency__";
@@ -192,13 +193,13 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
               </Field>
               <Field label="Kind" className="col-span-2">
                 <Select value={newInstr.kind} onValueChange={(v: string | null) => v && setNewInstr((p) => ({ ...p, kind: v }))}>
-                  <SelectTrigger className="w-full"><SelectValue>{(v: unknown) => String(v)}</SelectValue></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue>{(v: unknown) => instrumentKindLabel(String(v))}</SelectValue></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="stock">stock</SelectItem>
-                    <SelectItem value="etf">etf</SelectItem>
-                    <SelectItem value="fund">fund</SelectItem>
-                    <SelectItem value="crypto">crypto</SelectItem>
-                    <SelectItem value="other">other</SelectItem>
+                    <SelectItem value="stock">{instrumentKindLabel("stock")}</SelectItem>
+                    <SelectItem value="etf">{instrumentKindLabel("etf")}</SelectItem>
+                    <SelectItem value="fund">{instrumentKindLabel("fund")}</SelectItem>
+                    <SelectItem value="crypto">{instrumentKindLabel("crypto")}</SelectItem>
+                    <SelectItem value="other">{instrumentKindLabel("other")}</SelectItem>
                   </SelectContent>
                 </Select>
               </Field>

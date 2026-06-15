@@ -139,7 +139,9 @@ export function GoalForm({
                 value={f.spendType}
                 onValueChange={(v) => setF((p) => ({ ...p, spendType: v as SpendType }))}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue>{(v: unknown) => SPEND_LABELS[String(v) as SpendType] ?? String(v)}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {(Object.keys(SPEND_LABELS) as SpendType[]).map((k) => (
                     <SelectItem key={k} value={k}>{SPEND_LABELS[k]}</SelectItem>
