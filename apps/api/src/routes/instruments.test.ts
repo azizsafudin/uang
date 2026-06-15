@@ -82,3 +82,43 @@ test("PATCH /instruments/:id edits fields", async () => {
   expect(row.name).toBe("Apple Inc.");
   expect(row.symbol).toBe("AAPL.US");
 });
+
+test("GET /instruments/:id returns holders with units, value, and tx counts", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const instrId = createId();
+  await db.insert(instruments).values({
+    id: instrId, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  const acc = createId();
+  await db.insert(accounts).values({
+    id: acc, name: "Brokerage", class: "asset", subtype: "investment", currency: "USD",
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "u",
+  });
+  const S = Number(SCALE);
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: instrId, date: "2026-01-01",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null, createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(prices).values({
+    id: createId(), instrumentId: instrId, date: "2026-01-02", priceScaled: 120 * S, source: "manual", createdAt: nowEpoch(),
+  });
+
+  const res = await app.handle(new Request(`http://localhost/instruments/${instrId}`, { headers: { cookie } }));
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.instrument.id).toBe(instrId);
+  expect(body.latestPriceScaled).toBe(120 * S);
+  expect(body.accounts.length).toBe(1);
+  expect(body.accounts[0].units).toBe(10 * S);
+  expect(body.accounts[0].marketValueMinor).toBe(120000); // 10 × $120
+  expect(body.accounts[0].txCount).toBe(1);
+  expect(body.totalTx).toBe(1);
+});
+
+test("GET /instruments/:id returns 404 for unknown id", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const res = await app.handle(new Request(`http://localhost/instruments/nope`, { headers: { cookie } }));
+  expect(res.status).toBe(404);
+});
