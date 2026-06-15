@@ -208,6 +208,7 @@ export function DashboardSection({
       name: newGroupName.trim(),
       class: cls,
       sortOrder: groups.length,
+      color: null,
       createdAt: Math.floor(Date.now() / 1000),
     });
     setNewGroupOpen(false);
@@ -218,6 +219,12 @@ export function DashboardSection({
   async function renameGroup(id: string, name: string) {
     await groupsCollection.update(id, (draft) => {
       draft.name = name;
+    });
+  }
+
+  async function setGroupColor(id: string, color: string | null) {
+    await groupsCollection.update(id, (draft) => {
+      draft.color = color;
     });
   }
 
@@ -538,8 +545,12 @@ export function DashboardSection({
                           baseCurrency={baseCurrency}
                           expanded={expandedState}
                           onToggle={() => toggleGroup(cardId)}
+                          color={bucket ? null : (group?.color ?? null)}
                           onRename={
                             bucket ? undefined : (name) => void renameGroup(cardId, name)
+                          }
+                          onSetColor={
+                            bucket ? undefined : (c) => void setGroupColor(cardId, c)
                           }
                           onDelete={bucket ? undefined : () => void deleteGroup(cardId)}
                           onAddAccount={() =>

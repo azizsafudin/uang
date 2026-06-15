@@ -286,6 +286,7 @@ export type GroupRow = {
   name: string;
   class: "asset" | "liability";
   sortOrder: number;
+  color: string | null;
   createdAt: number;
 };
 
@@ -311,6 +312,7 @@ export const groupsCollection = createCollection(
         name: m.name,
         class: m.class,
         sortOrder: m.sortOrder,
+        color: m.color,
       });
       if (error) throw new Error(String(error));
     },
@@ -320,6 +322,7 @@ export const groupsCollection = createCollection(
       const { error } = await api.groups({ id: m.id }).patch({
         name: m.name,
         sortOrder: m.sortOrder,
+        color: m.color,
       });
       if (error) throw new Error(String(error));
     },
