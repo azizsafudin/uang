@@ -96,7 +96,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
       <DialogTrigger render={<Button variant="outline" />}>Import statement</DialogTrigger>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader><DialogTitle>Import statement (CSV)</DialogTitle></DialogHeader>
 
         {batchId ? (
@@ -112,7 +112,19 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
               <div className="space-y-2">
                 <Label>Parser</Label>
                 <Select value={parserId} onValueChange={(v: string | null) => v && setParserId(v)}>
-                  <SelectTrigger data-testid="import-parser"><SelectValue placeholder="Choose a parser" /></SelectTrigger>
+                  <SelectTrigger data-testid="import-parser">
+                    <SelectValue>
+                      {(v: unknown) => {
+                        const val = typeof v === "string" ? v : "";
+                        if (!val) return "Choose a parser";
+                        if (val === NEW_PARSER) return "Create a new parser…";
+                        const c = detect?.candidates.find((x) => x.parserId === val);
+                        return c
+                          ? `${c.name}${c.confident ? " (match)" : ` (${Math.round(c.score * 100)}%)`}`
+                          : "Choose a parser";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     {detect?.candidates.map((c) => (
                       <SelectItem key={c.parserId} value={c.parserId}>
@@ -141,7 +153,11 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
                 <div className="space-y-1">
                   <Label>Amount sign</Label>
                   <Select value={sign} onValueChange={(v: string | null) => v && setSign(v as typeof sign)}>
-                    <SelectTrigger data-testid="map-sign"><SelectValue /></SelectTrigger>
+                    <SelectTrigger data-testid="map-sign">
+                      <SelectValue>
+                        {(v: unknown) => (String(v) === "positiveIsDebit" ? "Positive = money out" : "Negative = money out")}
+                      </SelectValue>
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="negativeIsDebit">Negative = money out</SelectItem>
                       <SelectItem value="positiveIsDebit">Positive = money out</SelectItem>
