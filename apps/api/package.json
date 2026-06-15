@@ -17,7 +17,8 @@
     "better-auth": "latest",
     "drizzle-orm": "latest",
     "elysia": "latest",
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "unpdf": "^1.6.2"
   },
   "devDependencies": {
     "drizzle-kit": "latest"
