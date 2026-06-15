@@ -47,3 +47,4 @@ Checklist for a new feature:
 | `ownership` | invite a member, create shared vs personal accounts, net-worth owner toggle |
 | `holdings` | create a holdings account, add a lot (new instrument), set price, see per-lot gain + dashboard rollup |
 | `networth-graph` | chart renders a series, preset switching, empty-state on an inverted custom range |
+| `import-pdf` | upload a text PDF → saved parser auto-detected → review → commit → history |
