@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { api } from "@/lib/api";
-import { formatMoney } from "@/components/money";
+import { Money } from "@/components/money.tsx";
 import { cn } from "@/lib/utils";
 import { AccountForm } from "@/components/account-form";
 import { AppShell, Eyebrow } from "@/components/app-layout";
@@ -67,7 +67,7 @@ export function DashboardPage() {
             headline && headline.totalBaseMinor < 0 && "text-destructive",
           )}
         >
-          {!headline ? "—" : formatMoney(headline.totalBaseMinor, headline.baseCurrency)}
+          {!headline ? "—" : <Money minor={headline.totalBaseMinor} currency={headline.baseCurrency} />}
         </p>
       </section>
 

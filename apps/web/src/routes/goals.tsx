@@ -5,7 +5,8 @@ import { Link } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { goalsCollection } from "@/lib/collections";
 import { type GoalRow } from "@/lib/collections";
-import { formatMoney } from "@/components/money";
+import { Money } from "@/components/money.tsx";
+import { useMoney } from "@/lib/values-hidden";
 import { formatDate } from "@/lib/utils";
 import { GoalForm } from "@/components/goal-form";
 import { GoalDonut } from "@/components/goal-donut";
@@ -38,6 +39,7 @@ async function fetchAnalysis(): Promise<AnalysisResponse> {
 }
 
 function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; base: string }) {
+  const money = useMoney();
   const [editOpen, setEditOpen] = useState(false);
   const { confirm, dialog } = useDestructiveAction();
   return (
@@ -62,10 +64,10 @@ function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; bas
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{g.name}</p>
           <p className="text-xs text-muted-foreground">
-            {formatMoney(g.targetAmountMinor, g.currency)}
+            <Money minor={g.targetAmountMinor} currency={g.currency} />
             {g.targetDate ? ` by ${formatDate(g.targetDate)}` : " · no deadline"}
-            {a && a.spendType === "monthly" && a.annualIncomeMinor !== null && ` · income ≈ ${formatMoney(a.annualIncomeMinor, base)}/yr`}
-            {a && a.spendType === "percent" && a.annualIncomeMinor !== null && ` · drawdown ≈ ${formatMoney(a.annualIncomeMinor, base)}/yr`}
+            {a && a.spendType === "monthly" && a.annualIncomeMinor !== null && ` · income ≈ ${money(a.annualIncomeMinor, base)}/yr`}
+            {a && a.spendType === "percent" && a.annualIncomeMinor !== null && ` · drawdown ≈ ${money(a.annualIncomeMinor, base)}/yr`}
             {a && a.spendType === "once" && " · one-time spend"}
           </p>
           {a && (
@@ -78,12 +80,12 @@ function GoalCard({ g, a, base }: { g: GoalRow; a: GoalAnalysis | undefined; bas
               <div className="mt-3 space-y-2">
                 <Progress value={a.progressPct} />
                 <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-                  <span>{formatMoney(a.allocatedMinor, base)} allocated · {a.progressPct}%</span>
+                  <span><Money minor={a.allocatedMinor} currency={base} /> allocated · {a.progressPct}%</span>
                   <span>
                     {a.onTrack
                       ? `Reaches ${a.reachDate ? formatDate(a.reachDate) : "target"}`
                       : a.projectedAtTargetMinor !== null
-                        ? `${formatMoney(a.targetAmountMinor - a.projectedAtTargetMinor, base)} short`
+                        ? `${money(a.targetAmountMinor - a.projectedAtTargetMinor, base)} short`
                         : "Not reachable"}
                   </span>
                 </div>
@@ -153,7 +155,7 @@ export function GoalsPage() {
           <span className="text-sm text-muted-foreground">
             Unallocated:{" "}
             <span className="font-medium tabular-nums text-foreground">
-              {formatMoney(analysisQ.data.unallocatedMinor, base)}
+              <Money minor={analysisQ.data.unallocatedMinor} currency={base} />
             </span>
           </span>
         )}

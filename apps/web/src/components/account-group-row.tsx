@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { GripVertical } from "lucide-react";
-import { formatMoney } from "@/components/money";
+import { Money } from "@/components/money.tsx";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
@@ -100,7 +100,7 @@ export function AccountGroupRow({
             {memberCount} {memberCount === 1 ? "account" : "accounts"}
           </span>
           <span className="shrink-0 font-heading text-sm tabular-nums font-semibold text-primary">
-            {formatMoney(subtotalMinor, baseCurrency)}
+            <Money minor={subtotalMinor} currency={baseCurrency} />
           </span>
         </button>
       )}

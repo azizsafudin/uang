@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { formatMoney } from "@/components/money";
+import { Money } from "@/components/money.tsx";
 import { subtypeLabel, classLabel } from "@/components/labels";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
@@ -155,7 +155,7 @@ export function AccountDetailPage() {
           data-testid="account-total"
           className="mt-1 font-heading text-4xl tabular-nums tracking-tight"
         >
-          {posLoading || !pos ? "—" : formatMoney(pos.totalMinor, account.currency)}
+          {posLoading || !pos ? "—" : <Money minor={pos.totalMinor} currency={account.currency} />}
         </p>
         {pos && pos.missing && (
           <p className="mt-1 text-sm text-destructive">

@@ -4,7 +4,8 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { goalsCollection } from "@/lib/collections";
-import { formatMoney } from "@/components/money";
+import { Money } from "@/components/money.tsx";
+import { useMoney } from "@/lib/values-hidden";
 import { formatDate } from "@/lib/utils";
 import { useDestructiveAction } from "@/lib/use-destructive-action";
 import { GoalForm } from "@/components/goal-form";
@@ -43,6 +44,7 @@ async function fetchProjection(id: string): Promise<ProjectionResponse> {
 
 export function GoalDetailPage() {
   const { id } = useParams({ from: "/app/goals/$id" });
+  const money = useMoney();
   const nav = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
   const { confirm, dialog } = useDestructiveAction();
@@ -68,7 +70,7 @@ export function GoalDetailPage() {
               <Eyebrow className="mb-2">{p.goal.targetDate ? "Goal" : "Goal · no deadline"}</Eyebrow>
               <h1 className="font-heading text-3xl tracking-tight">{p.goal.name}</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                {formatMoney(p.targetMinor, base)}
+                <Money minor={p.targetMinor} currency={base} />
                 {p.goal.targetDate ? ` by ${formatDate(p.goal.targetDate)}` : " · no deadline"}
               </p>
             </div>
@@ -116,10 +118,10 @@ export function GoalDetailPage() {
               <div className="mt-4 space-y-3 text-sm tabular-nums">
                 <div className="space-y-1">
                   <p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">Now</p>
-                  <div className="flex justify-between gap-3"><span className="shrink-0 text-muted-foreground">Allocated</span><span>{formatMoney(p.allocatedMinor, base)}</span></div>
+                  <div className="flex justify-between gap-3"><span className="shrink-0 text-muted-foreground">Allocated</span><span><Money minor={p.allocatedMinor} currency={base} /></span></div>
                   <div className="flex justify-between gap-3">
                     <span className="shrink-0 text-muted-foreground">Saving</span>
-                    <span>{p.monthlyContributionMinor > 0 ? `${formatMoney(p.monthlyContributionMinor, base)}/mo` : "—"}</span>
+                    <span>{p.monthlyContributionMinor > 0 ? `${money(p.monthlyContributionMinor, base)}/mo` : "—"}</span>
                   </div>
                 </div>
                 <div className="space-y-1 border-t border-border/70 pt-3">
@@ -132,12 +134,12 @@ export function GoalDetailPage() {
                     <>
                       <div className="flex justify-between gap-3">
                         <span className="shrink-0 text-muted-foreground">By {formatDate(p.goal.targetDate)}</span>
-                        <span>{formatMoney(p.projectedAtTargetMinor, base)}</span>
+                        <span><Money minor={p.projectedAtTargetMinor} currency={base} /></span>
                       </div>
                       <div className="flex justify-between gap-3">
                         <span className="shrink-0 text-muted-foreground">{p.onTrack ? "Surplus" : "Shortfall"}</span>
                         <span className={p.onTrack ? "" : "text-destructive"}>
-                          {formatMoney(Math.abs(p.projectedAtTargetMinor - p.targetMinor), base)}
+                          <Money minor={Math.abs(p.projectedAtTargetMinor - p.targetMinor)} currency={base} />
                         </span>
                       </div>
                     </>
@@ -149,9 +151,9 @@ export function GoalDetailPage() {
                       </span>
                       <span>
                         {p.spendType === "once"
-                          ? `${formatMoney(p.spendAmountMinor ?? p.targetMinor, base)} once${p.goal.targetDate ? ` · ${formatDate(p.goal.targetDate)}` : ""}`
+                          ? `${money(p.spendAmountMinor ?? p.targetMinor, base)} once${p.goal.targetDate ? ` · ${formatDate(p.goal.targetDate)}` : ""}`
                           : p.annualIncomeMinor !== null
-                            ? `≈ ${formatMoney(p.annualIncomeMinor, base)}/yr`
+                            ? `≈ ${money(p.annualIncomeMinor, base)}/yr`
                             : "—"}
                       </span>
                     </div>
@@ -187,7 +189,7 @@ export function GoalDetailPage() {
                       <div className="flex items-baseline gap-3">
                         <span className="h-3 w-3 shrink-0 self-center rounded-full" style={{ background: sourceColor(i) }} />
                         <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
-                        <span className="tabular-nums">{formatMoney(s.allocatedMinor, base)}</span>
+                        <span className="tabular-nums"><Money minor={s.allocatedMinor} currency={base} /></span>
                         <span className="w-12 shrink-0 text-right text-sm tabular-nums text-muted-foreground">{pct}%</span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-muted">

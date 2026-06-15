@@ -20,7 +20,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "@/lib/api";
-import { formatMoney } from "@/components/money";
+import { Money } from "@/components/money.tsx";
 import { cn } from "@/lib/utils";
 import { AccountRow } from "@/components/account-row";
 import { AccountGroupRow } from "@/components/account-group-row";
@@ -440,7 +440,7 @@ export function DashboardSection({
         <div className="flex items-center gap-3">
           {hasData && accounts.length > 0 && (
             <span className="font-heading text-sm tabular-nums text-muted-foreground">
-              {formatMoney(sectionTotalMinor, baseCurrency)}
+              <Money minor={sectionTotalMinor} currency={baseCurrency} />
             </span>
           )}
           {newGroupOpen ? (

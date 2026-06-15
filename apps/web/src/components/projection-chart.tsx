@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
 import { projectNetWorth, milestoneYears, type ProjectionAccount } from "@uang/shared";
 import { api } from "@/lib/api";
-import { formatMoney } from "@/components/money";
+import { useMoney } from "@/lib/values-hidden";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -47,6 +47,7 @@ async function fetchMembers(): Promise<Member[]> {
 const MILESTONE_COLORS = ["var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
 export function ProjectionChart() {
+  const money = useMoney();
   const [endAge, setEndAge] = useState(90);
   const nwQ = useQuery({ queryKey: ["networth", "household"], queryFn: fetchNetWorth });
   const membersQ = useQuery({ queryKey: ["members"], queryFn: fetchMembers });
@@ -133,7 +134,7 @@ export function ProjectionChart() {
                 <ChartTooltipContent
                   labelFormatter={(l) => `Year ${l}`}
                   formatter={(value, name) =>
-                    `${name === "total" ? "Total" : "Accessible"}: ${formatMoney(Number(value), base)}`
+                    `${name === "total" ? "Total" : "Accessible"}: ${money(Number(value), base)}`
                   }
                 />
               }

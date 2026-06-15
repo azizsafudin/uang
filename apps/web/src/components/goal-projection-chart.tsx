@@ -1,6 +1,6 @@
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
 import { currencyDecimals } from "@uang/shared";
-import { formatMoney } from "@/components/money";
+import { useMoney } from "@/lib/values-hidden";
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
 } from "@/components/ui/chart";
@@ -38,6 +38,7 @@ export function GoalProjectionChart({
   targetDate: string | null;
   baseCurrency: string;
 }) {
+  const money = useMoney();
   return (
     <ChartContainer config={config} className="h-[280px] w-full">
       <LineChart data={series} margin={{ left: 4, right: 8, top: 16, bottom: 0 }}>
@@ -57,7 +58,7 @@ export function GoalProjectionChart({
           content={
             <ChartTooltipContent
               labelFormatter={(l) => String(l)}
-              formatter={(value, name) => `${LABELS[String(name)] ?? String(name)}: ${formatMoney(Number(value), baseCurrency)}`}
+              formatter={(value, name) => `${LABELS[String(name)] ?? String(name)}: ${money(Number(value), baseCurrency)}`}
             />
           }
         />

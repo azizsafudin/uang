@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { api } from "@/lib/api";
 import { currencyDecimals, currencySymbol } from "@uang/shared";
-import { formatMoney } from "@/components/money";
+import { useMoney } from "@/lib/values-hidden";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -85,6 +85,7 @@ async function fetchSeries(from: string, to: string, owner: string): Promise<Ser
 }
 
 export function NetWorthChart({ owner }: { owner: string }) {
+  const money = useMoney();
   const [preset, setPreset] = useState<Preset>("1Y");
   // Custom range inputs (used only when preset === "Custom").
   const [customFrom, setCustomFrom] = useState(() => presetRange("1Y").from);
@@ -193,7 +194,7 @@ export function NetWorthChart({ owner }: { owner: string }) {
                   labelFormatter={(label) =>
                     formatDay(label, { year: "numeric", month: "short", day: "numeric" })
                   }
-                  formatter={(value) => formatMoney(Number(value), base)}
+                  formatter={(value) => money(Number(value), base)}
                 />
               }
             />

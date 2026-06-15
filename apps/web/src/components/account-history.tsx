@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
-import { formatMoney } from "@/components/money";
+import { Money } from "@/components/money.tsx";
 import { Button } from "@/components/ui/button";
 import { UpdatePrice } from "@/components/update-price";
 import { transactionsCollection } from "@/lib/collections";
@@ -92,7 +92,7 @@ export function PositionsPanel({ accountId, accountCurrency }: { accountId: stri
             <div className="flex items-center gap-3">
               <div className="shrink-0 text-right tabular-nums">
                 <p className="font-medium">
-                  {p.missingPrice ? "—" : formatMoney(p.valueDisplayMinor, accountCurrency)}
+                  {p.missingPrice ? "—" : <Money minor={p.valueDisplayMinor} currency={accountCurrency} />}
                 </p>
                 {!isCash && !p.missingPrice && (
                   <p
@@ -102,7 +102,7 @@ export function PositionsPanel({ accountId, accountCurrency }: { accountId: stri
                     )}
                   >
                     {p.unrealizedGainMinor >= 0 ? "+" : ""}
-                    {formatMoney(p.unrealizedGainMinor, p.instrumentCurrency)}
+                    <Money minor={p.unrealizedGainMinor} currency={p.instrumentCurrency} />
                   </p>
                 )}
               </div>

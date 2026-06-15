@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
-import { formatMoney } from "@/components/money";
+import { Money } from "@/components/money.tsx";
 import { subtypeLabel } from "@/components/labels";
 import { cn } from "@/lib/utils";
 
@@ -85,11 +85,11 @@ export function AccountRow({ account, baseCurrency, isLast, dragHandleProps, isD
 
         <div className="shrink-0 text-right tabular-nums">
           <p className={cn("text-sm font-medium", account.balanceMinor < 0 && "text-destructive")}>
-            {formatMoney(account.balanceMinor, account.currency)}
+            <Money minor={account.balanceMinor} currency={account.currency} />
           </p>
           {account.currency !== baseCurrency && !account.missingRate && (
             <p className="text-xs text-muted-foreground">
-              {formatMoney(account.baseMinor, baseCurrency)}
+              <Money minor={account.baseMinor} currency={baseCurrency} />
             </p>
           )}
         </div>
