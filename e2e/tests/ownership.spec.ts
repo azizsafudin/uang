@@ -24,7 +24,8 @@ test("shared vs personal accounts and the net-worth owner toggle", async ({ page
   });
 
   await test.step("create a shared account (admin + partner)", async () => {
-    await page.getByRole("button", { name: "Add account" }).click();
+    await page.getByRole("button", { name: "Assets actions" }).click();
+    await page.getByRole("menuitem", { name: "Add account" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByTestId("account-name").fill("Joint");
     await selectCurrency(page, dialog, "account-currency", "USD");

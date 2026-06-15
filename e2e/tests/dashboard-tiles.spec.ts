@@ -10,8 +10,10 @@ test("dashboard shows hero + tiles, Add account in Assets header", async ({ page
   await page.goto("/");
   await expect(page.getByTestId("dashboard-hero")).toBeVisible();
   await expect(page.getByTestId("dashboard-tiles")).toBeVisible();
-  // Add account lives in the Assets section now (not top-right).
-  await expect(page.getByRole("button", { name: "Add account" })).toBeVisible();
+  // Add account now lives behind the Assets section actions (dot) menu.
+  await expect(page.getByRole("button", { name: "Assets actions" })).toBeVisible();
+  await page.getByRole("button", { name: "Assets actions" }).click();
+  await expect(page.getByRole("menuitem", { name: "Add account" })).toBeVisible();
 
   // Fund an account so the Assets tile becomes available.
   await createAccount(page, { name: "Checking", currency: "USD" });
