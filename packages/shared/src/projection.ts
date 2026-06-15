@@ -70,7 +70,21 @@ export function accessibleValueMinor(
   return 0;
 }
 
-export type ProjectionAccount = AccessibilityConfig & {
+// Note: the spend-type union is inlined here rather than exported as `SpendType`,
+// because `./goals` already exports a `SpendType` and the package barrel re-exports
+// both modules with `export *` (a named `SpendType` here would collide — TS2308).
+export type SpendStartKind = "age" | "target";
+
+export type WithdrawalConfig = {
+  spendType: "none" | "once" | "monthly" | "percent";
+  spendAmountMinor: number | null;   // base minor: 'once' lump / 'monthly' per-month amount
+  spendRateBps: number | null;       // 'percent' annual % of balance
+  spendStartKind: SpendStartKind;
+  spendStartAge: number | null;      // start when youngest owner reaches this age
+  spendStartTargetMinor: number | null; // start when this account's balance reaches this (base minor)
+};
+
+export type ProjectionAccount = AccessibilityConfig & WithdrawalConfig & {
   baseMinor: number;      // current base-currency balance (signed)
   growthRateBps: number;
   ownerBirthYears: number[]; // owners' birth years; empty = unknown
@@ -82,6 +96,64 @@ export type ProjectionPoint = {
   accessibleBaseMinor: number;
 };
 
+// Year-by-year balance for one account, modelling growth then withdrawal.
+// Offset 0 is today's balance, untouched. Each later year: grow at growthRateBps,
+// then (if the spend trigger has fired and the balance is positive) withdraw.
+// Withdrawals never push a balance below 0; naturally-negative balances (debt)
+// keep compounding and are never floored.
+export function projectAccountSeries(
+  account: ProjectionAccount,
+  span: number,
+  fromYear: number,
+  youngestBirthYear: number | null,
+): number[] {
+  assertYears(span);
+  const factor = BPS + toBig(account.growthRateBps);
+  let b = toBig(account.baseMinor);
+  const out: number[] = [fromBig(b)];
+  let started = false;
+  let finishedOnce = false;
+  for (let offset = 1; offset <= span; offset++) {
+    const year = fromYear + offset;
+    b = roundDiv(b * factor, BPS); // grow
+
+    if (account.spendType !== "none" && !started) {
+      if (account.spendStartKind === "age") {
+        if (
+          youngestBirthYear !== null &&
+          account.spendStartAge !== null &&
+          year - youngestBirthYear >= account.spendStartAge
+        ) {
+          started = true;
+        }
+      } else if (
+        account.spendStartTargetMinor !== null &&
+        b >= toBig(account.spendStartTargetMinor)
+      ) {
+        started = true;
+      }
+    }
+
+    if (started && b > 0n) {
+      if (account.spendType === "once") {
+        if (!finishedOnce) {
+          const amt = toBig(account.spendAmountMinor ?? 0);
+          b = amt > b ? 0n : b - amt;
+          finishedOnce = true;
+        }
+      } else if (account.spendType === "monthly") {
+        const amt = toBig(account.spendAmountMinor ?? 0) * 12n;
+        b = amt > b ? 0n : b - amt;
+      } else if (account.spendType === "percent") {
+        const wd = roundDiv(b * toBig(account.spendRateBps ?? 0), BPS);
+        b = wd > b ? 0n : b - wd;
+      }
+    }
+    out.push(fromBig(b));
+  }
+  return out;
+}
+
 export function projectNetWorth(params: {
   accounts: ProjectionAccount[];
   fromYear: number;
@@ -90,11 +162,11 @@ export function projectNetWorth(params: {
   const { accounts, fromYear, toYear } = params;
   if (toYear < fromYear) throw new Error("projectNetWorth: toYear must be >= fromYear");
   const span = toYear - fromYear;
-  // Precompute each account's balance series once (offset 0..span).
-  const series = accounts.map((a) => projectSeries(a.baseMinor, a.growthRateBps, span));
   const youngestBirths = accounts.map((a) =>
     a.ownerBirthYears.length ? Math.max(...a.ownerBirthYears) : null,
   );
+  // Each account's withdrawn balance series (offset 0..span).
+  const series = accounts.map((a, i) => projectAccountSeries(a, span, fromYear, youngestBirths[i]));
   const points: ProjectionPoint[] = [];
   for (let offset = 0; offset <= span; offset++) {
     const year = fromYear + offset;
@@ -103,7 +175,6 @@ export function projectNetWorth(params: {
     accounts.forEach((a, i) => {
       const bal = series[i][offset];
       total += bal;
-      // Youngest owner (largest birth year) is the binding constraint for unlocks.
       const youngestBirth = youngestBirths[i];
       const age = youngestBirth === null ? Number.POSITIVE_INFINITY : year - youngestBirth;
       accessible += accessibleValueMinor(bal, age, a);
