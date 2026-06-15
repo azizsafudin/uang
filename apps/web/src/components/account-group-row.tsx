@@ -136,9 +136,6 @@ export function AccountGroupRow({
           >
             {name}
           </span>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {memberCount} {memberCount === 1 ? "account" : "accounts"}
-          </span>
           <span
             style={accent ? ({ color: "var(--group-accent)" } as React.CSSProperties) : undefined}
             className={cn(
