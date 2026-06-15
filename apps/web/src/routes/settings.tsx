@@ -413,9 +413,9 @@ export function SettingsPage() {
         </Section>
 
         <Section
-          eyebrow="AI"
-          title="Smart import (AI)"
-          description="Optional. Point at a local model (e.g. Ollama http://localhost:11434/v1) or a cloud endpoint. A cloud URL sends sample statement text to that provider; a local URL keeps it on this machine."
+          eyebrow="Integration"
+          title="AI/LLM Provider"
+          description="Point at a local model (e.g. Ollama http://localhost:11434/v1) or a cloud endpoint. Required for statement import. A cloud URL sends sample statement text to that provider; a local URL keeps it on this machine."
         >
           <div className="grid gap-3 sm:max-w-lg">
             <Field label="Base URL">
