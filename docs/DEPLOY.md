@@ -1,109 +1,104 @@
 # Deploying Uang on Railway
 
 The fastest path is the **Deploy on Railway** button in the [README](../README.md).
-It provisions two services (`api`, `web`) and a persistent volume in one click,
-with all environment variables wired automatically.
+It provisions **one service** and a persistent volume in one click, with all
+environment variables wired automatically.
+
+Uang deploys as a **single service**: the Bun/Elysia API serves the built React
+SPA from the same origin (the API lives under `/api`, the app at `/`). One domain,
+one volume — no CORS or cross-service URL wiring.
 
 The button is backed by a Railway **template**. Templates can only be created in
 the Railway dashboard (there is no CLI command for it), so the steps below are a
 one-time action to publish the template; afterwards anyone can deploy with the
 button.
 
-> **Why there's no `railway.json`.** Railway's config-as-code (`railway.json`)
-> can't drive this template: the template editor exposes only a service's source,
-> root directory, variables, volumes, and the settings shown in its UI — there is
-> **no field for a config-as-code path**. With Root Directory `/` (required, see
-> below) Railway looks for `railway.json` at the repo root, finds none, and falls
-> back to its Railpack auto-builder, which can't derive a start command for this
-> Bun monorepo ("No start command detected"). So the template drives the build via
-> the `RAILWAY_DOCKERFILE_PATH` **variable** and sets the healthcheck and sleep
-> behavior through each service's **Settings** UI instead.
+> **Why one service with a root `Dockerfile`.** Railway reliably uses the
+> Dockerfile builder only when a file named `Dockerfile` sits at the service's
+> Root Directory. A Dockerfile in a subdirectory is **not** reliably picked up:
+> the template editor has no config-as-code path field, and the
+> `RAILWAY_DOCKERFILE_PATH` variable does **not** override Railway's Railpack
+> auto-builder for a Bun workspace monorepo (it ignores the variable and fails
+> with "No start command detected"). A single root `Dockerfile` sidesteps all of
+> that — Railway auto-detects it and always builds with Docker.
 
 ## Publish the template (one-time)
 
 1. Railway dashboard → your workspace → **Templates** → **New Template**.
-2. **Add the `api` service** from GitHub repo `azizsafudin/uang`:
-   - **Root Directory:** `/`
+2. **Add a service** from GitHub repo `azizsafudin/uang`:
+   - **Root Directory:** `/` (so the root `Dockerfile` is detected and the Docker
+     build context is the repo root, which the build needs).
    - **Add a Volume**, mount path **`/data`**.
    - **Variables:**
      | Key | Value |
      | --- | --- |
-     | `RAILWAY_DOCKERFILE_PATH` | `apps/api/Dockerfile` |
      | `DATABASE_URL` | `file:/data/uang.db` |
      | `NODE_ENV` | `production` |
      | `BETTER_AUTH_SECRET` | `${{ secret(32) }}` |
      | `BETTER_AUTH_URL` | `https://${{ RAILWAY_PUBLIC_DOMAIN }}` |
-     | `WEB_ORIGIN` | `https://${{ web.RAILWAY_PUBLIC_DOMAIN }}` |
-   - **Settings:** set **Healthcheck Path** = `/health`, and enable **Serverless**
-     (the `sleepApplication` equivalent).
-3. **Add the `web` service** from the same repo `azizsafudin/uang`:
-   - **Root Directory:** `/`
-   - **Variables:**
-     | Key | Value |
-     | --- | --- |
-     | `RAILWAY_DOCKERFILE_PATH` | `apps/web/Dockerfile` |
-     | `VITE_API_URL` | `https://${{ api.RAILWAY_PUBLIC_DOMAIN }}` |
-   - **Settings:** enable **Serverless**.
-4. Click **Create Template**, then **Publish** it (publishing is what makes the
+     | `WEB_ORIGIN` | `https://${{ RAILWAY_PUBLIC_DOMAIN }}` |
+   - **Settings:** set **Healthcheck Path** = `/health`, and enable **Serverless**.
+3. Click **Create Template**, then **Publish** it (publishing is what makes the
    public deploy link resolve — a created-but-unpublished template 404s for
    anyone outside your workspace).
-5. Point the README button at the published template's deploy URL. The current
+4. Point the README button at the published template's deploy URL. The current
    published template is <https://railway.com/deploy/uang>.
 
 ## Why these values
 
-- `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile` (and `apps/web/Dockerfile`)
-  forces Railway's Dockerfile builder, bypassing Railpack auto-detection. This is
-  what the template uses in place of a config-as-code path (see the note above).
+- No `RAILWAY_DOCKERFILE_PATH`, no `VITE_API_URL`. The build uses the root
+  `Dockerfile` automatically, and the web bundle targets its own origin
+  (`window.location.origin`), so the SPA finds the API at `/api` on the same
+  domain with zero configuration.
 - `BETTER_AUTH_SECRET=${{ secret(32) }}` generates a 32-char secret, satisfying
   the `>= 32 chars` production guard in `apps/api/src/index.ts`.
 - `DATABASE_URL=file:/data/uang.db` points at the mounted volume, satisfying the
   "refuse to start without a persistent DATABASE_URL" guard (it rejects `/tmp/`
   and missing values).
-- `BETTER_AUTH_URL` / `WEB_ORIGIN` / `VITE_API_URL` use Railway **reference
-  variables** so the two services discover each other's generated domains without
-  manual editing.
+- `BETTER_AUTH_URL` / `WEB_ORIGIN` are the service's own public domain (a Railway
+  reference variable). Same origin for the app and API means `WEB_ORIGIN` (used by
+  better-auth's trusted origins and CORS) is simply the deploy's domain.
 
 ## Serverless (app sleeping)
 
-Enabling **Serverless** on each service (step 2–3 above) scales it to zero after
-~10 minutes with no outbound traffic and wakes it on the next inbound request.
-This keeps a personal, low-traffic deploy cheap. Trade-off: the first request
-after idle pays a cold start. The `api` healthcheck does **not** keep the service
-awake — Railway only pings it at deploy time, not continuously. To keep a service
-always-on instead, toggle Serverless off in the service settings.
+Enabling **Serverless** (step 2 above) scales the service to zero after ~10
+minutes with no inbound traffic and wakes it on the next request. This keeps a
+personal, low-traffic deploy cheap. Trade-off: the first request after idle pays a
+cold start. The healthcheck does **not** keep the service awake — Railway only
+pings it at deploy time, not continuously. To keep it always-on, toggle Serverless
+off in the service settings.
 
 ## Cookies & CORS
 
-better-auth sets session cookies. The SPA calls the API with
-`credentials: "include"`, and the API allows `WEB_ORIGIN` with
-`credentials: true`. Both services get HTTPS Railway domains, so `Secure` cookies
-work. Because `WEB_ORIGIN` and `VITE_API_URL` are wired to the live domains, no
-cross-origin configuration is needed beyond the variables above.
+better-auth sets session cookies. Because the SPA and API share one origin, the
+session cookie is first-party and there is no cross-origin request to configure —
+CORS is effectively a no-op. `BETTER_AUTH_URL`/`WEB_ORIGIN` being the live HTTPS
+domain means `Secure` cookies work out of the box.
 
 ## Known gotchas
 
-- **`VITE_API_URL` is baked in at build time** (it's a Vite env compiled into the
-  static bundle). Railway resolves reference variables at provision time, so this
-  normally just works. If the web bundle is ever built before the `api` domain is
-  assigned and API calls 404, set `VITE_API_URL` to the api service's public URL
-  and **redeploy the web service** once.
-- **"No start command detected" / Railpack runs instead of Docker:** the service
-  is missing `RAILWAY_DOCKERFILE_PATH`. Add it (`apps/api/Dockerfile` or
-  `apps/web/Dockerfile`) and redeploy. This is the most common template
-  misconfiguration — Railway only falls back to Railpack when nothing tells it to
-  use the Dockerfile.
-- **Web port:** nginx listens on `8080` (matches `EXPOSE 8080`); Railway detects
-  it. No `PORT` wiring needed for the static service.
+- **"No start command detected" / Railpack runs instead of Docker:** Railway isn't
+  using the root `Dockerfile`. Confirm the service's **Root Directory** is `/` (not
+  a subdirectory) so the root `Dockerfile` is detected. Do **not** rely on
+  `RAILWAY_DOCKERFILE_PATH` — it does not override Railpack for this monorepo.
+- **Port:** the API reads `PORT` (Railway injects it) and listens there; `EXPOSE
+  3000` is just a default. No manual port wiring needed.
+- **First boot:** the API runs database migrations automatically on start, so the
+  first request after a fresh deploy may be slightly slower.
 
 ## Manual deploy (without the template)
 
-You can also create two services by hand pointing at the same Dockerfiles
-(`apps/api/Dockerfile`, `apps/web/Dockerfile`) with Root Directory `/`, add the
-`/data` volume on `api`, and set the same variables listed above (using your real
-domains in place of the `${{ … }}` references), including `RAILWAY_DOCKERFILE_PATH`
-on each service. Set the healthcheck and Serverless options in each service's
-Settings UI.
+Create one service pointing at the repo with **Root Directory `/`** (the root
+`Dockerfile` is detected automatically), add the `/data` volume, and set the
+variables above (using your real domain in place of the `${{ … }}` reference).
+
+## Local development
+
+Locally the two apps run separately for fast iteration: the API on `:3000` and the
+Vite dev server on `:5173`. Set `VITE_API_URL=http://localhost:3000` (see
+`.env.example`) so the dev client reaches the cross-origin API; `WEB_ORIGIN` lets
+the API's CORS accept it. In production neither is needed — everything is one
+origin.
 
 ## Backup
 

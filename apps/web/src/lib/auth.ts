@@ -1,5 +1,6 @@
 import { createAuthClient } from "better-auth/react";
 
-const url = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
-export const authClient = createAuthClient({ baseURL: `${url}/api/auth` });
+// Same-origin in production; VITE_API_URL points at the cross-origin API in dev.
+const base = import.meta.env.VITE_API_URL || window.location.origin;
+export const authClient = createAuthClient({ baseURL: `${base}/api/auth` });
 export const { useSession, signIn, signOut } = authClient;
