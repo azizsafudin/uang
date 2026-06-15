@@ -32,7 +32,7 @@ async function fetchNetWorth(): Promise<NetWorthData> {
 
 const pct = (bps: number) => `${bps / 100}%`;
 
-// Total months -> "4y", "4y 6m", or "18m".
+// Total months -> "4y", "4y 6m", or "6m".
 const fmtTerm = (months: number): string => {
   const y = Math.floor(months / 12);
   const m = months % 12;
