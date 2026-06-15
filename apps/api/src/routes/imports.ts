@@ -11,6 +11,7 @@ import { fingerprintCsv, matchParsers } from "../lib/import/detect";
 import { dedupHash } from "../lib/import/dedup";
 import { unitsDeltaToAmountMinor, amountMinorToUnitsDelta } from "../lib/import/amount";
 import { validateParserConfig, validateFingerprint } from "../lib/import/validate";
+import type { CsvFingerprint } from "../lib/import/types";
 import { SCALE } from "@uang/shared";
 
 const fileHashOf = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -23,10 +24,11 @@ export const importsRoutes = new Elysia()
     async ({ body }: any) => {
       const fp = fingerprintCsv(body.content, ",");
       const parsers = await db.select().from(importParsers).where(eq(importParsers.sourceFormat, "csv"));
-      const valid: { id: string; name: string; fingerprint: ReturnType<typeof validateFingerprint> }[] = [];
+      const valid: { id: string; name: string; fingerprint: CsvFingerprint }[] = [];
       for (const p of parsers) {
         try {
-          valid.push({ id: p.id, name: p.name, fingerprint: validateFingerprint(JSON.parse(p.fingerprint)) });
+          const fpv = validateFingerprint(JSON.parse(p.fingerprint));
+          if (fpv.format === "csv") valid.push({ id: p.id, name: p.name, fingerprint: fpv });
         } catch {
           // skip parsers whose stored fingerprint is malformed rather than crash detect
         }
@@ -46,6 +48,7 @@ export const importsRoutes = new Elysia()
       if (!parser) { set.status = 422; return { error: "unknown_parser" }; }
 
       const config = validateParserConfig(JSON.parse(parser.config));
+      if (config.format !== "csv") { set.status = 422; return { error: "unsupported_format" }; }
       const canonical = parseCsv(body.content, config, account.currency);
 
       // Build the set of dedup hashes for already-committed cash transactions.

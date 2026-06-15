@@ -105,7 +105,9 @@ export async function synthesizeCsvConfig(
 ): Promise<CsvParserConfig> {
   const raw = await chat(cfg, SYSTEM, `Sample CSV (headers + rows):\n${sample}`);
   try {
-    return validateParserConfig(raw);
+    const cfg2 = validateParserConfig(raw);
+    if (cfg2.format !== "csv") throw new Error("expected csv");
+    return cfg2;
   } catch {
     throw new AiError("ai_invalid_output", "config failed validation");
   }
@@ -129,7 +131,9 @@ export async function refineCsvConfig(
     .join("\n\n");
   const raw = await chat(cfg, SYSTEM, user);
   try {
-    return validateParserConfig(raw);
+    const cfg2 = validateParserConfig(raw);
+    if (cfg2.format !== "csv") throw new Error("expected csv");
+    return cfg2;
   } catch {
     throw new AiError("ai_invalid_output", "config failed validation");
   }

@@ -8,7 +8,7 @@ import { validateParserConfig, validateFingerprint } from "../lib/import/validat
 import { isUniqueViolation } from "../lib/db-errors";
 import { synthesizeCsvConfig, refineCsvConfig, capSample, AiError, type AiConfig } from "../lib/import/ai";
 import { parseCsv } from "../lib/import/csv";
-import type { CsvParserConfig } from "../lib/import/types";
+import type { ParserConfig } from "../lib/import/types";
 
 async function loadAiConfig(): Promise<AiConfig | null> {
   const s = (await db.select().from(settings).where(eq(settings.id, 1)))[0];
@@ -126,9 +126,10 @@ export const importParsersRoutes = new Elysia()
   .post(
     "/import-parsers/preview",
     async ({ body, set }: any) => {
-      let config: CsvParserConfig;
+      let config: ParserConfig;
       try { config = validateParserConfig(body.config); }
       catch { set.status = 422; return { error: "invalid_config" }; }
+      if (config.format !== "csv") { set.status = 422; return { error: "invalid_config" }; }
       const all = parseCsv(body.content, config, (body.currency ?? "USD").toUpperCase());
       const bad = all.filter((r) => r.error || r.date === null || r.amountMinor === null);
       return {
