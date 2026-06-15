@@ -85,6 +85,7 @@ export const transactions = sqliteTable("transactions", {
   feesMinor: integer("fees_minor").notNull().default(0),
   notes: text("notes"),
   importBatchId: text("import_batch_id"), // nullable logical FK → import_batches.id (traceability)
+  linkedTransactionId: text("linked_transaction_id"), // nullable FK → transactions.id (e.g. a buy/sell's cash leg)
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
 });
