@@ -12,6 +12,7 @@ import { accountsCollection } from "@/lib/collections";
 import { AccountInfoCard } from "@/components/account-info-card";
 import { AccountProjectionCard } from "@/components/account-projection-card";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
+import { ImportDialog } from "@/components/import-dialog";
 import { usePositions, PositionsPanel, HistoryPanel } from "@/components/account-history";
 import {
   Dialog,
@@ -164,8 +165,9 @@ export function AccountDetailPage() {
         )}
       </header>
 
-      <div className="mt-5">
+      <div className="mt-5 flex gap-2">
         <AddTransactionDialog accountId={id} accountCurrency={account.currency} />
+        <ImportDialog accountId={id} accountCurrency={account.currency} />
       </div>
 
       <Tabs
