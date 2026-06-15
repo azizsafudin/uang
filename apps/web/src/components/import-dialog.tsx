@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,9 @@ type Detect = { fingerprint: { headerColumns: string[] }; candidates: Candidate[
 
 const NEW_PARSER = "__new__";
 
+type PreviewRow = { date: string | null; amountMinor: number | null; description: string };
+type Preview = { rows: PreviewRow[]; total: number; errorCount: number };
+
 export function ImportDialog({ accountId, accountCurrency }: { accountId: string; accountCurrency: string }) {
   const [open, setOpen] = useState(false);
   const [filename, setFilename] = useState("");
@@ -25,6 +28,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   const [parserId, setParserId] = useState<string>("");
   const [batchId, setBatchId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New-parser column mapping fields
   const [name, setName] = useState("");
@@ -34,15 +38,28 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   const [amountCol, setAmountCol] = useState("");
   const [sign, setSign] = useState<"negativeIsDebit" | "positiveIsDebit">("negativeIsDebit");
 
+  // AI state
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMsg, setAiMsg] = useState("");
+  const [refineText, setRefineText] = useState("");
+  const [preview, setPreview] = useState<Preview | null>(null);
+
+  // Load AI availability on mount
+  useEffect(() => {
+    api.settings.get().then(({ data }) => {
+      if (data && "aiBaseUrl" in data) setAiEnabled(!!data.aiBaseUrl && !!data.aiModel);
+    });
+  }, []);
+
   function reset() {
     setFilename(""); setContent(""); setDetect(null); setHeaders([]); setParserId("");
     setBatchId(null); setName(""); setDateCol(""); setDescCol(""); setAmountCol("");
     setDateFmt("YYYY-MM-DD"); setSign("negativeIsDebit");
+    setAiBusy(false); setAiMsg(""); setRefineText(""); setPreview(null);
   }
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handleFile(file: File) {
     const text = await file.text();
     setFilename(file.name); setContent(text);
     const firstLine = text.split(/\r?\n/)[0] ?? "";
@@ -68,6 +85,57 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
       },
       rowFilter: { dropIfBlank: ["date" as const, "amount" as const] },
     };
+  }
+
+  function applyConfig(cfg: {
+    fields: {
+      date: { column: string; format: string };
+      description: { column: string };
+      amount: { mode: string; column?: string; sign?: string };
+    };
+  }) {
+    setDateCol(cfg.fields.date.column);
+    setDateFmt(cfg.fields.date.format);
+    setDescCol(cfg.fields.description.column);
+    if (cfg.fields.amount.mode === "single") {
+      setAmountCol(cfg.fields.amount.column ?? "");
+      setSign(cfg.fields.amount.sign === "positiveIsDebit" ? "positiveIsDebit" : "negativeIsDebit");
+    }
+  }
+
+  // Live preview — debounced whenever mapping changes
+  useEffect(() => {
+    const needsMapping = parserId === NEW_PARSER;
+    if (!content || !needsMapping || !dateCol || !descCol || !amountCol) {
+      setPreview(null);
+      return;
+    }
+    const cfg = buildConfig();
+    const t = setTimeout(() => {
+      void (async () => {
+        const { data } = await api["import-parsers"].preview.post({ content, config: cfg, currency: accountCurrency });
+        if (data && "rows" in data && data.rows !== undefined) {
+          setPreview({ rows: data.rows, total: data.total, errorCount: data.errorCount });
+        }
+      })();
+    }, 400);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, parserId, dateCol, dateFmt, descCol, amountCol, sign, accountCurrency]);
+
+  async function runRefine(instruction: string) {
+    setAiBusy(true);
+    try {
+      const { data, error } = await api["import-parsers"].refine.post({
+        content, config: buildConfig(), instruction, errors: [],
+      });
+      if (error || !data || !("config" in data)) { setAiMsg("Refine failed"); return; }
+      applyConfig(data.config as Parameters<typeof applyConfig>[0]);
+      setRefineText("");
+      setAiMsg("");
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   async function run() {
@@ -105,7 +173,24 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>CSV file</Label>
-              <Input type="file" accept=".csv,text/csv" data-testid="import-file" onChange={onFile} />
+              <div
+                data-testid="import-dropzone"
+                onDragOver={(e) => { e.preventDefault(); }}
+                onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) void handleFile(f); }}
+                onClick={() => fileInputRef.current?.click()}
+                className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-input py-8 text-center text-sm text-muted-foreground hover:border-ring"
+              >
+                <span className="text-base">&#8593; Drop your statement here</span>
+                <span>or click to browse (.csv){filename ? ` — ${filename}` : ""}</span>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  data-testid="import-file"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f); }}
+                />
+              </div>
             </div>
 
             {content && (
@@ -138,32 +223,109 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
             )}
 
             {needsMapping && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 space-y-1">
-                  <Label>Parser name</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={filename} data-testid="parser-name" />
+              <div className="space-y-4">
+                {aiEnabled && (
+                  <div className="space-y-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!content || aiBusy}
+                      data-testid="ai-generate"
+                      onClick={async () => {
+                        setAiBusy(true);
+                        try {
+                          const { data, error } = await api["import-parsers"].synthesize.post({ content });
+                          if (error || !data || !("config" in data)) {
+                            setAiMsg("AI couldn't generate — map manually");
+                            return;
+                          }
+                          applyConfig(data.config as Parameters<typeof applyConfig>[0]);
+                          setAiMsg("");
+                        } finally {
+                          setAiBusy(false);
+                        }
+                      }}
+                    >
+                      {aiBusy ? "Generating…" : "✨ Generate with AI"}
+                    </Button>
+                    {aiMsg && <p className="text-sm text-muted-foreground">{aiMsg}</p>}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 space-y-1">
+                    <Label>Parser name</Label>
+                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={filename} data-testid="parser-name" />
+                  </div>
+                  <ColumnPick label="Date column" value={dateCol} set={setDateCol} headers={headers} testId="map-date" />
+                  <div className="space-y-1">
+                    <Label>Date format</Label>
+                    <Input value={dateFmt} onChange={(e) => setDateFmt(e.target.value)} data-testid="map-dateformat" />
+                  </div>
+                  <ColumnPick label="Description column" value={descCol} set={setDescCol} headers={headers} testId="map-desc" />
+                  <ColumnPick label="Amount column" value={amountCol} set={setAmountCol} headers={headers} testId="map-amount" />
+                  <div className="space-y-1">
+                    <Label>Amount sign</Label>
+                    <Select value={sign} onValueChange={(v: string | null) => v && setSign(v as "negativeIsDebit" | "positiveIsDebit")}>
+                      <SelectTrigger data-testid="map-sign">
+                        <SelectValue>
+                          {(v: unknown) => (String(v) === "positiveIsDebit" ? "Positive = money out" : "Negative = money out")}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="negativeIsDebit">Negative = money out</SelectItem>
+                        <SelectItem value="positiveIsDebit">Positive = money out</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <ColumnPick label="Date column" value={dateCol} set={setDateCol} headers={headers} testId="map-date" />
-                <div className="space-y-1">
-                  <Label>Date format</Label>
-                  <Input value={dateFmt} onChange={(e) => setDateFmt(e.target.value)} data-testid="map-dateformat" />
-                </div>
-                <ColumnPick label="Description column" value={descCol} set={setDescCol} headers={headers} testId="map-desc" />
-                <ColumnPick label="Amount column" value={amountCol} set={setAmountCol} headers={headers} testId="map-amount" />
-                <div className="space-y-1">
-                  <Label>Amount sign</Label>
-                  <Select value={sign} onValueChange={(v: string | null) => v && setSign(v as typeof sign)}>
-                    <SelectTrigger data-testid="map-sign">
-                      <SelectValue>
-                        {(v: unknown) => (String(v) === "positiveIsDebit" ? "Positive = money out" : "Negative = money out")}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="negativeIsDebit">Negative = money out</SelectItem>
-                      <SelectItem value="positiveIsDebit">Positive = money out</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
+                {preview && (
+                  <div className="space-y-1 rounded-md border p-2 text-sm">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Preview</span>
+                      <span>{preview.total - preview.errorCount} ok &middot; {preview.errorCount} errors</span>
+                    </div>
+                    {preview.rows.map((r, i) => (
+                      <div key={i} className="flex justify-between tabular-nums">
+                        <span>{r.date ?? "—"}</span>
+                        <span className="flex-1 truncate px-2">{r.description}</span>
+                        <span>{r.amountMinor === null ? "—" : (r.amountMinor / 100).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {aiEnabled && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={refineText}
+                      onChange={(e) => setRefineText(e.target.value)}
+                      placeholder="Tell the AI what's off…"
+                      data-testid="ai-refine-input"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={aiBusy || !content}
+                      data-testid="ai-refine"
+                      onClick={() => void runRefine(refineText)}
+                    >
+                      Refine
+                    </Button>
+                    {preview && preview.errorCount > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={aiBusy}
+                        data-testid="ai-fix-errors"
+                        onClick={() => void runRefine("Fix the rows that failed to parse.")}
+                      >
+                        Ask AI to fix these
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
