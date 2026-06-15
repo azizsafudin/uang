@@ -64,6 +64,7 @@ export const groups = sqliteTable("groups", {
   name: text("name").notNull(),
   class: text("class").$type<"asset" | "liability">().notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  color: text("color"), // nullable; semantic palette key (see group-colors.ts) or null = default
   createdAt: integer("created_at").notNull(),
 });
 
