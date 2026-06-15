@@ -106,6 +106,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
 
   async function handleFile(file: File) {
     setFileError("");
+    setName(file.name.replace(/\.[^.]+$/, "")); // prefill a suggested parser name (filename without extension)
     const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
     if (isPdf) {
       setFormat("pdf");
