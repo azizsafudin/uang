@@ -20,6 +20,7 @@ import { positionsRoutes } from "./routes/positions";
 import { pricesRoutes } from "./routes/prices";
 import { groupsRoutes } from "./routes/groups";
 import { importParsersRoutes } from "./routes/import-parsers";
+import { importsRoutes } from "./routes/imports";
 import { isInitialized } from "./lib/settings";
 
 // The API surface, defined at root-relative paths (`/accounts`, `/onboarding`, …).
@@ -34,6 +35,7 @@ export function createApiApp() {
     .use(accountsRoutes)
     .use(transactionsRoutes)
     .use(importParsersRoutes)
+    .use(importsRoutes)
     .use(fxRoutes)
     .use(networthRoutes)
     .use(networthSeriesRoutes)
