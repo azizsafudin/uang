@@ -206,7 +206,26 @@ export function NetWorthChart({
                   labelFormatter={(label) =>
                     formatDay(label, { year: "numeric", month: "short", day: "numeric" })
                   }
-                  formatter={(value) => money(Number(value), base)}
+                  formatter={(value, _name, item) => {
+                    const formatted = money(Number(value), base);
+                    // After the "net" row, surface the derived appreciation
+                    // (net worth − net deposits) for the hovered point.
+                    if (item?.dataKey === "net") {
+                      const p = item.payload as { net: number; deposits: number };
+                      return (
+                        <span className="flex flex-1 flex-col gap-0.5">
+                          <span>{formatted}</span>
+                          <span className="flex justify-between gap-3 text-muted-foreground">
+                            <span>Appreciation</span>
+                            <span className="font-mono tabular-nums">
+                              {money(p.net - p.deposits, base)}
+                            </span>
+                          </span>
+                        </span>
+                      );
+                    }
+                    return formatted;
+                  }}
                 />
               }
             />

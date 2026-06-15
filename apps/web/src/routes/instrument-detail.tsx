@@ -15,6 +15,12 @@ import { SCALE } from "@uang/shared";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+
+const KINDS = ["currency", "stock", "etf", "fund", "crypto", "other"] as const;
+const kindLabel = (k: string) => (k === "etf" ? "ETF" : k.charAt(0).toUpperCase() + k.slice(1));
 
 const S = Number(SCALE);
 
@@ -56,6 +62,7 @@ export function InstrumentDetailPage() {
   const [symbol, setSymbol] = useState("");
   const [isin, setIsin] = useState("");
   const [currency, setCurrency] = useState("");
+  const [kind, setKind] = useState("");
 
   if (isLoading || !instrument) {
     return (
@@ -73,6 +80,7 @@ export function InstrumentDetailPage() {
     setSymbol(instrument!.symbol ?? "");
     setIsin(instrument!.isin ?? "");
     setCurrency(instrument!.currency);
+    setKind(instrument!.kind);
     setEditOpen(true);
   }
 
@@ -83,6 +91,7 @@ export function InstrumentDetailPage() {
       draft.symbol = symbol || null;
       draft.isin = isin || null;
       draft.currency = currency.toUpperCase();
+      draft.kind = kind as "currency" | "stock" | "etf" | "fund" | "crypto" | "other";
     });
     await qc.invalidateQueries({ queryKey: ["instrument", id] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
@@ -238,6 +247,18 @@ export function InstrumentDetailPage() {
           <form onSubmit={saveEdit} className="space-y-4">
             <Field label="Name">
               <Input value={name} onChange={(e) => setName(e.target.value)} required />
+            </Field>
+            <Field label="Kind">
+              <Select value={kind} onValueChange={(v: string | null) => v && setKind(v)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue>{(v: unknown) => kindLabel(String(v))}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>{kindLabel(k)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Symbol">
