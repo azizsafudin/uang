@@ -1,5 +1,5 @@
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
-import { currencyDecimals } from "@uang/shared";
+import { currencyDecimals, currencySymbol } from "@uang/shared";
 import { useMoney } from "@/lib/values-hidden";
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
@@ -21,10 +21,11 @@ const LABELS: Record<string, string> = {
   projected: "Projected",
 };
 
-// Compact axis label from minor units, e.g. 1_050_000_00 -> "1.1M".
+// Compact axis label from minor units, e.g. 1_050_000_00 -> "£1.1M".
 function compactMoney(minor: number, currency: string): string {
   const major = minor / 10 ** currencyDecimals(currency);
-  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(major);
+  const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(major);
+  return `${currencySymbol(currency)}${compact}`;
 }
 
 export function GoalProjectionChart({
@@ -40,7 +41,7 @@ export function GoalProjectionChart({
 }) {
   const money = useMoney();
   return (
-    <ChartContainer config={config} className="h-[280px] w-full">
+    <ChartContainer config={config} className="h-full min-h-[280px] w-full">
       <LineChart data={series} margin={{ left: 4, right: 8, top: 16, bottom: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8}

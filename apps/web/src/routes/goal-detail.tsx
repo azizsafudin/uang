@@ -165,14 +165,16 @@ export function GoalDetailPage() {
               </div>
             </section>
 
-            <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5">
+            <section className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card px-4 py-4 md:px-6 md:py-5">
               <Eyebrow className="mb-3">Projection</Eyebrow>
-              <GoalProjectionChart
-                series={p.series}
-                targetMinor={p.targetMinor}
-                targetDate={p.goal.targetDate}
-                baseCurrency={base}
-              />
+              <div className="min-h-0 flex-1">
+                <GoalProjectionChart
+                  series={p.series}
+                  targetMinor={p.targetMinor}
+                  targetDate={p.goal.targetDate}
+                  baseCurrency={base}
+                />
+              </div>
             </section>
           </div>
 
