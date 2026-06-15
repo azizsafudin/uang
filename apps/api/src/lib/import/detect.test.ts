@@ -48,8 +48,22 @@ test("matchPdfParsers scores by marker Jaccard and flags confident matches", () 
   expect(out[0].confident).toBe(true);
 });
 
-test("matchPdfParsers ignores non-pdf fingerprints", () => {
+test("matchPdfParsers filters out a CSV fingerprint mixed into the saved list", () => {
   const fp = fingerprintPdf(STATEMENT);
-  const out = matchPdfParsers(fp, []);
-  expect(out.length).toBe(0);
+  const saved = [
+    { id: "pdf1", name: "DBS", fingerprint: fingerprintPdf(STATEMENT) },
+    { id: "csv1", name: "Some CSV", fingerprint: fingerprintCsv("Date,Desc,Amount", ",") },
+  ];
+  const out = matchPdfParsers(fp, saved);
+  expect(out.map((c) => c.parserId)).toEqual(["pdf1"]); // the CSV parser is excluded
+});
+
+test("matchPdfParsers marks a low-overlap match as not confident", () => {
+  const fp = fingerprintPdf(STATEMENT); // markers incl. "dbs bank statement of account", "customer service 1800 111 1111", "transaction details", "closing balance 9,999.00"
+  // A saved parser sharing only 1 of the relevant markers → Jaccard well below 0.6.
+  const partial = { format: "pdf" as const, markers: ["transaction details", "uob one account", "interest summary"] };
+  const out = matchPdfParsers(fp, [{ id: "p1", name: "UOB", fingerprint: partial }]);
+  expect(out[0].score).toBeGreaterThan(0);
+  expect(out[0].score).toBeLessThan(0.6);
+  expect(out[0].confident).toBe(false);
 });

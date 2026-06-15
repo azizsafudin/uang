@@ -1,5 +1,5 @@
 import { parseDelimited } from "./csv";
-import type { CsvFingerprint, PdfFingerprint } from "./types";
+import type { CsvFingerprint, PdfFingerprint, ParserFingerprint } from "./types";
 
 export function fingerprintCsv(content: string, delimiter: string): CsvFingerprint {
   const rows = parseDelimited(content, delimiter);
@@ -57,15 +57,17 @@ export function fingerprintPdf(text: string): PdfFingerprint {
   return { format: "pdf", markers };
 }
 
+// Accepts a heterogeneous list of validated fingerprints and keeps only the PDF
+// ones, so callers can pass their full saved-parser list without pre-filtering.
 export function matchPdfParsers(
   fp: PdfFingerprint,
-  parsers: Array<{ id: string; name: string; fingerprint: PdfFingerprint }>,
+  parsers: Array<{ id: string; name: string; fingerprint: ParserFingerprint }>,
 ): ParserCandidate[] {
-  return parsers
-    .filter((p) => p.fingerprint.format === "pdf")
-    .map((p) => {
-      const score = jaccard(fp.markers, p.fingerprint.markers);
-      return { parserId: p.id, name: p.name, score, confident: score >= 0.6 };
-    })
-    .sort((a, b) => b.score - a.score);
+  const out: ParserCandidate[] = [];
+  for (const p of parsers) {
+    if (p.fingerprint.format !== "pdf") continue; // narrows fingerprint to PdfFingerprint
+    const score = jaccard(fp.markers, p.fingerprint.markers);
+    out.push({ parserId: p.id, name: p.name, score, confident: score >= 0.6 });
+  }
+  return out.sort((a, b) => b.score - a.score);
 }
