@@ -11,6 +11,11 @@ export function NetWorthToggle({
   onChange: (v: string) => void;
 }) {
   const { data: users } = useUsers();
+
+  // With a single member, "household" is identical to that member, so the
+  // toggle is meaningless — hide it. Only show it for multi-member households.
+  if ((users ?? []).length <= 1) return null;
+
   const options = [
     { id: "household", label: "Household" },
     ...(users ?? []).map((u) => ({ id: u.id, label: u.name })),
