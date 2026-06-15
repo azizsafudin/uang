@@ -5,7 +5,7 @@ import { accountsCollection, newId, type AccountRow } from "@/lib/collections";
 import { defaultAssumptions } from "@/lib/assumptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import { useSession } from "@/lib/auth";
 import { OwnersField } from "@/components/owners-field";
 import { CurrencySelect } from "@/components/currency-select";
@@ -86,19 +86,17 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
         <DialogHeader>
           <DialogTitle>New account</DialogTitle>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
-          <div>
-            <Label>Name</Label>
+        <form onSubmit={submit} className="space-y-4">
+          <Field label="Name">
             <Input
               data-testid="account-name"
               value={f.name}
               onChange={(e) => set("name", e.target.value)}
               required
             />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Type</Label>
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Type" hint="Assets grow your net worth; Liabilities reduce it.">
               <Select
                 value={f.class}
                 onValueChange={(v: string | null) => v && set("class", v)}
@@ -113,10 +111,8 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
                   <SelectItem value="liability">Liability</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Assets grow your net worth; Liabilities reduce it.</p>
-            </div>
-            <div>
-              <Label>Category</Label>
+            </Field>
+            <Field label="Category" hint="The kind of account: bank account, investment portfolio, property, etc.">
               <Select
                 value={f.subtype}
                 onValueChange={(v: string | null) => {
@@ -137,24 +133,24 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">The kind of account: bank account, investment portfolio, property, etc.</p>
-            </div>
+            </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Currency</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Currency">
               <CurrencySelect
                 data-testid="account-currency"
                 value={f.currency}
                 onValueChange={(code) => set("currency", code)}
               />
-            </div>
+            </Field>
           </div>
-          <div>
-            <Label>Owners</Label>
+          <Field label="Owners">
             <OwnersField value={owners} onChange={setOwners} />
-          </div>
+          </Field>
           <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button type="submit">Create</Button>
           </DialogFooter>
         </form>
