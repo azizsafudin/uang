@@ -13,6 +13,12 @@ test("parses amounts with separators, signs, parentheses, symbols", () => {
   expect(parseAmountToMinor("", o)).toBeNull();
 });
 
+test("normalizes negative zero to +0", () => {
+  const result = parseAmountToMinor("(0.00)", { decimal: ".", thousands: ",", currency: "USD" });
+  expect(result).toBe(0);
+  expect(Object.is(result, -0)).toBe(false);
+});
+
 test("parses European 1.234,56 style", () => {
   expect(parseAmountToMinor("1.234,56", { decimal: ",", thousands: ".", currency: "USD" })).toBe(123456);
 });

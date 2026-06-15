@@ -134,7 +134,8 @@ export const importParsers = sqliteTable("import_parsers", {
   createdBy: text("created_by").notNull(),
 });
 
-// One per uploaded file. fileHash short-circuits exact re-uploads.
+// One per uploaded file. fileHash is stored for duplicate-upload detection
+// (reserved; row-level dedup currently handles duplicates).
 export const importBatches = sqliteTable("import_batches", {
   id: text("id").primaryKey(),
   parserId: text("parser_id").notNull(),  // logical FK → import_parsers.id

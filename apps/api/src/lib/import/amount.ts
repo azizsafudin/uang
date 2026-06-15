@@ -16,13 +16,14 @@ export function parseAmountToMinor(raw: string, fmt: AmountFormat): number | nul
   if (/^\(.*\)$/.test(s)) { negative = true; s = s.slice(1, -1); }
   if (fmt.thousands) s = s.split(fmt.thousands).join("");
   if (fmt.decimal !== ".") s = s.split(fmt.decimal).join(".");
-  if (s.includes("-")) { negative = negative || s.includes("-"); }
+  if (s.includes("-")) negative = true;
   s = s.replace(/[^0-9.]/g, "");
   if (s === "" || s === ".") return null;
   const value = Number(s);
   if (!Number.isFinite(value)) return null;
   const dec = currencyDecimals(fmt.currency);
   const minor = Math.round(value * 10 ** dec);
+  if (minor === 0) return 0; // normalize: never return -0
   return negative ? -minor : minor;
 }
 

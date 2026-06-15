@@ -109,6 +109,45 @@ test("commit inserts only 'new' rows as cash transactions and marks the batch co
   expect(batch.status).toBe("committed");
 });
 
+test("commit is idempotent: re-running does not double-insert transactions", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const acc = await seedAccount();
+  const parserId = await seedParser(cookie);
+  const created = await (await app.handle(new Request(`http://localhost/accounts/${acc}/imports`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "feb.csv", content: CSV, parserId }),
+  }))).json();
+
+  await app.handle(new Request(`http://localhost/imports/${created.id}/commit`, { method: "POST", headers: { cookie } }));
+  const firstCount = (await db.select().from(transactions).where(eq(transactions.accountId, acc))).length;
+  expect(firstCount).toBe(2);
+
+  // force a re-run by resetting the batch status back to "review"
+  await db.update(importBatches).set({ status: "review" }).where(eq(importBatches.id, created.id));
+  const res2 = await app.handle(new Request(`http://localhost/imports/${created.id}/commit`, { method: "POST", headers: { cookie } }));
+  expect(res2.status).toBe(200);
+  expect((await res2.json()).committed).toBe(0);
+
+  const secondCount = (await db.select().from(transactions).where(eq(transactions.accountId, acc))).length;
+  expect(secondCount).toBe(firstCount); // no new transactions
+});
+
+test("PATCH /import-rows rejects a malformed date with 422", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const acc = await seedAccount();
+  const parserId = await seedParser(cookie);
+  const created = await (await app.handle(new Request(`http://localhost/accounts/${acc}/imports`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "feb.csv", content: CSV, parserId }),
+  }))).json();
+  const rowId = created.rows[0].id;
+  const res = await app.handle(new Request(`http://localhost/import-rows/${rowId}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ date: "not-a-date" }),
+  }));
+  expect(res.status).toBe(422);
+});
+
 test("committed rows dedup against a second import", async () => {
   const { cookie } = await initAndLogin({ app });
   const acc = await seedAccount();

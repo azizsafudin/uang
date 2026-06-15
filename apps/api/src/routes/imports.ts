@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { createHash } from "node:crypto";
 import { db } from "../db/client";
 import { accounts, importParsers, importBatches, importRows, transactions } from "../db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { ensureCurrencyInstrument } from "../lib/instruments";
@@ -10,9 +10,8 @@ import { parseCsv } from "../lib/import/csv";
 import { fingerprintCsv, matchParsers } from "../lib/import/detect";
 import { dedupHash } from "../lib/import/dedup";
 import { unitsDeltaToAmountMinor, amountMinorToUnitsDelta } from "../lib/import/amount";
-import { validateParserConfig } from "../lib/import/validate";
+import { validateParserConfig, validateFingerprint } from "../lib/import/validate";
 import { SCALE } from "@uang/shared";
-import type { CsvFingerprint } from "../lib/import/types";
 
 const fileHashOf = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -24,10 +23,15 @@ export const importsRoutes = new Elysia()
     async ({ body }: any) => {
       const fp = fingerprintCsv(body.content, ",");
       const parsers = await db.select().from(importParsers).where(eq(importParsers.sourceFormat, "csv"));
-      const candidates = matchParsers(
-        fp,
-        parsers.map((p) => ({ id: p.id, name: p.name, fingerprint: JSON.parse(p.fingerprint) as CsvFingerprint })),
-      );
+      const valid: { id: string; name: string; fingerprint: ReturnType<typeof validateFingerprint> }[] = [];
+      for (const p of parsers) {
+        try {
+          valid.push({ id: p.id, name: p.name, fingerprint: validateFingerprint(JSON.parse(p.fingerprint)) });
+        } catch {
+          // skip parsers whose stored fingerprint is malformed rather than crash detect
+        }
+      }
+      const candidates = matchParsers(fp, valid);
       return { fingerprint: fp, candidates };
     },
     { body: t.Object({ filename: t.String(), content: t.String() }) },
@@ -49,9 +53,9 @@ export const importsRoutes = new Elysia()
       const existing = await db.select().from(transactions)
         .where(and(eq(transactions.accountId, params.id), eq(transactions.instrumentId, cashInstrumentId)));
       const seen = new Set<string>();
-      for (const t of existing) {
-        const amountMinor = unitsDeltaToAmountMinor(t.unitsDelta, account.currency);
-        seen.add(dedupHash(params.id, { date: t.date, amountMinor, description: t.notes ?? "" }));
+      for (const txn of existing) {
+        const amountMinor = unitsDeltaToAmountMinor(txn.unitsDelta, account.currency);
+        seen.add(dedupHash(params.id, { date: txn.date, amountMinor, description: txn.notes ?? "" }));
       }
 
       const batchId = createId();
@@ -111,7 +115,7 @@ export const importsRoutes = new Elysia()
     {
       body: t.Object({
         status: t.Optional(t.Union([t.Literal("new"), t.Literal("duplicate"), t.Literal("excluded"), t.Literal("error")])),
-        date: t.Optional(t.String()),
+        date: t.Optional(t.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" })),
         amountMinor: t.Optional(t.Number()),
         description: t.Optional(t.String()),
       }),
@@ -127,7 +131,7 @@ export const importsRoutes = new Elysia()
 
     const cashInstrumentId = await ensureCurrencyInstrument(account.currency);
     const rows = await db.select().from(importRows)
-      .where(and(eq(importRows.batchId, params.id), eq(importRows.status, "new")));
+      .where(and(eq(importRows.batchId, params.id), eq(importRows.status, "new"), isNull(importRows.committedTxnId)));
 
     const now = nowEpoch();
     let committed = 0;
