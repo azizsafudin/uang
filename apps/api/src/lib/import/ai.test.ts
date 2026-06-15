@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { synthesizeCsvConfig, capSample, AiError, type AiConfig } from "./ai";
+import { synthesizeCsvConfig, capSample, AiError, type AiConfig, synthesizePdfConfig, refinePdfConfig, capPdfSample } from "./ai";
 
 const cfg: AiConfig = { baseUrl: "http://x/v1", model: "m" };
 const goodConfig = {
@@ -61,4 +61,37 @@ test("chatJson maps non-JSON content to ai_invalid_output", async () => {
   } finally {
     mock.stop();
   }
+});
+
+const goodPdf = {
+  version: 1, format: "pdf",
+  region: { startAfter: "Transaction Details", stopAt: "Closing Balance" },
+  transactionLine: "^(?<date>\\d{2}/\\d{2}/\\d{4})\\s+(?<description>.+?)\\s+(?<amount>-?[\\d,]+\\.\\d{2})$",
+  date: { format: "DD/MM/YYYY" },
+  amount: { decimal: ".", thousands: ",", sign: "negativeIsDebit" },
+};
+
+test("synthesizePdfConfig returns a validated pdf config from the model's JSON", async () => {
+  const chat = async () => goodPdf;
+  const out = await synthesizePdfConfig("Transaction Details\n02/01/2026 X -1.00\nClosing Balance", cfg, chat);
+  expect(out.format).toBe("pdf");
+  expect(out.transactionLine).toContain("(?<amount>");
+});
+
+test("synthesizePdfConfig rejects a model that returns a CSV config", async () => {
+  const chat = async () => goodConfig; // CSV shape from the existing tests above
+  await expect(synthesizePdfConfig("x", cfg, chat)).rejects.toThrow(AiError);
+});
+
+test("refinePdfConfig returns a new validated pdf config", async () => {
+  const chat = async () => goodPdf;
+  const out = await refinePdfConfig("sample", goodPdf, "fix dates", [], cfg, chat);
+  expect(out.format).toBe("pdf");
+});
+
+test("capPdfSample caps to ~8KB on a line boundary", () => {
+  const big = Array.from({ length: 5000 }, (_, i) => `line ${i}`).join("\n");
+  const out = capPdfSample(big);
+  expect(out.length).toBeLessThanOrEqual(8000);
+  expect(out.endsWith("\n")).toBe(false); // trimmed to last full line
 });

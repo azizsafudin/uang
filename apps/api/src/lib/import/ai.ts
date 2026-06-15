@@ -1,5 +1,5 @@
 import { validateParserConfig } from "./validate";
-import type { CsvParserConfig } from "./types";
+import type { CsvParserConfig, PdfParserConfig } from "./types";
 
 export interface AiConfig {
   baseUrl: string;
@@ -135,6 +135,71 @@ export async function refineCsvConfig(
     if (cfg2.format !== "csv") throw new Error("expected csv");
     return cfg2;
   } catch {
+    throw new AiError("ai_invalid_output", "config failed validation");
+  }
+}
+
+const PDF_CONFIG_SHAPE = `{
+  "version": 1, "format": "pdf",
+  "region": { "startAfter": "<regex of a header line just ABOVE the transactions, or omit region>", "stopAt": "<regex of a line just AFTER the last transaction, or omit>" },
+  "transactionLine": "<a single-line JS regex with named groups (?<date>...), (?<description>...), (?<amount>...) matching ONE transaction row>",
+  "date": { "format": "<tokens: YYYY YY MM M MMM DD D>" },
+  "amount": { "decimal": ".", "thousands": ",", "sign": "negativeIsDebit|positiveIsDebit" },
+  "multiline": { "continuationAppendsTo": "description" }
+}`;
+
+const PDF_SYSTEM = `You convert sample text extracted from a bank or credit-card PDF statement into a deterministic parser config.
+Reply with ONLY a JSON object of exactly this shape (no prose):
+${PDF_CONFIG_SHAPE}
+Rules: "transactionLine" must be a single-line JS regex containing named groups (?<date>) and (?<amount>) (and (?<description>) when a description exists); it must match exactly one transaction row from the sample. Infer "date.format" from the date values using only the listed tokens. Choose "region.startAfter"/"region.stopAt" from visible section headers/footers that bound the transaction list, or omit "region" entirely if it is not needed. Pick "sign" so money leaving the account is negative. Keep the regex simple: NEVER use nested quantifiers like (a+)+ or (\\d+)*.`;
+
+// Cap extracted statement text to ~8 KB on a line boundary before sending to the model.
+export function capPdfSample(text: string): string {
+  if (text.length <= 8000) return text;
+  const cut = text.slice(0, 8000);
+  const lastNl = cut.lastIndexOf("\n");
+  return (lastNl > 0 ? cut.slice(0, lastNl) : cut).replace(/\s+$/, "");
+}
+
+function asPdfConfig(raw: unknown): PdfParserConfig {
+  const validated = validateParserConfig(raw);
+  if (validated.format !== "pdf") throw new AiError("ai_invalid_output", "expected a pdf config");
+  return validated;
+}
+
+export async function synthesizePdfConfig(
+  sample: string,
+  cfg: AiConfig,
+  chat: Chat = defaultChat,
+): Promise<PdfParserConfig> {
+  const raw = await chat(cfg, PDF_SYSTEM, `Sample statement text:\n${sample}`);
+  try {
+    return asPdfConfig(raw);
+  } catch (e) {
+    if (e instanceof AiError) throw e;
+    throw new AiError("ai_invalid_output", "config failed validation");
+  }
+}
+
+export async function refinePdfConfig(
+  sample: string,
+  current: PdfParserConfig,
+  instruction: string,
+  errors: Array<{ raw: Record<string, string>; reason: string }>,
+  cfg: AiConfig,
+  chat: Chat = defaultChat,
+): Promise<PdfParserConfig> {
+  const user = [
+    `Sample statement text:\n${sample}`,
+    `Current config:\n${JSON.stringify(current)}`,
+    errors.length ? `Lines that failed to parse:\n${JSON.stringify(errors.slice(0, 10))}` : "",
+    `Fix request: ${instruction || "Correct the lines that failed to parse."}`,
+  ].filter(Boolean).join("\n\n");
+  const raw = await chat(cfg, PDF_SYSTEM, user);
+  try {
+    return asPdfConfig(raw);
+  } catch (e) {
+    if (e instanceof AiError) throw e;
     throw new AiError("ai_invalid_output", "config failed validation");
   }
 }
