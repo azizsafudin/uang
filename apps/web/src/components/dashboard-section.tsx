@@ -521,6 +521,7 @@ export function DashboardSection({
                                 : { groupId: cardId },
                             )
                           }
+                          addAccountLabel={bucket ? "Add account" : "Add account to this group"}
                           dragHandleProps={dragHandleProps}
                           isDragging={isDragging}
                         />

@@ -21,6 +21,7 @@ type Props = {
   onRename?: (name: string) => void;
   onDelete?: () => void;
   onAddAccount?: () => void;
+  addAccountLabel?: string;
   dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
   isDragging?: boolean;
 };
@@ -35,6 +36,7 @@ export function AccountGroupRow({
   onRename,
   onDelete,
   onAddAccount,
+  addAccountLabel = "Add account to this group",
   dragHandleProps,
   isDragging,
 }: Props) {
@@ -117,7 +119,7 @@ export function AccountGroupRow({
       <ContextMenuTrigger render={row} />
       <ContextMenuContent>
         {onAddAccount && (
-          <ContextMenuItem onClick={onAddAccount}>Add account to this group</ContextMenuItem>
+          <ContextMenuItem onClick={onAddAccount}>{addAccountLabel}</ContextMenuItem>
         )}
         {onAddAccount && (onRename || onDelete) && <ContextMenuSeparator />}
         {onRename && <ContextMenuItem onClick={startRename}>Rename</ContextMenuItem>}

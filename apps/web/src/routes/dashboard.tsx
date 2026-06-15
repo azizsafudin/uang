@@ -150,7 +150,17 @@ export function DashboardPage() {
       <div className="mt-9 space-y-8">
         {CLASS_SECTIONS.map(({ cls, label }) => {
           const sectionAccounts = accounts.filter((a) => a.class === cls);
-          const sectionGroups = (allGroups ?? []).filter((g) => g.class === cls);
+          const sectionAllAccounts = allAccounts.filter((a) => a.class === cls);
+          const sectionGroups = (allGroups ?? [])
+            .filter((g) => g.class === cls)
+            .filter((g) => {
+              if (owner === "household") return true;
+              // Keep genuinely-empty groups (drag-in target); hide groups that
+              // have household members but none visible for the selected owner.
+              const hasHouseholdMembers = sectionAllAccounts.some((a) => a.groupId === g.id);
+              const hasVisibleMembers = sectionAccounts.some((a) => a.groupId === g.id);
+              return !hasHouseholdMembers || hasVisibleMembers;
+            });
           const sectionTotal = sectionAccounts
             .filter((a) => !a.missingRate)
             .reduce((sum, a) => sum + a.baseMinor, 0);

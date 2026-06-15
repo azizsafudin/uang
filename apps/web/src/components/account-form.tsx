@@ -138,7 +138,7 @@ export function AccountForm({
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Field label="Name">
-            <Input data-testid="account-name" {...register("name", { required: true })} />
+            <Input data-testid="account-name" required {...register("name", { required: true })} />
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Type" hint="Assets grow your net worth; Liabilities reduce it.">
