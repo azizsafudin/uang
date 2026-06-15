@@ -25,6 +25,19 @@ function extractContent(body: unknown): string | null {
   return typeof content === "string" ? content : null;
 }
 
+// Parse a model's reply into a JSON object, tolerating the markdown code fences
+// and stray prose some providers wrap around it (Claude often emits ```json … ```).
+// Strips a fenced block if present, then slices to the outermost {...}.
+export function extractJsonObject(content: string): unknown {
+  let s = content.trim();
+  const fenced = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) s = fenced[1].trim();
+  const open = s.indexOf("{");
+  const close = s.lastIndexOf("}");
+  if (open >= 0 && close > open) s = s.slice(open, close + 1);
+  return JSON.parse(s);
+}
+
 // Low-level OpenAI-compatible chat call returning the parsed JSON object content.
 export async function chatJson(
   cfg: AiConfig,
@@ -46,7 +59,11 @@ export async function chatJson(
           { role: "system", content: system },
           { role: "user", content: user },
         ],
-        response_format: { type: "json_object" },
+        // NOTE: we deliberately do NOT send `response_format: { type: "json_object" }`.
+        // Anthropic's OpenAI-compat endpoint rejects it (400, wants "json_schema"), and
+        // support varies across providers (Groq/Gemini/Ollama). The system prompt already
+        // demands "reply with ONLY a JSON object", and extractJsonObject tolerates the
+        // code fences some models (e.g. Claude) wrap around it — so this stays portable.
         temperature: 0,
       }),
       signal: AbortSignal.timeout(30_000),
@@ -64,7 +81,7 @@ export async function chatJson(
   const content = extractContent(body);
   if (content === null) throw new AiError("ai_invalid_output", "missing message content");
   try {
-    return JSON.parse(content);
+    return extractJsonObject(content);
   } catch {
     throw new AiError("ai_invalid_output", "content was not JSON");
   }

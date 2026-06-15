@@ -32,8 +32,31 @@ test("capSample trims a 100-row CSV to the header + 20 rows (21 lines)", () => {
   expect(lines[0]).toBe(header);
 });
 
-import { chatJson } from "./ai";
+import { chatJson, extractJsonObject } from "./ai";
 import { startMockAi } from "./ai-server.test-helper";
+
+test("extractJsonObject parses clean JSON", () => {
+  expect(extractJsonObject('{"a":1}')).toEqual({ a: 1 });
+});
+
+test("extractJsonObject strips ```json code fences (Claude/Anthropic style)", () => {
+  const fenced = "```json\n{\n  \"format\": \"pdf\"\n}\n```";
+  expect(extractJsonObject(fenced)).toEqual({ format: "pdf" });
+});
+
+test("extractJsonObject tolerates surrounding prose", () => {
+  expect(extractJsonObject('Sure! Here is the config:\n{"x":2}\nLet me know.')).toEqual({ x: 2 });
+});
+
+test("chatJson parses a code-fenced response (portable across providers)", async () => {
+  const mock = startMockAi("```json\n{\"ok\":true}\n```", { rawContent: true });
+  try {
+    const out = await chatJson({ baseUrl: mock.baseUrl, model: "m" }, "s", "u");
+    expect(out).toEqual({ ok: true });
+  } finally {
+    mock.stop();
+  }
+});
 
 test("chatJson posts to {baseUrl}/chat/completions and parses the JSON content", async () => {
   const mock = startMockAi({ hello: "world" });
