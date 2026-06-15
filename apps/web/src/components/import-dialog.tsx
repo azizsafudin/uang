@@ -10,6 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ImportReview } from "@/components/import-review";
+import type { CsvParserConfig } from "../../../api/src/lib/import/types";
 
 type Candidate = { parserId: string; name: string; score: number; confident: boolean };
 type Detect = { fingerprint: { headerColumns: string[] }; candidates: Candidate[] };
@@ -17,7 +18,8 @@ type Detect = { fingerprint: { headerColumns: string[] }; candidates: Candidate[
 const NEW_PARSER = "__new__";
 
 type PreviewRow = { date: string | null; amountMinor: number | null; description: string };
-type Preview = { rows: PreviewRow[]; total: number; errorCount: number };
+type PreviewError = { raw: Record<string, string>; reason: string };
+type Preview = { rows: PreviewRow[]; total: number; errorCount: number; errors: PreviewError[] };
 
 export function ImportDialog({ accountId, accountCurrency }: { accountId: string; accountCurrency: string }) {
   const [open, setOpen] = useState(false);
@@ -49,7 +51,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   useEffect(() => {
     api.settings.get().then(({ data }) => {
       if (data && "aiBaseUrl" in data) setAiEnabled(!!data.aiBaseUrl && !!data.aiModel);
-    });
+    }).catch(() => {});
   }, []);
 
   function reset() {
@@ -87,18 +89,12 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
     };
   }
 
-  function applyConfig(cfg: {
-    fields: {
-      date: { column: string; format: string };
-      description: { column: string };
-      amount: { mode: string; column?: string; sign?: string };
-    };
-  }) {
+  function applyConfig(cfg: CsvParserConfig) {
     setDateCol(cfg.fields.date.column);
     setDateFmt(cfg.fields.date.format);
     setDescCol(cfg.fields.description.column);
     if (cfg.fields.amount.mode === "single") {
-      setAmountCol(cfg.fields.amount.column ?? "");
+      setAmountCol(cfg.fields.amount.column);
       setSign(cfg.fields.amount.sign === "positiveIsDebit" ? "positiveIsDebit" : "negativeIsDebit");
     }
   }
@@ -115,7 +111,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
       void (async () => {
         const { data } = await api["import-parsers"].preview.post({ content, config: cfg, currency: accountCurrency });
         if (data && "rows" in data && data.rows !== undefined) {
-          setPreview({ rows: data.rows, total: data.total, errorCount: data.errorCount });
+          setPreview({ rows: data.rows, total: data.total, errorCount: data.errorCount, errors: data.errors ?? [] });
         }
       })();
     }, 400);
@@ -127,10 +123,10 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
     setAiBusy(true);
     try {
       const { data, error } = await api["import-parsers"].refine.post({
-        content, config: buildConfig(), instruction, errors: [],
+        content, config: buildConfig(), instruction, errors: preview?.errors ?? [],
       });
       if (error || !data || !("config" in data)) { setAiMsg("Refine failed"); return; }
-      applyConfig(data.config as Parameters<typeof applyConfig>[0]);
+      applyConfig(data.config);
       setRefineText("");
       setAiMsg("");
     } finally {
@@ -239,7 +235,7 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
                             setAiMsg("AI couldn't generate — map manually");
                             return;
                           }
-                          applyConfig(data.config as Parameters<typeof applyConfig>[0]);
+                          applyConfig(data.config);
                           setAiMsg("");
                         } finally {
                           setAiBusy(false);

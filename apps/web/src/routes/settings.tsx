@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SCALE } from "@uang/shared";
@@ -170,19 +170,25 @@ export function SettingsPage() {
   const [aiApiKeySet, setAiApiKeySet] = useState(false);
   const [aiTestMsg, setAiTestMsg] = useState("");
 
-  useQuery({
+  const settingsQ = useQuery({
     queryKey: ["settings"],
     queryFn: async () => {
       const { data, error } = await api.settings.get();
       if (error) throw new Error(String(error));
-      if (data && "aiBaseUrl" in data) {
-        setAiBaseUrl((data as { aiBaseUrl: string }).aiBaseUrl ?? "");
-        setAiModel((data as { aiModel: string }).aiModel ?? "");
-        setAiApiKeySet(!!(data as { aiApiKeySet: boolean }).aiApiKeySet);
-      }
       return data;
     },
   });
+
+  // Seed the AI inputs from the query data (not from queryFn side-effects), so
+  // they populate even when the ["settings"] query is already cached elsewhere.
+  const settingsData = settingsQ.data;
+  useEffect(() => {
+    if (settingsData && "aiBaseUrl" in settingsData) {
+      setAiBaseUrl(settingsData.aiBaseUrl ?? "");
+      setAiModel(settingsData.aiModel ?? "");
+      setAiApiKeySet(!!settingsData.aiApiKeySet);
+    }
+  }, [settingsData]);
 
   async function saveAi() {
     const payload: { aiBaseUrl: string; aiModel: string; aiApiKey?: string } = {
