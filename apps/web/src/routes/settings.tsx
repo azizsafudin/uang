@@ -18,7 +18,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+// The API is mounted under `/api` (same base the eden client uses): same-origin
+// in production, or VITE_API_URL for the cross-origin dev API. These plain links
+// (binary .db / .zip downloads and the multipart import upload) bypass eden, so
+// build the `/api`-prefixed URL the same way here.
+const API_URL = `${import.meta.env.VITE_API_URL || window.location.origin}/api`;
 
 type User = { id: string; email: string; name: string; isAdmin: boolean };
 
