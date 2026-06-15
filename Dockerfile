@@ -10,6 +10,9 @@ COPY package.json bun.lock tsconfig.base.json ./
 COPY packages/shared/package.json packages/shared/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+# e2e is a workspace member; --frozen-lockfile needs its manifest to resolve the
+# workspace (its dev-only deps are never used at runtime).
+COPY e2e/package.json e2e/package.json
 RUN bun install --frozen-lockfile
 
 # Build the web bundle. No VITE_API_URL is set, so the client targets its own
