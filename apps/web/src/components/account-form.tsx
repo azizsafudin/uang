@@ -109,7 +109,12 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
             <Field label="Type" hint="Assets grow your net worth; Liabilities reduce it.">
               <Select
                 value={f.class}
-                onValueChange={(v: string | null) => v && set("class", v)}
+                onValueChange={(v: string | null) => {
+                  if (!v) return;
+                  set("class", v);
+                  // Liabilities are a single loan type; assets keep the picker default.
+                  set("subtype", v === "liability" ? "loan" : "bank");
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
@@ -122,28 +127,30 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Category" hint="The kind of account: bank account, investment portfolio, property, etc.">
-              <Select
-                value={f.subtype}
-                onValueChange={(v: string | null) => {
-                  if (!v) return;
-                  set("subtype", v);
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue>
-                    {(v: unknown) => subtypeLabel(String(v))}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {SUBTYPES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {subtypeLabel(s)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+            {f.class !== "liability" && (
+              <Field label="Category" hint="The kind of account: bank account, investment portfolio, property, etc.">
+                <Select
+                  value={f.subtype}
+                  onValueChange={(v: string | null) => {
+                    if (!v) return;
+                    set("subtype", v);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {(v: unknown) => subtypeLabel(String(v))}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUBTYPES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {subtypeLabel(s)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Currency">
