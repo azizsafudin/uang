@@ -73,6 +73,7 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
       contributionMinor: 0,
       contributionUntilAge: null,
       compoundInterval: "annually",
+      loanTermMonths: null,
     };
     await accountsCollection.insert(row);
     await qc.invalidateQueries({ queryKey: ["networth"] });
