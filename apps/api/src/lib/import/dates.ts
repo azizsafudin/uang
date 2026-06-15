@@ -40,6 +40,8 @@ export function parseDate(raw: string, format: string): string | null {
     else if (p.kind === "day") day = Number(g);
   });
   if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900) return null;
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  if (dt.getUTCFullYear() !== year || dt.getUTCMonth() !== month - 1 || dt.getUTCDate() !== day) return null;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${year}-${pad(month)}-${pad(day)}`;
 }
