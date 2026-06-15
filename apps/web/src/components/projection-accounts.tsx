@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQuery } from "@tanstack/react-query";
+import { loanMonthlyPaymentMinor } from "@uang/shared";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/components/money";
 import { Eyebrow } from "@/components/app-layout";
@@ -31,9 +32,36 @@ async function fetchNetWorth(): Promise<NetWorthData> {
 
 const pct = (bps: number) => `${bps / 100}%`;
 
+// Total months -> "4y", "4y 6m", or "18m".
+const fmtTerm = (months: number): string => {
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (y && m) return `${y}y ${m}m`;
+  if (y) return `${y}y`;
+  return `${m}m`;
+};
+
 // The growth + withdrawal config to show per account row (in place of its balance).
 function ProjectionConfig({ account, baseCurrency }: { account: AccountRecord; baseCurrency: string }) {
   const isLiability = account.class === "liability";
+
+  if (isLiability) {
+    const term = account.loanTermMonths ?? 0;
+    const rateLine =
+      term > 0
+        ? `${pct(account.growthRateBps)}/yr · ${fmtTerm(term)}`
+        : `${pct(account.growthRateBps)}/yr`;
+    const payment =
+      term > 0 ? loanMonthlyPaymentMinor(account.balanceMinor, account.growthRateBps, term) : 0;
+    return (
+      <>
+        <p className="text-sm font-medium tabular-nums">{rateLine}</p>
+        <p className="text-xs text-muted-foreground">
+          {term > 0 ? `${formatMoney(payment, account.currency)}/mo` : "no term"}
+        </p>
+      </>
+    );
+  }
 
   const growth =
     account.compoundInterval === "annually"
