@@ -387,6 +387,12 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
                       <span>Preview</span>
                       <span>{preview.total - preview.errorCount} ok &middot; {preview.errorCount} errors</span>
                     </div>
+                    {preview.total === 0 && (
+                      <p className="text-muted-foreground">
+                        No transactions matched — check the {format === "pdf" ? "transaction-line regex and region anchors" : "column mapping"}
+                        {aiEnabled ? ", or use Refine to fix it" : ""}.
+                      </p>
+                    )}
                     {preview.rows.map((r, i) => (
                       <div key={i} className="flex justify-between tabular-nums">
                         <span>{r.date ?? "—"}</span>
