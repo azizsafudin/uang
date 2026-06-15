@@ -107,7 +107,7 @@ export function GoalForm({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {!hideTrigger && (
-        <DialogTrigger render={<Button variant={editing ? "outline" : "default"} size="sm" />}>
+        <DialogTrigger render={<Button variant={editing ? "outline" : "default"} />}>
           {editing ? "Edit" : "New goal"}
         </DialogTrigger>
       )}

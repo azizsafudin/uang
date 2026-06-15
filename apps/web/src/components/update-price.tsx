@@ -4,7 +4,7 @@ import { SCALE } from "@uang/shared";
 import { pricesCollection, newId } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
 import {
   Dialog,
   DialogContent,
@@ -54,18 +54,19 @@ export function UpdatePrice({
         <DialogHeader>
           <DialogTitle>Update price</DialogTitle>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Price</Label>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Price">
               <Input data-testid="price-amount" type="number" step="any" value={price} onChange={(e) => setPrice(e.target.value)} required />
-            </div>
-            <div>
-              <Label>As of date</Label>
+            </Field>
+            <Field label="As of date">
               <Input data-testid="price-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-            </div>
+            </Field>
           </div>
           <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button type="submit">Save price</Button>
           </DialogFooter>
         </form>

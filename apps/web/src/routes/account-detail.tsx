@@ -75,7 +75,7 @@ export function AccountDetailPage() {
               Hides it from the dashboard. You can restore it later.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={archiveAccount}>
+          <Button variant="outline" onClick={archiveAccount}>
             Archive
           </Button>
         </div>
@@ -88,7 +88,7 @@ export function AccountDetailPage() {
                 Makes it visible on the dashboard again.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={restoreAccount}>
+            <Button variant="outline" onClick={restoreAccount}>
               Restore
             </Button>
           </div>
@@ -106,7 +106,7 @@ export function AccountDetailPage() {
                 if (!open) setDeleteName("");
               }}
             >
-              <DialogTrigger render={<Button variant="destructive" size="sm" />}>
+              <DialogTrigger render={<Button variant="destructive" />}>
                 Delete permanently
               </DialogTrigger>
               <DialogContent>
@@ -122,6 +122,9 @@ export function AccountDetailPage() {
                   placeholder={account.name}
                 />
                 <DialogFooter>
+                  <Button type="button" variant="ghost" onClick={() => setDeleteOpen(false)}>
+                    Cancel
+                  </Button>
                   <Button
                     variant="destructive"
                     disabled={deleteName !== account.name}
