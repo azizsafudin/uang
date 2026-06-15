@@ -35,6 +35,38 @@ test("create then list instruments", async () => {
   expect(list[0].currency).toBe("USD"); // uppercased
 });
 
+test("POST /instruments normalizes symbol to uppercase and rejects case-insensitive duplicates", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+
+  // lowercase symbol is stored uppercased
+  const first = await app.handle(new Request("http://localhost/instruments", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Apple", kind: "stock", currency: "USD", symbol: "aapl" }),
+  }));
+  expect(first.status).toBe(200);
+  const { id } = await first.json();
+  const [row] = await db.select().from(instruments).where(eq(instruments.id, id));
+  expect(row.symbol).toBe("AAPL");
+
+  // a differently-cased duplicate is refused with a clean 409
+  const dup = await app.handle(new Request("http://localhost/instruments", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Apple again", kind: "stock", currency: "USD", symbol: "AAPL" }),
+  }));
+  expect(dup.status).toBe(409);
+  expect((await dup.json()).error).toBe("duplicate_symbol");
+
+  // symbol-less instruments are exempt from the constraint (multiple allowed)
+  for (const name of ["Mystery A", "Mystery B"]) {
+    const res = await app.handle(new Request("http://localhost/instruments", {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name, kind: "other", currency: "USD" }),
+    }));
+    expect(res.status).toBe(200);
+  }
+});
+
 test("POST /instruments/currency find-or-creates and is idempotent", async () => {
   const app = makeApp(instrumentsRoutes);
   const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });

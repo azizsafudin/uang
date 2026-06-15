@@ -122,7 +122,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
           currency: newInstr.currency.toUpperCase(),
           symbol: newInstr.symbol || undefined,
         });
-        if (error || !data || !("id" in data)) throw new Error(String(error ?? "instrument create failed"));
+        if (error || !data || !("id" in data) || !data.id) throw new Error(String(error ?? "instrument create failed"));
         id = data.id;
         await instrumentsCollection.utils.refetch();
       }

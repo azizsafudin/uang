@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, uniqueIndex, primaryKey, index } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 export const settings = sqliteTable("settings", {
   id: integer("id").primaryKey(), // always 1
@@ -76,7 +77,11 @@ export const instruments = sqliteTable("instruments", {
   kind: text("kind").$type<"currency" | "stock" | "etf" | "fund" | "crypto" | "other">().notNull(),
   currency: text("currency").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+  // A symbol identifies one instrument globally. Case-insensitive so "aapl" and
+  // "AAPL" can't both exist (symbols are also uppercased on write). NULL symbols
+  // are exempt — SQLite treats multiple NULLs as distinct, so symbol-less
+  // instruments are unconstrained.
+}, (t) => [uniqueIndex("instruments_symbol_uq").on(sql`upper(${t.symbol})`)]);
 
 export const transactions = sqliteTable("transactions", {
   id: text("id").primaryKey(),

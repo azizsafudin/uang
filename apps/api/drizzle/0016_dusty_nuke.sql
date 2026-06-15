@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `instruments_symbol_uq` ON `instruments` (upper("symbol"));

@@ -5,6 +5,7 @@ import { eq, inArray } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { ensureCurrencyInstrument } from "../lib/instruments";
+import { isUniqueViolation } from "../lib/db-errors";
 import { SCALE, currencyDecimals, roundDiv, toBig, fromBig } from "@uang/shared";
 import { instrumentPriceScaled } from "../lib/positions";
 
@@ -48,17 +49,22 @@ export const instrumentsRoutes = new Elysia({ prefix: "/instruments" })
   )
   .post(
     "/",
-    async ({ body }) => {
+    async ({ body, set }) => {
       const id = createId();
-      await db.insert(instruments).values({
-        id,
-        symbol: body.symbol ?? null,
-        isin: body.isin ?? null,
-        name: body.name,
-        kind: body.kind,
-        currency: body.currency.toUpperCase(),
-        createdAt: nowEpoch(),
-      });
+      try {
+        await db.insert(instruments).values({
+          id,
+          symbol: body.symbol ? body.symbol.toUpperCase() : null,
+          isin: body.isin ?? null,
+          name: body.name,
+          kind: body.kind,
+          currency: body.currency.toUpperCase(),
+          createdAt: nowEpoch(),
+        });
+      } catch (e) {
+        if (isUniqueViolation(e)) { set.status = 409; return { error: "duplicate_symbol" }; }
+        throw e;
+      }
       return { id };
     },
     {
@@ -76,14 +82,19 @@ export const instrumentsRoutes = new Elysia({ prefix: "/instruments" })
   )
   .patch(
     "/:id",
-    async ({ params, body }: any) => {
+    async ({ params, body, set }: any) => {
       const update: Record<string, unknown> = {};
       if (body.name !== undefined) update.name = body.name;
-      if (body.symbol !== undefined) update.symbol = body.symbol || null;
+      if (body.symbol !== undefined) update.symbol = body.symbol ? body.symbol.toUpperCase() : null;
       if (body.isin !== undefined) update.isin = body.isin || null;
       if (body.kind !== undefined) update.kind = body.kind;
       if (body.currency !== undefined) update.currency = body.currency.toUpperCase();
-      await db.update(instruments).set(update).where(eq(instruments.id, params.id));
+      try {
+        await db.update(instruments).set(update).where(eq(instruments.id, params.id));
+      } catch (e) {
+        if (isUniqueViolation(e)) { set.status = 409; return { error: "duplicate_symbol" }; }
+        throw e;
+      }
       return { ok: true };
     },
     {
