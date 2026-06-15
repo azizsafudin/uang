@@ -14,6 +14,9 @@ test("dashboard shows hero + tiles, Add account in Assets header", async ({ page
   await expect(page.getByRole("button", { name: "Assets actions" })).toBeVisible();
   await page.getByRole("button", { name: "Assets actions" }).click();
   await expect(page.getByRole("menuitem", { name: "Add account" })).toBeVisible();
+  // Close the menu so the createAccount helper opens it cleanly below.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menuitem", { name: "Add account" })).toBeHidden();
 
   // Fund an account so the Assets tile becomes available.
   await createAccount(page, { name: "Checking", currency: "USD" });
