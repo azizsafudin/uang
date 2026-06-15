@@ -153,14 +153,15 @@ export function AccountDetailPage() {
       <PageHeader
         eyebrow={`${classLabel(account.class)} · ${subtypeLabel(account.subtype)} · ${account.currency}`}
         title={account.name}
-        description={
-          <span data-testid="account-total">
-            {posLoading || !pos ? "—" : <Money minor={pos.totalMinor} currency={account.currency} />}
-          </span>
-        }
       />
+      <p
+        data-testid="account-total"
+        className="-mt-5 font-heading text-4xl tabular-nums tracking-tight"
+      >
+        {posLoading || !pos ? "—" : <Money minor={pos.totalMinor} currency={account.currency} />}
+      </p>
       {pos && pos.missing && (
-        <p className="-mt-4 mb-6 text-sm text-destructive">
+        <p className="mt-1 text-sm text-destructive">
           Some positions are missing a price or FX rate.
         </p>
       )}
