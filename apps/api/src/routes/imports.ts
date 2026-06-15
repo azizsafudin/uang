@@ -61,7 +61,7 @@ export const importsRoutes = new Elysia()
           // skip parsers whose stored fingerprint is malformed rather than crash extract
         }
       }
-      const candidates = matchPdfParsers(fp, valid);
+      const candidates = matchPdfParsers(fp, valid); // matchPdfParsers filters to pdf fingerprints internally
       return { text, fingerprint: fp, candidates };
     },
     { body: t.Object({ filename: t.String(), file: t.String({ maxLength: 20_000_000 }) }) },
