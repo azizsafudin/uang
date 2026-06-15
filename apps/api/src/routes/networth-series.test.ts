@@ -1,6 +1,8 @@
 import { expect, test, beforeEach } from "bun:test";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { networthSeriesRoutes } from "./networth-series";
+import { transactionsRoutes } from "./transactions";
+import { pricesRoutes } from "./prices";
 import { db } from "../db/client";
 import { accounts, instruments, transactions } from "../db/schema";
 import { SCALE } from "@uang/shared";
@@ -8,7 +10,7 @@ import { createId, nowEpoch } from "../lib/ids";
 
 beforeEach(resetDb);
 
-const app = makeApp(networthSeriesRoutes);
+const app = makeApp(networthSeriesRoutes, transactionsRoutes, pricesRoutes);
 
 const S = Number(SCALE);
 
@@ -55,4 +57,41 @@ test("GET /networth/series requires `from` (422 when missing)", async () => {
 test("GET /networth/series returns 401 without auth", async () => {
   const res = await app.handle(new Request("http://localhost/networth/series?from=2026-01-01"));
   expect(res.status).toBe(401);
+});
+
+async function seedStockAccount(): Promise<{ acc: string; stock: string }> {
+  const acc = createId();
+  await db.insert(accounts).values({
+    id: acc, name: "Brokerage", class: "asset", subtype: "investment", currency: "USD",
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
+  });
+  const stock = createId();
+  await db.insert(instruments).values({
+    id: stock, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  return { acc, stock };
+}
+
+test("backdated buy appreciates as a newer price is set (reported bug)", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const { acc, stock } = await seedStockAccount();
+
+  // Backdated buy: 10 AAPL @ $100 on 2026-01-01 -> seeds price $100@2026-01-01.
+  await app.handle(new Request(`http://localhost/accounts/${acc}/transactions`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ instrumentId: stock, date: "2026-01-01", unitsDelta: 10 * S, unitPriceScaled: 100 * S }),
+  }));
+  // Newer price $120 on 2026-01-15.
+  await app.handle(new Request(`http://localhost/instruments/${stock}/prices`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ date: "2026-01-15", priceScaled: 120 * S }),
+  }));
+
+  const series = await (await app.handle(new Request(
+    `http://localhost/networth/series?from=2026-01-01&to=2026-01-15`, { headers: { cookie } },
+  ))).json();
+
+  const byDate = new Map(series.points.map((p: any) => [p.date, p.totalBaseMinor]));
+  expect(byDate.get("2026-01-01")).toBe(100000); // 10 × $100 = $1000.00
+  expect(byDate.get("2026-01-15")).toBe(120000); // 10 × $120 = $1200.00
 });
