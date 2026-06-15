@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `dashboard_tiles` text DEFAULT '["assets","liabilities","goalsOnTrack"]' NOT NULL;
