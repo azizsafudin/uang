@@ -94,7 +94,12 @@ test("accessibleValueMinor: rejects out-of-range earlyHaircutBps", () => {
   expect(() => accessibleValueMinor(100_000, 50, bad)).toThrow();
 });
 
-import { projectNetWorth, milestoneYears, type ProjectionAccount } from "./projection";
+import { projectNetWorth, projectAccountSeries, milestoneYears, type ProjectionAccount, type WithdrawalConfig } from "./projection";
+
+const noSpend: WithdrawalConfig = {
+  spendType: "none", spendAmountMinor: null, spendRateBps: null,
+  spendStartKind: "age", spendStartAge: null, spendStartTargetMinor: null,
+};
 
 test("milestoneYears: default 55/62/65", () => {
   expect(milestoneYears(1990)).toEqual([
@@ -108,12 +113,12 @@ test("projectNetWorth: total grows; accessible respects unlocks", () => {
   const cash: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 0,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990],
+    liquidationAge: null, ownerBirthYears: [1990], ...noSpend,
   };
   const cpf: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990],
+    liquidationAge: null, ownerBirthYears: [1990], ...noSpend,
   };
   // 2030: owner age 40 -> CPF locked. 2045: owner age 55 -> CPF unlocks.
   const pts = projectNetWorth({ accounts: [cash, cpf], fromYear: 2030, toYear: 2045 });
@@ -125,7 +130,7 @@ test("projectNetWorth: shared account uses the youngest owner's age", () => {
   const shared: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1980, 1990], // youngest born 1990
+    liquidationAge: null, ownerBirthYears: [1980, 1990], ...noSpend, // youngest born 1990
   };
   const pts = projectNetWorth({ accounts: [shared], fromYear: 2040, toYear: 2045 });
   // 2040: younger is 50 -> locked. 2045: younger is 55 -> unlocked.
@@ -141,8 +146,87 @@ test("projectNetWorth: empty ownerBirthYears treats account as accessible", () =
   const noBirth: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [],
+    liquidationAge: null, ownerBirthYears: [], ...noSpend,
   };
   const pts = projectNetWorth({ accounts: [noBirth], fromYear: 2030, toYear: 2030 });
   expect(pts[0].accessibleBaseMinor).toBe(100_000);
+});
+
+// --- Withdrawals -----------------------------------------------------------
+
+const liquidSpend = {
+  accessibleFromAge: 0, earlyWithdrawal: "none" as const, earlyHaircutBps: 0,
+  illiquid: false, liquidationAge: null, ...noSpend,
+};
+
+test("withdrawal none: identical to compound-only baseline", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 100_000, growthRateBps: 800, ownerBirthYears: [1990],
+  };
+  expect(projectAccountSeries(a, 2, 2030, 1990)).toEqual(projectSeries(100_000, 800, 2));
+});
+
+test("withdrawal once + age trigger: lump removed once, nothing after", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 100_000, growthRateBps: 0, ownerBirthYears: [1990],
+    spendType: "once", spendAmountMinor: 30_000, spendStartKind: "age", spendStartAge: 60,
+  };
+  const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([100_000, 70_000, 70_000]);
+});
+
+test("withdrawal monthly + age trigger: 12x amount per year from start", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 1_000_000, growthRateBps: 0, ownerBirthYears: [1990],
+    spendType: "monthly", spendAmountMinor: 5_000, spendStartKind: "age", spendStartAge: 60,
+  };
+  const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([1_000_000, 940_000, 880_000]);
+});
+
+test("withdrawal percent + age trigger: rate% of balance per year", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 1_000_000, growthRateBps: 0, ownerBirthYears: [1990],
+    spendType: "percent", spendRateBps: 400, spendStartKind: "age", spendStartAge: 60,
+  };
+  const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([1_000_000, 960_000, 921_600]);
+});
+
+test("withdrawal target trigger latches on the first year balance crosses target", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 100_000, growthRateBps: 800, ownerBirthYears: [],
+    spendType: "once", spendAmountMinor: 10_000, spendStartKind: "target",
+    spendStartTargetMinor: 120_000,
+  };
+  const series = projectAccountSeries(a, 4, 2030, null);
+  // grow: 100000,108000,116640,125971 -> at 125971 (>=120000) withdraw 10000 -> 115971; then grow.
+  expect(series).toEqual([100_000, 108_000, 116_640, 115_971, 125_249]);
+});
+
+test("withdrawal capped at available balance (floored at 0)", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 50_000, growthRateBps: 0, ownerBirthYears: [1990],
+    spendType: "monthly", spendAmountMinor: 10_000, spendStartKind: "age", spendStartAge: 60,
+  };
+  const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([50_000, 0, 0]);
+});
+
+test("age trigger never fires without an owner birth year", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: 100_000, growthRateBps: 0, ownerBirthYears: [],
+    spendType: "percent", spendRateBps: 400, spendStartKind: "age", spendStartAge: 60,
+  };
+  const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([100_000, 100_000, 100_000]);
+});
+
+test("liabilities keep compounding negative; withdrawal config ignored", () => {
+  const a: ProjectionAccount = {
+    ...liquidSpend, baseMinor: -100_000, growthRateBps: 250, ownerBirthYears: [1990],
+    spendType: "monthly", spendAmountMinor: 9_999, spendStartKind: "age", spendStartAge: 0,
+  };
+  const series = projectAccountSeries(a, 1, 2030, 1990);
+  expect(series).toEqual([-100_000, -102_500]);
 });

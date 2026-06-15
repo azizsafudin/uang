@@ -21,6 +21,12 @@ type Props = {
   isLast: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
   isDragging?: boolean;
+  // When provided, the row is a button that calls this (e.g. open an edit dialog)
+  // instead of linking to the account detail page.
+  onSelect?: () => void;
+  // When provided, replaces the right-hand balance block (e.g. show projection
+  // config instead of the account value on the /projections page).
+  trailing?: React.ReactNode;
 };
 
 function initials(name: string) {
@@ -35,7 +41,59 @@ function iconClass(cls: string, subtype: string) {
   return "bg-primary/10 text-primary";
 }
 
-export function AccountRow({ account, baseCurrency, isLast, dragHandleProps, isDragging }: Props) {
+export function AccountRow({
+  account,
+  baseCurrency,
+  isLast,
+  dragHandleProps,
+  isDragging,
+  onSelect,
+  trailing,
+}: Props) {
+  const inner = (
+    <>
+      <div
+        className={cn(
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold",
+          iconClass(account.class, account.subtype),
+        )}
+      >
+        {initials(account.name)}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{account.name}</p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+          <span>
+            {subtypeLabel(account.subtype)} · {account.currency}
+          </span>
+          {account.missingRate && (
+            <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[0.65rem] font-medium text-destructive">
+              no FX rate
+            </span>
+          )}
+        </div>
+      </div>
+
+      {trailing !== undefined ? (
+        <div className="shrink-0 text-right">{trailing}</div>
+      ) : (
+        <div className="shrink-0 text-right tabular-nums">
+          <p className={cn("text-sm font-medium", account.balanceMinor < 0 && "text-destructive")}>
+            <Money minor={account.balanceMinor} currency={account.currency} />
+          </p>
+          {account.currency !== baseCurrency && !account.missingRate && (
+            <p className="text-xs text-muted-foreground">
+              <Money minor={account.baseMinor} currency={baseCurrency} />
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  const innerClass = "flex flex-1 items-center gap-3 min-w-0";
+
   return (
     <div
       data-testid="account-row"
@@ -55,45 +113,15 @@ export function AccountRow({ account, baseCurrency, isLast, dragHandleProps, isD
         </span>
       )}
 
-      <Link
-        to="/accounts/$id"
-        params={{ id: account.id }}
-        className="flex flex-1 items-center gap-3 min-w-0"
-      >
-        <div
-          className={cn(
-            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold",
-            iconClass(account.class, account.subtype),
-          )}
-        >
-          {initials(account.name)}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{account.name}</p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-            <span>
-              {subtypeLabel(account.subtype)} · {account.currency}
-            </span>
-            {account.missingRate && (
-              <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[0.65rem] font-medium text-destructive">
-                no FX rate
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="shrink-0 text-right tabular-nums">
-          <p className={cn("text-sm font-medium", account.balanceMinor < 0 && "text-destructive")}>
-            <Money minor={account.balanceMinor} currency={account.currency} />
-          </p>
-          {account.currency !== baseCurrency && !account.missingRate && (
-            <p className="text-xs text-muted-foreground">
-              <Money minor={account.baseMinor} currency={baseCurrency} />
-            </p>
-          )}
-        </div>
-      </Link>
+      {onSelect ? (
+        <button type="button" onClick={onSelect} className={cn(innerClass, "text-left")}>
+          {inner}
+        </button>
+      ) : (
+        <Link to="/accounts/$id" params={{ id: account.id }} className={innerClass}>
+          {inner}
+        </Link>
+      )}
     </div>
   );
 }

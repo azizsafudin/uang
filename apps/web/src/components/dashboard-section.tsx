@@ -29,22 +29,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { groupsCollection, newId, type GroupRow } from "@/lib/collections";
 import { useUsers, type Member } from "@/lib/use-users";
+import {
+  build,
+  signature,
+  isOwnerCard,
+  ownerIdsOf,
+  homeBucketId,
+  type AccountValuation,
+} from "@/lib/account-grouping";
 
-export type AccountValuation = {
-  id: string;
-  name: string;
-  class: string;
-  subtype: string;
-  currency: string;
-  balanceMinor: number;
-  baseMinor: number;
-  missingRate: boolean;
-  ownerIds: string[];
-  shared: boolean;
-  illiquid: boolean;
-  groupId: string | null;
-  sortOrder: number;
-};
+export type { AccountValuation } from "@/lib/account-grouping";
 
 // Shape of the cached ["networth", ...] query data (mirrors dashboard.tsx).
 type NetWorthData = {
@@ -63,63 +57,6 @@ type Props = {
   hasData: boolean;
   actions?: React.ReactNode; // rendered at the right of the section header
 };
-
-const OWNER_PREFIX = "owner:";
-
-function ownerKey(ownerIds: string[]): string {
-  return [...ownerIds].sort().join("|");
-}
-
-function isOwnerCard(id: string): boolean {
-  return id.startsWith(OWNER_PREFIX);
-}
-
-function ownerIdsOf(cardId: string): string[] {
-  return cardId.slice(OWNER_PREFIX.length).split("|").filter(Boolean);
-}
-
-function homeBucketId(account: AccountValuation): string {
-  return OWNER_PREFIX + ownerKey(account.ownerIds);
-}
-
-type Built = { order: string[]; members: Record<string, string[]> };
-
-function build(groups: GroupRow[], accounts: AccountValuation[]): Built {
-  const members: Record<string, string[]> = {};
-  // Card sort key: groups use group.sortOrder; buckets use min member sortOrder.
-  const sortKey: Record<string, number> = {};
-
-  for (const g of groups) {
-    const mem = accounts
-      .filter((a) => a.groupId === g.id)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    members[g.id] = mem.map((a) => a.id);
-    sortKey[g.id] = g.sortOrder;
-  }
-
-  const ungrouped = accounts
-    .filter((a) => !a.groupId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-  for (const a of ungrouped) {
-    const cardId = homeBucketId(a);
-    if (!members[cardId]) {
-      members[cardId] = [];
-      sortKey[cardId] = a.sortOrder; // first seen = min sortOrder (already sorted)
-    }
-    members[cardId].push(a.id);
-  }
-
-  // All cards (groups + owner buckets) interleave by their sort key.
-  const order = Object.keys(members).sort((a, b) => sortKey[a] - sortKey[b]);
-  return { order, members };
-}
-
-function signature(groups: GroupRow[], accounts: AccountValuation[]): string {
-  return JSON.stringify([
-    groups.map((g) => [g.id, g.sortOrder]),
-    accounts.map((a) => [a.id, a.groupId, a.sortOrder, a.ownerIds]),
-  ]);
-}
 
 function SortableCard({
   id,

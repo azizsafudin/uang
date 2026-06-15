@@ -23,6 +23,12 @@ type NwAccount = {
   earlyHaircutBps: number;
   illiquid: boolean;
   liquidationAge: number | null;
+  spendType: "none" | "once" | "monthly" | "percent";
+  spendAmountMinor: number | null;
+  spendRateBps: number | null;
+  spendStartKind: "age" | "target";
+  spendStartAge: number | null;
+  spendStartTargetMinor: number | null;
 };
 type NwResponse = { baseCurrency: string; accounts: NwAccount[] };
 type Member = { id: string; name: string; birthYear: number | null };
@@ -97,6 +103,12 @@ export function ProjectionChart() {
       ownerBirthYears: a.ownerIds
         .map((id) => birthById.get(id) ?? null)
         .filter((y): y is number => y != null),
+      spendType: a.spendType,
+      spendAmountMinor: a.spendAmountMinor,
+      spendRateBps: a.spendRateBps,
+      spendStartKind: a.spendStartKind,
+      spendStartAge: a.spendStartAge,
+      spendStartTargetMinor: a.spendStartTargetMinor,
     }));
 
     const birthYears = members.map((m) => m.birthYear).filter((y): y is number => y != null);

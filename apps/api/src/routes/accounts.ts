@@ -55,6 +55,12 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
           earlyHaircutBps: body.earlyHaircutBps ?? 0,
           illiquid: body.illiquid ? 1 : 0,
           liquidationAge: body.liquidationAge ?? null,
+          spendType: body.spendType ?? "none",
+          spendAmountMinor: body.spendAmountMinor ?? null,
+          spendRateBps: body.spendRateBps ?? null,
+          spendStartKind: body.spendStartKind ?? "age",
+          spendStartAge: body.spendStartAge ?? null,
+          spendStartTargetMinor: body.spendStartTargetMinor ?? null,
         });
       } catch (e) {
         if (isUniqueViolation(e)) {
@@ -84,6 +90,12 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         earlyHaircutBps: t.Optional(t.Number()),
         illiquid: t.Optional(t.Boolean()),
         liquidationAge: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendType: t.Optional(t.Union([t.Literal("none"), t.Literal("once"), t.Literal("monthly"), t.Literal("percent")])),
+        spendAmountMinor: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendRateBps: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendStartKind: t.Optional(t.Union([t.Literal("age"), t.Literal("target")])),
+        spendStartAge: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendStartTargetMinor: t.Optional(t.Union([t.Number(), t.Null()])),
       }),
     },
   )
@@ -143,6 +155,12 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
       if (body.earlyHaircutBps !== undefined) update.earlyHaircutBps = body.earlyHaircutBps;
       if (body.illiquid !== undefined) update.illiquid = body.illiquid ? 1 : 0;
       if (body.liquidationAge !== undefined) update.liquidationAge = body.liquidationAge;
+      if (body.spendType !== undefined) update.spendType = body.spendType;
+      if (body.spendAmountMinor !== undefined) update.spendAmountMinor = body.spendAmountMinor;
+      if (body.spendRateBps !== undefined) update.spendRateBps = body.spendRateBps;
+      if (body.spendStartKind !== undefined) update.spendStartKind = body.spendStartKind;
+      if (body.spendStartAge !== undefined) update.spendStartAge = body.spendStartAge;
+      if (body.spendStartTargetMinor !== undefined) update.spendStartTargetMinor = body.spendStartTargetMinor;
       await db.update(accounts).set(update).where(eq(accounts.id, params.id));
       return { ok: true };
     },
@@ -159,6 +177,12 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
         earlyHaircutBps: t.Optional(t.Number()),
         illiquid: t.Optional(t.Boolean()),
         liquidationAge: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendType: t.Optional(t.Union([t.Literal("none"), t.Literal("once"), t.Literal("monthly"), t.Literal("percent")])),
+        spendAmountMinor: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendRateBps: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendStartKind: t.Optional(t.Union([t.Literal("age"), t.Literal("target")])),
+        spendStartAge: t.Optional(t.Union([t.Number(), t.Null()])),
+        spendStartTargetMinor: t.Optional(t.Union([t.Number(), t.Null()])),
       }),
     },
   )

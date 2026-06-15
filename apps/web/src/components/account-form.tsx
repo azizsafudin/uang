@@ -64,6 +64,12 @@ export function AccountForm({ defaultCurrency }: { defaultCurrency?: string }) {
       earlyHaircutBps: assumptions.earlyHaircutBps,
       illiquid: assumptions.illiquid ? 1 : 0,
       liquidationAge: assumptions.liquidationAge,
+      spendType: "none",
+      spendAmountMinor: null,
+      spendRateBps: null,
+      spendStartKind: "age",
+      spendStartAge: null,
+      spendStartTargetMinor: null,
     };
     await accountsCollection.insert(row);
     await qc.invalidateQueries({ queryKey: ["networth"] });

@@ -6,7 +6,24 @@ import path from "node:path";
 // Repo root = two levels up from e2e/tests/.
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const TEST_SECRET = "e2e-test-secret-0123456789-abcdefghij"; // >= 32 chars
-const portOffset = Number(process.env.E2E_PORT_OFFSET ?? 0);
+
+// Port isolation across checkouts. Agents run e2e from git worktrees, so several
+// stacks (worktrees + the main checkout) can run concurrently and must not fight
+// over the same ports. An explicit E2E_PORT_OFFSET always wins; otherwise derive a
+// stable offset from the checkout path. Spacing of 100 between buckets stays well
+// above any realistic worker count, and the max offset (1900) keeps API ports
+// (3100+) clear of web ports (5300+).
+function offsetFromPath(p: string): number {
+  let h = 2166136261; // FNV-1a
+  for (let i = 0; i < p.length; i++) {
+    h ^= p.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 20) * 100;
+}
+const portOffset = process.env.E2E_PORT_OFFSET
+  ? Number(process.env.E2E_PORT_OFFSET)
+  : offsetFromPath(repoRoot);
 
 // Kill a detached child AND its descendants (bun spawns a child vite/node that
 // otherwise survives a plain child.kill() and leaks the port).

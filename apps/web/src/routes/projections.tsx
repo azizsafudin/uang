@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { membersCollection } from "@/lib/collections";
 import { ProjectionChart } from "@/components/projection-chart";
+import { ProjectionAccounts } from "@/components/projection-accounts";
 import { AppShell, Section } from "@/components/app-layout";
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,7 @@ export function ProjectionsPage() {
       <PageHeader title="Projections" description="Total vs accessible net worth over time, at your assumed growth rates." />
       <div className="space-y-5">
         <ProjectionChart />
+        <ProjectionAccounts />
         <MembersSection />
         <ProjectionAssumptionsSection />
       </div>

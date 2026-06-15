@@ -66,6 +66,12 @@ export const accountsCollection = createCollection(
         earlyHaircutBps: m.earlyHaircutBps,
         illiquid: m.illiquid === 1,
         liquidationAge: m.liquidationAge ?? null,
+        spendType: m.spendType,
+        spendAmountMinor: m.spendAmountMinor,
+        spendRateBps: m.spendRateBps,
+        spendStartKind: m.spendStartKind,
+        spendStartAge: m.spendStartAge,
+        spendStartTargetMinor: m.spendStartTargetMinor,
       });
       if (error) throw new Error(String(error));
     },
@@ -84,6 +90,12 @@ export const accountsCollection = createCollection(
         earlyHaircutBps: m.earlyHaircutBps,
         illiquid: m.illiquid === 1,
         liquidationAge: m.liquidationAge ?? null,
+        spendType: m.spendType,
+        spendAmountMinor: m.spendAmountMinor,
+        spendRateBps: m.spendRateBps,
+        spendStartKind: m.spendStartKind,
+        spendStartAge: m.spendStartAge,
+        spendStartTargetMinor: m.spendStartTargetMinor,
       });
       if (error) throw new Error(String(error));
     },

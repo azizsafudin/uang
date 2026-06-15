@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e39b4aad-fc8c-49b1-80e5-ddcc85f495a6",
-  "prevId": "89aeced3-2273-45e8-b9f9-6bbeca43b286",
+  "id": "d6e9d93c-cde2-43af-820e-488f8a85f5b6",
+  "prevId": "1f91e368-b3ef-4087-8572-e6144f8c9e62",
   "tables": {
     "account_owners": {
       "name": "account_owners",
@@ -147,6 +147,50 @@
         },
         "liquidation_age": {
           "name": "liquidation_age",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "spend_type": {
+          "name": "spend_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'none'"
+        },
+        "spend_amount_minor": {
+          "name": "spend_amount_minor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "spend_rate_bps": {
+          "name": "spend_rate_bps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "spend_start_kind": {
+          "name": "spend_start_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'age'"
+        },
+        "spend_start_age": {
+          "name": "spend_start_age",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "spend_start_target_minor": {
+          "name": "spend_start_target_minor",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -836,6 +880,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": 90
+        },
+        "dashboard_tiles": {
+          "name": "dashboard_tiles",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[\"assets\",\"liabilities\",\"goalsOnTrack\"]'"
         },
         "created_at": {
           "name": "created_at",

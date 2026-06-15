@@ -16,3 +16,8 @@ Avoid `any` generally (prefer precise types). The one tolerated spot is Elysia r
 - Monorepo: `apps/api` (Elysia + Drizzle + libsql/SQLite), `apps/web` (React + TanStack Router/Query/DB), `packages/shared`. Runtime: Bun.
 - Client/server share end-to-end types via Eden treaty (`apps/web/src/lib/api.ts` ← `apps/api/src/eden`).
 - UI components: add shadcn components via the shadcn CLI.
+
+## Testing workflow
+- **While iterating:** lean on unit/route tests (cheap, fast) for the red-green loop. Don't run E2E after every step.
+- **End of slice (before merging):** run only the *affected* E2E specs, e.g. `bun run e2e -- accounts.spec.ts ownership.spec.ts`. The spec↔feature map and full conventions live in `e2e/README.md`.
+- Run the full suite (`bun run e2e`) before a release, or when a slice touches shared plumbing (auth, routing, net-worth rollup).

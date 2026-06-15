@@ -4,7 +4,7 @@
   "type": "module",
   "workspaces": ["packages/*", "apps/*", "e2e"],
   "scripts": {
-    "test": "bun test",
+    "test": "bun run --filter '@uang/api' --filter '@uang/shared' test",
     "dev": "bun run --filter '*' dev",
     "api:dev": "bun --cwd apps/api run dev",
     "web:dev": "bun --cwd apps/web run dev",
