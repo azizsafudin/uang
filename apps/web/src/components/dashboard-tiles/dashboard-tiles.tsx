@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pencil, Check } from "lucide-react";
+import { GripVertical, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,7 +29,17 @@ function SortableTile({ id, children }: { id: string; children: React.ReactNode 
 
 type SettingsData = { dashboardTiles: string[] };
 
-export function DashboardTiles({ data, baseCurrency }: { data: TileData; baseCurrency: string }) {
+export function DashboardTiles({
+  data,
+  baseCurrency,
+  editing,
+  onEditingChange,
+}: {
+  data: TileData;
+  baseCurrency: string;
+  editing: boolean;
+  onEditingChange: (v: boolean) => void;
+}) {
   const qc = useQueryClient();
   const { data: settings } = useQuery({
     queryKey: ["settings"],
@@ -41,7 +51,6 @@ export function DashboardTiles({ data, baseCurrency }: { data: TileData; baseCur
   });
   const enabled: string[] = settings?.dashboardTiles ?? DEFAULT_TILES;
 
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string[] | null>(null);
   const order = draft ?? enabled;
 
@@ -64,11 +73,6 @@ export function DashboardTiles({ data, baseCurrency }: { data: TileData; baseCur
   if (!editing) {
     return (
       <div data-testid="dashboard-tiles" className="grid grid-rows-2 gap-4">
-        <div className="col-span-full flex justify-end">
-          <Button type="button" size="icon-sm" variant="ghost" onClick={() => setEditing(true)} aria-label="Edit tiles">
-            <Pencil className="size-4" />
-          </Button>
-        </div>
         {visible.map((t) => (
           <TileCard key={t.id} label={t.label} valueNode={renderValue(t.id, t.value(data), baseCurrency)} subtitle={t.subtitle?.(data)} />
         ))}
@@ -92,7 +96,7 @@ export function DashboardTiles({ data, baseCurrency }: { data: TileData; baseCur
           aria-label="Done editing tiles"
           onClick={() => {
             save.mutate(order);
-            setEditing(false);
+            onEditingChange(false);
           }}
         >
           <Check className="size-4" />

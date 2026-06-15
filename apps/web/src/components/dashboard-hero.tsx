@@ -21,6 +21,7 @@ export function DashboardHero({
   changeMinor,
   changePct,
   tiles,
+  actions,
 }: {
   owner: string;
   totalBaseMinor: number | null;
@@ -29,6 +30,7 @@ export function DashboardHero({
   changeMinor: number | null;
   changePct: number | null;
   tiles: React.ReactNode; // companion tiles, rendered beside the vault
+  actions?: React.ReactNode; // top-right controls (e.g. tile edit toggle)
 }) {
   const { data: session } = useSession();
   const name = session?.user?.name ?? "there";
@@ -53,10 +55,15 @@ export function DashboardHero({
             "linear-gradient(90deg, transparent, color-mix(in oklab, var(--gold) 55%, transparent), var(--gold), color-mix(in oklab, var(--gold) 55%, transparent), transparent)",
         }}
       />
-      <div className="font-heading text-[1.8rem] font-medium tracking-tight">
-        {greeting(now.getHours())}, <span className="italic text-gold">{name}</span>.
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-heading text-[1.8rem] font-medium tracking-tight">
+            {greeting(now.getHours())}, <span className="italic text-gold">{name}</span>.
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">{todayLabel()}</div>
+        </div>
+        {actions && <div className="relative shrink-0">{actions}</div>}
       </div>
-      <div className="mt-1 text-sm text-muted-foreground">{todayLabel()}</div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-[1.45fr_1fr]">
         {/* pine-green vault */}

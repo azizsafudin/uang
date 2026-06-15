@@ -1,15 +1,17 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
+import { Pencil } from "lucide-react";
 import { api } from "@/lib/api";
 import { AccountForm } from "@/components/account-form";
 import { AppShell } from "@/components/app-layout";
+import { Button } from "@/components/ui/button";
 import { NetWorthChart } from "@/components/net-worth-chart";
 import { DashboardSection, type AccountValuation } from "@/components/dashboard-section";
 import { DashboardHero } from "@/components/dashboard-hero";
 import { DashboardTiles } from "@/components/dashboard-tiles/dashboard-tiles";
 import { groupsCollection } from "@/lib/collections";
-import type { TileData } from "@/lib/dashboard-tiles/registry";
+import { TILE_REGISTRY, type TileData } from "@/lib/dashboard-tiles/registry";
 
 type NetWorth = {
   baseCurrency: string;
@@ -57,6 +59,7 @@ const CLASS_SECTIONS = [
 
 export function DashboardPage() {
   const [owner, setOwner] = useState("household");
+  const [editingTiles, setEditingTiles] = useState(false);
 
   // The account list + group totals always reflect the whole household, so the
   // list never changes when you toggle the headline.
@@ -101,6 +104,12 @@ export function DashboardPage() {
     [base, accounts, analysis, periodDeltaMinor],
   );
 
+  // Only offer tile editing once at least one tile actually has data to show.
+  const hasAvailableTiles = useMemo(
+    () => TILE_REGISTRY.some((t) => t.isAvailable(tileData)),
+    [tileData],
+  );
+
   return (
     <AppShell>
       <DashboardHero
@@ -110,7 +119,27 @@ export function DashboardPage() {
         series={points}
         changeMinor={periodDeltaMinor}
         changePct={periodPct}
-        tiles={<DashboardTiles data={tileData} baseCurrency={base} />}
+        tiles={
+          <DashboardTiles
+            data={tileData}
+            baseCurrency={base}
+            editing={editingTiles}
+            onEditingChange={setEditingTiles}
+          />
+        }
+        actions={
+          hasAvailableTiles && !editingTiles ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => setEditingTiles(true)}
+              aria-label="Edit tiles"
+            >
+              <Pencil className="size-4" />
+            </Button>
+          ) : undefined
+        }
       />
 
       <div className="mt-6">
