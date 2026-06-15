@@ -108,7 +108,14 @@ export function createWebApp() {
   if (existsSync(webDist)) {
     const indexHtml = readFileSync(join(webDist, "index.html"), "utf8");
     return app
-      .use(staticPlugin({ assets: webDist, prefix: "" }))
+      // alwaysStatic:true registers an exact GET route per asset file. Without it,
+      // @elysiajs/static defaults this on by NODE_ENV==="production"; in any non-prod
+      // run that serves a built dist it instead mounts a single `GET /*` catch-all,
+      // which out-ranks the auth `.all("/api/auth/*")` wildcard for GET requests and
+      // 404s endpoints like /api/auth/get-session (breaking session establishment).
+      // Pinning it true makes a dev-with-dist server behave like prod and keeps /api
+      // routes reachable.
+      .use(staticPlugin({ assets: webDist, prefix: "", alwaysStatic: true }))
       // SPA history fallback. Using onError(NOT_FOUND) — rather than a `/*` route —
       // means real routes (API, auth, static assets) always match first; only a
       // genuinely unmatched path lands here. Non-API paths get index.html so
