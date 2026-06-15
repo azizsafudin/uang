@@ -117,12 +117,14 @@ test("projectNetWorth: total grows; accessible respects unlocks", () => {
   const cash: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 0,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990], ...noSpend, ...noAcc,
+    liquidationAge: null, ownerBirthYears: [1990], isLiability: false,
+    loanTermMonths: null, ...noSpend, ...noAcc,
   };
   const cpf: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990], ...noSpend, ...noAcc,
+    liquidationAge: null, ownerBirthYears: [1990], isLiability: false,
+    loanTermMonths: null, ...noSpend, ...noAcc,
   };
   // 2030: owner age 40 -> CPF locked. 2045: owner age 55 -> CPF unlocks.
   const pts = projectNetWorth({ accounts: [cash, cpf], fromYear: 2030, toYear: 2045 });
@@ -134,7 +136,8 @@ test("projectNetWorth: shared account uses the youngest owner's age", () => {
   const shared: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1980, 1990], ...noSpend, ...noAcc, // youngest born 1990
+    liquidationAge: null, ownerBirthYears: [1980, 1990], isLiability: false,
+    loanTermMonths: null, ...noSpend, ...noAcc, // youngest born 1990
   };
   const pts = projectNetWorth({ accounts: [shared], fromYear: 2040, toYear: 2045 });
   // 2040: younger is 50 -> locked. 2045: younger is 55 -> unlocked.
@@ -150,7 +153,8 @@ test("projectNetWorth: empty ownerBirthYears treats account as accessible", () =
   const noBirth: ProjectionAccount = {
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
     earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [], ...noSpend, ...noAcc,
+    liquidationAge: null, ownerBirthYears: [], isLiability: false,
+    loanTermMonths: null, ...noSpend, ...noAcc,
   };
   const pts = projectNetWorth({ accounts: [noBirth], fromYear: 2030, toYear: 2030 });
   expect(pts[0].accessibleBaseMinor).toBe(100_000);
@@ -160,7 +164,8 @@ test("projectNetWorth: empty ownerBirthYears treats account as accessible", () =
 
 const liquidSpend = {
   accessibleFromAge: 0, earlyWithdrawal: "none" as const, earlyHaircutBps: 0,
-  illiquid: false, liquidationAge: null, ...noSpend, ...noAcc,
+  illiquid: false, liquidationAge: null, isLiability: false, loanTermMonths: null,
+  ...noSpend, ...noAcc,
 };
 
 test("withdrawal none: identical to compound-only baseline", () => {
