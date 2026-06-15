@@ -39,6 +39,7 @@ export function runPdfParser(text: string, config: PdfParserConfig, currency: st
       if (config.multiline?.continuationAppendsTo === "description" && out.length > 0 && line.trim() !== "") {
         const prev = out[out.length - 1];
         prev.description = `${prev.description} ${line.trim()}`.trim();
+        prev.raw.description = prev.description; // keep the audit copy in sync with the merged description
         prev.raw.line = `${prev.raw.line ?? ""}\n${line}`;
       }
       continue;
