@@ -85,6 +85,13 @@
       "when": 1781506362903,
       "tag": "0011_fast_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1781514068909,
+      "tag": "0012_keen_the_hunter",
+      "breakpoints": true
     }
   ]
 }

@@ -47,6 +47,8 @@ export const accounts = sqliteTable("accounts", {
   compoundInterval: text("compound_interval", { enum: ["monthly", "quarterly", "annually"] })
     .notNull()
     .default("annually"),
+  // Liabilities only: remaining loan term in months. null = no term set (held flat).
+  loanTermMonths: integer("loan_term_months"),
   groupId: text("group_id"),   // nullable logical FK → groups.id
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
