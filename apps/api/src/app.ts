@@ -19,6 +19,7 @@ import { instrumentsRoutes } from "./routes/instruments";
 import { positionsRoutes } from "./routes/positions";
 import { pricesRoutes } from "./routes/prices";
 import { groupsRoutes } from "./routes/groups";
+import { importParsersRoutes } from "./routes/import-parsers";
 import { isInitialized } from "./lib/settings";
 
 // The API surface, defined at root-relative paths (`/accounts`, `/onboarding`, …).
@@ -32,6 +33,7 @@ export function createApiApp() {
     // applies only within that plugin, so it never intercepts onboarding or auth.
     .use(accountsRoutes)
     .use(transactionsRoutes)
+    .use(importParsersRoutes)
     .use(fxRoutes)
     .use(networthRoutes)
     .use(networthSeriesRoutes)
