@@ -9,8 +9,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CurrencySelect } from "@/components/currency-select";
+import { useSession } from "@/lib/auth";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+// The API is mounted under `/api` (same base the eden client uses): same-origin
+// in production, or VITE_API_URL for the cross-origin dev API. These plain links
+// (binary .db / .zip downloads and the multipart import upload) bypass eden, so
+// build the `/api`-prefixed URL the same way here.
+const API_URL = `${import.meta.env.VITE_API_URL || window.location.origin}/api`;
 
 type User = { id: string; email: string; name: string; isAdmin: boolean };
 
@@ -121,6 +133,128 @@ function MembersSection() {
           </div>
         ))}
       </div>
+    </Section>
+  );
+}
+
+function RestoreSection() {
+  const { data: session } = useSession();
+  const meId = session?.user?.id;
+  const usersQ = useQuery({
+    queryKey: ["users"],
+    queryFn: async (): Promise<User[]> => {
+      const { data, error } = await api.users.get();
+      if (error) throw new Error(String(error));
+      return (data as unknown as User[]) ?? [];
+    },
+  });
+  const isAdmin =
+    usersQ.data?.some((u) => u.id === meId && u.isAdmin) ?? false;
+
+  const [backedUp, setBackedUp] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isAdmin) return null;
+
+  async function doImport() {
+    if (!file) return;
+    setImporting(true);
+    setError(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${API_URL}/import`, {
+      method: "POST",
+      body: fd,
+      credentials: "include",
+    });
+    if (res.ok) {
+      window.location.href = "/login";
+      return;
+    }
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    setError(body.error ?? "Import failed");
+    setImporting(false);
+    setConfirmOpen(false);
+  }
+
+  return (
+    <Section
+      eyebrow="Restore"
+      title="Restore from a backup"
+      description="Replace ALL data with the contents of a uang .db file. This signs everyone out. Download a backup of your current data first."
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <span className="flex size-6 items-center justify-center rounded-full border border-border text-xs">
+            1
+          </span>
+          <a
+            href={`${API_URL}/export`}
+            download
+            onClick={() => setBackedUp(true)}
+          >
+            <Button variant="outline">Download current backup (.db)</Button>
+          </a>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="flex size-6 items-center justify-center rounded-full border border-border text-xs">
+            2
+          </span>
+          <Input
+            type="file"
+            accept=".db"
+            disabled={!backedUp}
+            className="w-auto"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              setFile(f);
+              setError(null);
+              if (f) setConfirmOpen(true);
+            }}
+          />
+          {!backedUp && (
+            <span className="text-sm text-muted-foreground">
+              Download a backup first
+            </span>
+          )}
+        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace all data?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This permanently replaces every account, transaction, goal, and
+            member with the contents of{" "}
+            <span className="font-medium">{file?.name}</span>, and signs everyone
+            out. This cannot be undone from the app.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+              disabled={importing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={doImport}
+              disabled={importing || !file}
+            >
+              {importing ? "Restoring…" : "Replace all data"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Section>
   );
 }
@@ -315,12 +449,19 @@ export function SettingsPage() {
         <Section
           eyebrow="Backup"
           title="Export your data"
-          description="Download the full database as a SQLite file. Open it anywhere, or keep it as a backup."
+          description="Download the full database as a SQLite file, or a zip of readable CSVs."
         >
-          <a href={`${API_URL}/export`}>
-            <Button variant="outline">Export database (.db)</Button>
-          </a>
+          <div className="flex flex-wrap gap-3">
+            <a href={`${API_URL}/export`}>
+              <Button variant="outline">Export database (.db)</Button>
+            </a>
+            <a href={`${API_URL}/export/csv`}>
+              <Button variant="outline">Export as CSV (.zip)</Button>
+            </a>
+          </div>
         </Section>
+
+        <RestoreSection />
       </div>
     </AppShell>
   );
