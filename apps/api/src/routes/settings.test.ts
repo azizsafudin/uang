@@ -28,3 +28,26 @@ test("PATCH /settings updates assumptions", async () => {
   expect(s.contributionGrowthRateBps).toBe(600);
   expect(s.projectionEndAge).toBe(85);
 });
+
+test("GET /settings returns the default dashboard tiles", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const res = await app.handle(new Request("http://localhost/settings", { headers: { cookie } }));
+  const s = await res.json();
+  expect(s.dashboardTiles).toEqual(["assets", "liabilities", "goalsOnTrack"]);
+});
+
+test("PATCH /settings persists a reordered/filtered tile list", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const patch = await app.handle(
+    new Request("http://localhost/settings", {
+      method: "PATCH",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ dashboardTiles: ["goalsOnTrack", "liquidAssets"] }),
+    }),
+  );
+  expect(patch.status).toBe(200);
+  const s = await (
+    await app.handle(new Request("http://localhost/settings", { headers: { cookie } }))
+  ).json();
+  expect(s.dashboardTiles).toEqual(["goalsOnTrack", "liquidAssets"]);
+});

@@ -13,6 +13,9 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       baseCurrency: s?.baseCurrency ?? "USD",
       contributionGrowthRateBps: s?.contributionGrowthRateBps ?? 800,
       projectionEndAge: s?.projectionEndAge ?? 90,
+      dashboardTiles: JSON.parse(
+        s?.dashboardTiles ?? '["assets","liabilities","goalsOnTrack"]',
+      ) as string[],
     };
   })
   .patch(
@@ -21,6 +24,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       const update: Record<string, unknown> = {};
       if (body.contributionGrowthRateBps !== undefined) update.contributionGrowthRateBps = body.contributionGrowthRateBps;
       if (body.projectionEndAge !== undefined) update.projectionEndAge = body.projectionEndAge;
+      if (body.dashboardTiles !== undefined) update.dashboardTiles = JSON.stringify(body.dashboardTiles);
       if (Object.keys(update).length > 0) {
         await db.update(settings).set(update).where(eq(settings.id, 1));
       }
@@ -30,6 +34,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       body: t.Object({
         contributionGrowthRateBps: t.Optional(t.Number()),
         projectionEndAge: t.Optional(t.Number()),
+        dashboardTiles: t.Optional(t.Array(t.String())),
       }),
     },
   );
