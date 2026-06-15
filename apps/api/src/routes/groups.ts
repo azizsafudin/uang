@@ -6,6 +6,18 @@ import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { isUniqueViolation } from "../lib/db-errors";
 
+// Semantic palette keys. Must stay in sync with apps/web/src/lib/group-colors.ts.
+const GROUP_COLOR_KEYS = [
+  "slate", "red", "orange", "amber", "yellow", "lime",
+  "green", "teal", "cyan", "blue", "violet", "pink",
+] as const;
+
+// A valid color is one of the known keys, or null to clear.
+const colorSchema = t.Union([
+  ...GROUP_COLOR_KEYS.map((k) => t.Literal(k)),
+  t.Null(),
+]);
+
 export const groupsRoutes = new Elysia({ prefix: "/groups" })
   .use(authGuard)
   .get("/", async () => {
@@ -21,6 +33,7 @@ export const groupsRoutes = new Elysia({ prefix: "/groups" })
           name: body.name,
           class: body.class,
           sortOrder: body.sortOrder ?? 0,
+          color: body.color ?? null,
           createdAt: nowEpoch(),
         });
       } catch (e) {
@@ -38,6 +51,7 @@ export const groupsRoutes = new Elysia({ prefix: "/groups" })
         name: t.String({ minLength: 1 }),
         class: t.Union([t.Literal("asset"), t.Literal("liability")]),
         sortOrder: t.Optional(t.Number()),
+        color: t.Optional(colorSchema),
       }),
     },
   )
@@ -47,6 +61,7 @@ export const groupsRoutes = new Elysia({ prefix: "/groups" })
       const update: Record<string, unknown> = {};
       if (body.name !== undefined) update.name = body.name;
       if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
+      if (body.color !== undefined) update.color = body.color;
       await db.update(groups).set(update).where(eq(groups.id, params.id));
       return { ok: true };
     },
@@ -54,6 +69,7 @@ export const groupsRoutes = new Elysia({ prefix: "/groups" })
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
         sortOrder: t.Optional(t.Number()),
+        color: t.Optional(colorSchema),
       }),
     },
   )
