@@ -1,4 +1,4 @@
-import type { CsvParserConfig, ParserConfig } from "./types";
+import type { CsvParserConfig, ParserConfig, ParserFingerprint } from "./types";
 
 function fail(): never { throw new Error("invalid_config"); }
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -14,7 +14,12 @@ export function validateParserConfig(input: unknown): ParserConfig {
 
   const csv = input.csv;
   if (!isObj(csv)) fail();
-  const csvBlock = { delimiter: str(csv.delimiter), headerRow: num(csv.headerRow), skipRows: num(csv.skipRows) };
+  const delimiter = str(csv.delimiter);
+  if (delimiter.length !== 1) fail();
+  const headerRow = num(csv.headerRow);
+  const skipRows = num(csv.skipRows);
+  if (headerRow < 0 || skipRows < 0) fail();
+  const csvBlock = { delimiter, headerRow, skipRows };
 
   const fields = input.fields;
   if (!isObj(fields)) fail();
@@ -51,4 +56,17 @@ export function validateParserConfig(input: unknown): ParserConfig {
     config.rowFilter = { dropIfBlank: drop };
   }
   return config;
+}
+
+export function validateFingerprint(input: unknown): ParserFingerprint {
+  if (!isObj(input)) throw new Error("invalid_fingerprint");
+  if (input.format !== "csv") throw new Error("invalid_fingerprint");
+  if (typeof input.delimiter !== "string" || input.delimiter.length !== 1) throw new Error("invalid_fingerprint");
+  if (!Array.isArray(input.headerColumns) || input.headerColumns.length > 200) throw new Error("invalid_fingerprint");
+  const headerColumns: string[] = [];
+  for (const c of input.headerColumns) {
+    if (typeof c !== "string") throw new Error("invalid_fingerprint");
+    headerColumns.push(c);
+  }
+  return { format: "csv", delimiter: input.delimiter, headerColumns };
 }

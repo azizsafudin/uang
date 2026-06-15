@@ -4,7 +4,8 @@ import { importParsers } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
-import { validateParserConfig } from "../lib/import/validate";
+import { validateParserConfig, validateFingerprint } from "../lib/import/validate";
+import { isUniqueViolation } from "../lib/db-errors";
 
 export const importParsersRoutes = new Elysia()
   .use(authGuard)
@@ -20,12 +21,22 @@ export const importParsersRoutes = new Elysia()
       } catch {
         set.status = 422; return { error: "invalid_config" };
       }
+      try {
+        validateFingerprint(body.fingerprint);
+      } catch {
+        set.status = 422; return { error: "invalid_fingerprint" };
+      }
       const id = body.id ?? createId();
-      await db.insert(importParsers).values({
-        id, name: body.name, sourceFormat: body.sourceFormat,
-        config: JSON.stringify(body.config), fingerprint: JSON.stringify(body.fingerprint),
-        origin: body.origin ?? "manual", createdAt: nowEpoch(), createdBy: userId!,
-      });
+      try {
+        await db.insert(importParsers).values({
+          id, name: body.name, sourceFormat: body.sourceFormat,
+          config: JSON.stringify(body.config), fingerprint: JSON.stringify(body.fingerprint),
+          origin: body.origin ?? "manual", createdAt: nowEpoch(), createdBy: userId!,
+        });
+      } catch (e) {
+        if (isUniqueViolation(e)) { set.status = 409; return { error: "duplicate_id" }; }
+        throw e;
+      }
       return { id };
     },
     {
@@ -48,7 +59,10 @@ export const importParsersRoutes = new Elysia()
         try { validateParserConfig(body.config); } catch { set.status = 422; return { error: "invalid_config" }; }
         update.config = JSON.stringify(body.config);
       }
-      if (body.fingerprint !== undefined) update.fingerprint = JSON.stringify(body.fingerprint);
+      if (body.fingerprint !== undefined) {
+        try { validateFingerprint(body.fingerprint); } catch { set.status = 422; return { error: "invalid_fingerprint" }; }
+        update.fingerprint = JSON.stringify(body.fingerprint);
+      }
       await db.update(importParsers).set(update).where(eq(importParsers.id, params.id));
       return { ok: true };
     },

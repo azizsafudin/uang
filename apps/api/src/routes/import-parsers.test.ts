@@ -49,3 +49,27 @@ test("rejects an invalid config with 422", async () => {
   }));
   expect(res.status).toBe(422);
 });
+
+test("rejects an invalid fingerprint with 422", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const res = await app.handle(new Request("http://localhost/import-parsers", {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Bad FP", sourceFormat: "csv", config, fingerprint: { format: "csv", delimiter: ";;", headerColumns: "x" } }),
+  }));
+  expect(res.status).toBe(422);
+  expect((await res.json()).error).toBe("invalid_fingerprint");
+});
+
+test("posting twice with the same explicit id returns 409", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const body = JSON.stringify({ id: "fixed-id", name: "Dup", sourceFormat: "csv", config, fingerprint });
+  const first = await app.handle(new Request("http://localhost/import-parsers", {
+    method: "POST", headers: { "content-type": "application/json", cookie }, body,
+  }));
+  expect(first.status).toBe(200);
+  const second = await app.handle(new Request("http://localhost/import-parsers", {
+    method: "POST", headers: { "content-type": "application/json", cookie }, body,
+  }));
+  expect(second.status).toBe(409);
+  expect((await second.json()).error).toBe("duplicate_id");
+});
