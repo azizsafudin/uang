@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { CurrencySelect } from "@/components/currency-select";
+import { useDestructiveAction } from "@/lib/use-destructive-action";
 import { useSession } from "@/lib/auth";
 import {
   Dialog,
@@ -230,6 +231,7 @@ export function SettingsPage() {
   }
 
   const aiConfigured = !!(aiBaseUrl || aiModel || aiApiKeySet);
+  const { confirm, dialog: confirmDialog } = useDestructiveAction();
 
   const [fx, setFx] = useState({
     currency: "",
@@ -467,7 +469,12 @@ export function SettingsPage() {
                 <Button
                   variant="ghost"
                   className="text-destructive hover:text-destructive"
-                  onClick={removeAi}
+                  onClick={() => confirm({
+                    title: "Remove AI provider?",
+                    description: "This deletes the base URL, model, and API key. Statement import will be disabled until you set it up again.",
+                    confirmLabel: "Remove",
+                    onConfirm: removeAi,
+                  })}
                   data-testid="ai-remove"
                 >
                   Remove
@@ -484,6 +491,7 @@ export function SettingsPage() {
 
         <RestoreSection />
       </div>
+      {confirmDialog}
     </AppShell>
   );
 }
