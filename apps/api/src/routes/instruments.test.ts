@@ -1,6 +1,11 @@
 import { expect, test, beforeEach } from "bun:test";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
 import { instrumentsRoutes } from "./instruments";
+import { db } from "../db/client";
+import { instruments, accounts, transactions, prices } from "../db/schema";
+import { createId, nowEpoch } from "../lib/ids";
+import { SCALE } from "@uang/shared";
+import { eq } from "drizzle-orm";
 
 beforeEach(resetDb);
 
@@ -59,4 +64,21 @@ test("POST /instruments accepts crypto kind", async () => {
     body: JSON.stringify({ name: "Bitcoin", kind: "crypto", currency: "USD", symbol: "BTC" }),
   }));
   expect(res.status).toBe(200);
+});
+
+test("PATCH /instruments/:id edits fields", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const id = createId();
+  await db.insert(instruments).values({
+    id, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  const res = await app.handle(new Request(`http://localhost/instruments/${id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Apple Inc.", symbol: "AAPL.US" }),
+  }));
+  expect(res.status).toBe(200);
+  const [row] = await db.select().from(instruments).where(eq(instruments.id, id));
+  expect(row.name).toBe("Apple Inc.");
+  expect(row.symbol).toBe("AAPL.US");
 });

@@ -46,4 +46,29 @@ export const instrumentsRoutes = new Elysia({ prefix: "/instruments" })
         isin: t.Optional(t.String()),
       }),
     },
+  )
+  .patch(
+    "/:id",
+    async ({ params, body }: any) => {
+      const update: Record<string, unknown> = {};
+      if (body.name !== undefined) update.name = body.name;
+      if (body.symbol !== undefined) update.symbol = body.symbol || null;
+      if (body.isin !== undefined) update.isin = body.isin || null;
+      if (body.kind !== undefined) update.kind = body.kind;
+      if (body.currency !== undefined) update.currency = body.currency.toUpperCase();
+      await db.update(instruments).set(update).where(eq(instruments.id, params.id));
+      return { ok: true };
+    },
+    {
+      body: t.Object({
+        name: t.Optional(t.String({ minLength: 1 })),
+        symbol: t.Optional(t.String()),
+        isin: t.Optional(t.String()),
+        kind: t.Optional(t.Union([
+          t.Literal("currency"), t.Literal("stock"), t.Literal("etf"),
+          t.Literal("fund"), t.Literal("crypto"), t.Literal("other"),
+        ])),
+        currency: t.Optional(t.String({ pattern: "^[A-Za-z]{3}$" })),
+      }),
+    },
   );
