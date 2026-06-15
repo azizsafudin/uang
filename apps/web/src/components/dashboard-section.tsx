@@ -19,14 +19,22 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { MoreVertical } from "lucide-react";
 import { api } from "@/lib/api";
 import { Money } from "@/components/money.tsx";
 import { cn } from "@/lib/utils";
 import { AccountRow } from "@/components/account-row";
 import { AccountGroupRow } from "@/components/account-group-row";
+import { AccountForm, type AccountFormInitial } from "@/components/account-form";
 import { Eyebrow } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { groupsCollection, newId, type GroupRow } from "@/lib/collections";
 import { useUsers, type Member } from "@/lib/use-users";
 import {
@@ -55,7 +63,6 @@ type Props = {
   baseCurrency: string;
   sectionTotalMinor: number;
   hasData: boolean;
-  actions?: React.ReactNode; // rendered at the right of the section header
 };
 
 function SortableCard({
@@ -118,7 +125,6 @@ export function DashboardSection({
   baseCurrency,
   sectionTotalMinor,
   hasData,
-  actions,
 }: Props) {
   const qc = useQueryClient();
   const { data: users } = useUsers();
@@ -137,6 +143,13 @@ export function DashboardSection({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [addState, setAddState] = useState<{ open: boolean; initial?: AccountFormInitial }>({
+    open: false,
+  });
+
+  function openAddAccount(prefill?: Omit<AccountFormInitial, "class">) {
+    setAddState({ open: true, initial: { class: cls, ...prefill } });
+  }
 
   const [order, setOrder] = useState<string[]>([]);
   const [members, setMembers] = useState<Record<string, string[]>>({});
@@ -378,7 +391,6 @@ export function DashboardSection({
       <div className="mb-3 flex items-center justify-between">
         <Eyebrow>{label}</Eyebrow>
         <div className="flex items-center gap-3">
-          {actions}
           {hasData && accounts.length > 0 && (
             <span className="font-heading text-sm tabular-nums text-muted-foreground">
               <Money minor={sectionTotalMinor} currency={baseCurrency} />
@@ -421,17 +433,26 @@ export function DashboardSection({
               </Button>
             </div>
           ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-xs text-muted-foreground"
-              onClick={() => {
-                setNewGroupOpen(true);
-                setNewGroupName("");
-              }}
-            >
-              + New group
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" size="icon-sm" aria-label={`${label} actions`} />
+                }
+              >
+                <MoreVertical size={16} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => openAddAccount()}>Add account</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setNewGroupOpen(true);
+                    setNewGroupName("");
+                  }}
+                >
+                  New group
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
@@ -493,6 +514,13 @@ export function DashboardSection({
                             bucket ? undefined : (name) => void renameGroup(cardId, name)
                           }
                           onDelete={bucket ? undefined : () => void deleteGroup(cardId)}
+                          onAddAccount={() =>
+                            openAddAccount(
+                              bucket
+                                ? { ownerIds: ownerIdsOf(cardId) }
+                                : { groupId: cardId },
+                            )
+                          }
                           dragHandleProps={dragHandleProps}
                           isDragging={isDragging}
                         />
@@ -542,6 +570,13 @@ export function DashboardSection({
           </SortableContext>
         </DndContext>
       )}
+      <AccountForm
+        open={addState.open}
+        onOpenChange={(v) => setAddState((s) => ({ ...s, open: v }))}
+        initial={addState.initial}
+        groups={groups}
+        defaultCurrency={baseCurrency || undefined}
+      />
     </section>
   );
 }
