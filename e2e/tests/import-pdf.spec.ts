@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { seedHousehold, createAccount } from "./helpers";
+import { seedHousehold, createAccount, enableAiProvider } from "./helpers";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
@@ -43,6 +43,7 @@ const PDF_PARSER = {
 test.beforeEach(async ({ backend, request, context }) => {
   await backend.freshDb();
   await seedHousehold(request, context, backend.apiURL);
+  await enableAiProvider(request, backend.apiURL); // import entry point requires AI configured
   // Seed a saved PDF parser so detection matches on upload (authed via injected cookie).
   await request.post(`${backend.apiURL}/api/import-parsers`, { data: PDF_PARSER });
 });

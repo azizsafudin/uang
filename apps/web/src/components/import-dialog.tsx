@@ -13,6 +13,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ImportReview } from "@/components/import-review";
 import type { CsvParserConfig, PdfParserConfig } from "../../../api/src/lib/import/types";
 
@@ -273,16 +276,44 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   // without AI, mapping is the only path, so show the fields inline.
   const showConfig = !aiEnabled || detailsOpen;
 
+  // Statement import depends on an AI provider (manual regex/column mapping alone is
+  // impractical for most statements). Until one is configured, disable the entry point
+  // and point the user to Settings rather than letting them open a dead-end dialog.
+  if (!aiEnabled) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="outline"
+                aria-disabled="true"
+                className="opacity-50"
+                onClick={(e) => e.preventDefault()}
+              />
+            }
+          >
+            Import statement
+          </TooltipTrigger>
+          <TooltipContent>Set up an AI provider in Settings to import statements.</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
       <DialogTrigger render={<Button variant="outline" />}>Import statement</DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-3xl">
         <DialogHeader><DialogTitle>Import statement</DialogTitle></DialogHeader>
 
         {batchId ? (
-          <ImportReview batchId={batchId} accountCurrency={accountCurrency} onDone={() => { setOpen(false); reset(); }} />
+          <div className="flex-1 overflow-y-auto">
+            <ImportReview batchId={batchId} accountCurrency={accountCurrency} onDone={() => { setOpen(false); reset(); }} />
+          </div>
         ) : (
-          <div className="space-y-5">
+          <>
+            <div className="flex-1 space-y-5 overflow-y-auto py-1">
             {/* Drop zone */}
             <div
               data-testid="import-dropzone"
@@ -446,12 +477,13 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
               </div>
             )}
 
-            <DialogFooter>
+            </div>
+            <DialogFooter className="border-t pt-3">
               <Button onClick={run} disabled={!canRun || busy} data-testid="import-run">
                 {busy ? "Parsing…" : "Parse & review"}
               </Button>
             </DialogFooter>
-          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>

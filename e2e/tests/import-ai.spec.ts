@@ -1,11 +1,12 @@
 import { test, expect } from "./fixtures";
-import { seedHousehold, createAccount } from "./helpers";
+import { seedHousehold, createAccount, enableAiProvider } from "./helpers";
 
 const CSV = "Date,Description,Amount\n2026-02-01,COFFEE BEAN,-4.50\n2026-02-02,SALARY,2500.00\n";
 
 test.beforeEach(async ({ backend, request, context }) => {
   await backend.freshDb();
   await seedHousehold(request, context, backend.apiURL);
+  await enableAiProvider(request, backend.apiURL); // import entry point requires AI configured
 });
 
 test("drop a CSV, map columns, see live preview, import", async ({ page }) => {
@@ -19,7 +20,8 @@ test("drop a CSV, map columns, see live preview, import", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByTestId("import-file").setInputFiles({ name: "feb.csv", mimeType: "text/csv", buffer: Buffer.from(CSV) });
 
-  // Create-new mapping
+  // Create-new mapping — open the Parser details disclosure to map columns.
+  await dialog.getByTestId("parser-details-toggle").click();
   await dialog.getByTestId("map-date").click();
   await page.getByRole("option", { name: "Date" }).click();
   await dialog.getByTestId("map-dateformat").fill("YYYY-MM-DD");

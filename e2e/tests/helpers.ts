@@ -27,6 +27,15 @@ export async function seedHousehold(
   await context.addCookies(state.cookies);
 }
 
+// Configure a (dummy) AI provider so the "Import statement" entry point is enabled.
+// The import journeys don't actually call the model — they map manually or use a saved
+// parser — so a non-reachable base URL is fine; it just flips the aiEnabled gate on.
+export async function enableAiProvider(request: APIRequestContext, apiURL: string) {
+  await request.patch(`${apiURL}/api/settings`, {
+    data: { aiBaseUrl: "http://127.0.0.1:1/v1", aiModel: "test-model" },
+  });
+}
+
 // Pick a currency in a CurrencySelect (base-ui Select: click the trigger, then
 // the option). Options render in a portal at the page root, so they're queried
 // from `page`. Options are labelled "CODE (symbol)", so match by the code prefix.
