@@ -1,11 +1,24 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
-import { importParsers } from "../db/schema";
+import { importParsers, settings } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { validateParserConfig, validateFingerprint } from "../lib/import/validate";
 import { isUniqueViolation } from "../lib/db-errors";
+import { synthesizeCsvConfig, refineCsvConfig, AiError, type AiConfig } from "../lib/import/ai";
+import { parseCsv } from "../lib/import/csv";
+
+async function loadAiConfig(): Promise<AiConfig | null> {
+  const s = (await db.select().from(settings).where(eq(settings.id, 1)))[0];
+  if (!s?.aiBaseUrl || !s?.aiModel) return null;
+  return { baseUrl: s.aiBaseUrl, model: s.aiModel, apiKey: s.aiApiKey ?? undefined };
+}
+
+function aiErrorResponse(e: unknown, set: { status?: number | string }) {
+  if (e instanceof AiError && e.code === "ai_invalid_output") { set.status = 422; return { error: "ai_invalid_output" }; }
+  set.status = 502; return { error: "ai_unavailable", message: e instanceof Error ? e.message : "failed" };
+}
 
 export const importParsersRoutes = new Elysia()
   .use(authGuard)
@@ -71,4 +84,53 @@ export const importParsersRoutes = new Elysia()
   .delete("/import-parsers/:id", async ({ params }) => {
     await db.delete(importParsers).where(eq(importParsers.id, params.id));
     return { ok: true };
-  });
+  })
+  .post(
+    "/import-parsers/synthesize",
+    async ({ body, set }: any) => {
+      const cfg = await loadAiConfig();
+      if (!cfg) { set.status = 422; return { error: "ai_not_configured" }; }
+      try {
+        const config = await synthesizeCsvConfig(body.content, cfg);
+        return { config };
+      } catch (e) {
+        return aiErrorResponse(e, set);
+      }
+    },
+    { body: t.Object({ content: t.String() }) },
+  )
+  .post(
+    "/import-parsers/refine",
+    async ({ body, set }: any) => {
+      const cfg = await loadAiConfig();
+      if (!cfg) { set.status = 422; return { error: "ai_not_configured" }; }
+      try {
+        const config = await refineCsvConfig(
+          body.content, body.config, body.instruction ?? "", body.errors ?? [], cfg,
+        );
+        return { config };
+      } catch (e) {
+        return aiErrorResponse(e, set);
+      }
+    },
+    {
+      body: t.Object({
+        content: t.String(),
+        config: t.Unknown(),
+        instruction: t.Optional(t.String()),
+        errors: t.Optional(t.Array(t.Object({ raw: t.Record(t.String(), t.String()), reason: t.String() }))),
+      }),
+    },
+  )
+  .post(
+    "/import-parsers/preview",
+    async ({ body, set }: any) => {
+      let config;
+      try { config = validateParserConfig(body.config); }
+      catch { set.status = 422; return { error: "invalid_config" }; }
+      const rows = parseCsv(body.content, config, (body.currency ?? "USD").toUpperCase());
+      const errorCount = rows.filter((r) => r.error || r.date === null || r.amountMinor === null).length;
+      return { rows: rows.slice(0, 5), total: rows.length, errorCount };
+    },
+    { body: t.Object({ content: t.String(), config: t.Unknown(), currency: t.Optional(t.String()) }) },
+  );
