@@ -122,3 +122,71 @@ test("GET /instruments/:id returns 404 for unknown id", async () => {
   const res = await app.handle(new Request(`http://localhost/instruments/nope`, { headers: { cookie } }));
   expect(res.status).toBe(404);
 });
+
+test("DELETE /instruments/:id without confirm returns 409 + impact summary", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const instrId = createId();
+  await db.insert(instruments).values({
+    id: instrId, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  const acc = createId();
+  await db.insert(accounts).values({
+    id: acc, name: "Brokerage", class: "asset", subtype: "investment", currency: "USD",
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "u",
+  });
+  const S = Number(SCALE);
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: instrId, date: "2026-01-01",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null, createdAt: nowEpoch(), createdBy: "u",
+  });
+
+  const res = await app.handle(new Request(`http://localhost/instruments/${instrId}`, { method: "DELETE", headers: { cookie } }));
+  expect(res.status).toBe(409);
+  const body = await res.json();
+  expect(body.error).toBe("confirm_required");
+  expect(body.totalTx).toBe(1);
+  expect(body.accounts[0].name).toBe("Brokerage");
+
+  const stillThere = await db.select().from(instruments).where(eq(instruments.id, instrId));
+  expect(stillThere.length).toBe(1); // not deleted
+});
+
+test("DELETE /instruments/:id?confirm=true cascades instrument, prices, transactions, cash legs", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const instrId = createId();
+  const usd = createId();
+  await db.insert(instruments).values({
+    id: instrId, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  await db.insert(instruments).values({
+    id: usd, symbol: "USD", isin: null, name: "USD", kind: "currency", currency: "USD", createdAt: nowEpoch(),
+  });
+  const acc = createId();
+  await db.insert(accounts).values({
+    id: acc, name: "Brokerage", class: "asset", subtype: "investment", currency: "USD",
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "u",
+  });
+  const S = Number(SCALE);
+  const buyId = createId();
+  await db.insert(transactions).values({
+    id: buyId, accountId: acc, instrumentId: instrId, date: "2026-01-01",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null, createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: usd, date: "2026-01-01",
+    unitsDelta: -1000 * S, unitPriceScaled: S, feesMinor: 0, notes: null,
+    linkedTransactionId: buyId, createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(prices).values({
+    id: createId(), instrumentId: instrId, date: "2026-01-01", priceScaled: 100 * S, source: "trade", createdAt: nowEpoch(),
+  });
+
+  const res = await app.handle(new Request(`http://localhost/instruments/${instrId}?confirm=true`, { method: "DELETE", headers: { cookie } }));
+  expect(res.status).toBe(200);
+  expect((await db.select().from(instruments).where(eq(instruments.id, instrId))).length).toBe(0);
+  expect((await db.select().from(prices).where(eq(prices.instrumentId, instrId))).length).toBe(0);
+  // both the trade and its linked cash leg are gone
+  expect((await db.select().from(transactions).where(eq(transactions.accountId, acc))).length).toBe(0);
+});

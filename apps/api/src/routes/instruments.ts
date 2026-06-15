@@ -108,4 +108,43 @@ export const instrumentsRoutes = new Elysia({ prefix: "/instruments" })
     out.sort((x, y) => x.name.localeCompare(y.name));
 
     return { instrument: instr, instrumentCurrency: instr.currency, latestPriceScaled: priceScaled, accounts: out, totalTx };
-  });
+  })
+  .delete(
+    "/:id",
+    async ({ params, query, set }: any) => {
+      const [instr] = await db.select().from(instruments).where(eq(instruments.id, params.id));
+      if (!instr) { set.status = 404; return { error: "not_found" }; }
+
+      const own = await db.select({ id: transactions.id }).from(transactions).where(eq(transactions.instrumentId, params.id));
+
+      if (query.confirm !== "true") {
+        const rows = await db
+          .select({ accountId: transactions.accountId, accountName: accounts.name })
+          .from(transactions)
+          .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+          .where(eq(transactions.instrumentId, params.id));
+        const counts = new Map<string, { name: string; txCount: number }>();
+        for (const r of rows) {
+          const c = counts.get(r.accountId) ?? { name: r.accountName, txCount: 0 };
+          c.txCount += 1;
+          counts.set(r.accountId, c);
+        }
+        set.status = 409;
+        return {
+          error: "confirm_required",
+          accounts: [...counts].map(([id, c]) => ({ id, name: c.name, txCount: c.txCount })),
+          totalTx: rows.length,
+        };
+      }
+
+      const ownIds = own.map((o) => o.id);
+      if (ownIds.length > 0) {
+        await db.delete(transactions).where(inArray(transactions.linkedTransactionId, ownIds));
+      }
+      await db.delete(transactions).where(eq(transactions.instrumentId, params.id));
+      await db.delete(prices).where(eq(prices.instrumentId, params.id));
+      await db.delete(instruments).where(eq(instruments.id, params.id));
+      return { ok: true };
+    },
+    { query: t.Object({ confirm: t.Optional(t.String()) }) },
+  );
