@@ -190,3 +190,34 @@ test("DELETE /instruments/:id?confirm=true cascades instrument, prices, transact
   // both the trade and its linked cash leg are gone
   expect((await db.select().from(transactions).where(eq(transactions.accountId, acc))).length).toBe(0);
 });
+
+test("GET /instruments includes latestPriceScaled, latestPriceDate, holderCount", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const instrId = createId();
+  await db.insert(instruments).values({
+    id: instrId, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  const acc = createId();
+  await db.insert(accounts).values({
+    id: acc, name: "Brokerage", class: "asset", subtype: "investment", currency: "USD",
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "u",
+  });
+  const S = Number(SCALE);
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: instrId, date: "2026-01-01",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null, createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(prices).values({
+    id: createId(), instrumentId: instrId, date: "2026-02-01", priceScaled: 130 * S, source: "manual", createdAt: nowEpoch(),
+  });
+  await db.insert(prices).values({
+    id: createId(), instrumentId: instrId, date: "2026-01-10", priceScaled: 110 * S, source: "trade", createdAt: nowEpoch(),
+  });
+
+  const list = await (await app.handle(new Request(`http://localhost/instruments`, { headers: { cookie } }))).json();
+  const row = list.find((i: any) => i.id === instrId);
+  expect(row.latestPriceScaled).toBe(130 * S);
+  expect(row.latestPriceDate).toBe("2026-02-01");
+  expect(row.holderCount).toBe(1);
+});

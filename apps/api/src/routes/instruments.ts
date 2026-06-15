@@ -10,7 +10,32 @@ import { instrumentPriceScaled } from "../lib/positions";
 
 export const instrumentsRoutes = new Elysia({ prefix: "/instruments" })
   .use(authGuard)
-  .get("/", async () => db.select().from(instruments).orderBy(instruments.name))
+  .get("/", async () => {
+    const list = await db.select().from(instruments).orderBy(instruments.name);
+
+    const allPrices = await db.select({ instrumentId: prices.instrumentId, date: prices.date, priceScaled: prices.priceScaled }).from(prices);
+    const latest = new Map<string, { date: string; priceScaled: number }>();
+    for (const p of allPrices) {
+      const cur = latest.get(p.instrumentId);
+      if (!cur || p.date > cur.date) latest.set(p.instrumentId, { date: p.date, priceScaled: p.priceScaled });
+    }
+
+    const txRows = await db.select({ instrumentId: transactions.instrumentId, accountId: transactions.accountId, unitsDelta: transactions.unitsDelta }).from(transactions);
+    const byInstr = new Map<string, Map<string, bigint>>();
+    for (const r of txRows) {
+      let m = byInstr.get(r.instrumentId);
+      if (!m) { m = new Map(); byInstr.set(r.instrumentId, m); }
+      m.set(r.accountId, (m.get(r.accountId) ?? 0n) + toBig(r.unitsDelta));
+    }
+
+    return list.map((i) => {
+      const lp = latest.get(i.id);
+      const m = byInstr.get(i.id);
+      let holderCount = 0;
+      if (m) for (const u of m.values()) if (u !== 0n) holderCount++;
+      return { ...i, latestPriceScaled: lp?.priceScaled ?? null, latestPriceDate: lp?.date ?? null, holderCount };
+    });
+  })
   // Find-or-create the currency instrument for a symbol; returns the full row.
   .post(
     "/currency",
