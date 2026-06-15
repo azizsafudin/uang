@@ -43,17 +43,19 @@ keep a low-traffic, personal deployment inexpensive.
 The service builds from a single root `Dockerfile` (auto-detected by Railway with
 Root Directory `/`), which builds the React bundle and runs the Bun API that serves
 it. The API reads its persistent database from the mounted volume; the web bundle
-targets its own origin, so no build-time API URL is needed:
+targets its own origin and the API infers its public URL from each request, so no
+domain or API-URL variables are needed:
 
 ```
 DATABASE_URL       = file:/data/uang.db
 BETTER_AUTH_SECRET = ${{ secret(32) }}
-BETTER_AUTH_URL    = https://${{ RAILWAY_PUBLIC_DOMAIN }}
-WEB_ORIGIN         = https://${{ RAILWAY_PUBLIC_DOMAIN }}
 ```
 
 The API refuses to start in production without a persistent `DATABASE_URL` and a
-strong (32+ char) secret, and runs database migrations automatically on boot.
+strong (32+ char) secret, and runs database migrations automatically on boot. A
+public domain is generated for the service so it's reachable; no `BETTER_AUTH_URL`
+is wired because `RAILWAY_PUBLIC_DOMAIN` is empty in template deploys (a known
+Railway limitation), and the runtime inference avoids depending on it.
 
 ## Why Deploy azizsafudin/uang on Railway?
 

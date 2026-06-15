@@ -35,9 +35,18 @@ button.
      | `DATABASE_URL` | `file:/data/uang.db` |
      | `NODE_ENV` | `production` |
      | `BETTER_AUTH_SECRET` | `${{ secret(32) }}` |
-     | `BETTER_AUTH_URL` | `https://${{ RAILWAY_PUBLIC_DOMAIN }}` |
-     | `WEB_ORIGIN` | `https://${{ RAILWAY_PUBLIC_DOMAIN }}` |
    - **Settings:** set **Healthcheck Path** = `/health`, and enable **Serverless**.
+   - **Generate a public domain** (Networking → Generate Domain) so the service is
+     reachable. No `BETTER_AUTH_URL`/`WEB_ORIGIN` needed — see the note below.
+
+> **Why no `BETTER_AUTH_URL` / `WEB_ORIGIN`.** The obvious move would be
+> `BETTER_AUTH_URL=https://${{ RAILWAY_PUBLIC_DOMAIN }}`, but **`RAILWAY_PUBLIC_DOMAIN`
+> is empty in template deploys** — a [known Railway bug](https://station.railway.com/questions/railway-public-domain-is-always-empty-wh-ae6fd3af)
+> — so it would collapse to `https://` and crash better-auth. Since the app and API
+> share one origin, the app instead infers its public URL from the request at
+> runtime, so no domain variable is needed. To pin a **custom domain**, set
+> `BETTER_AUTH_URL=https://your-domain` explicitly (a real value, not a
+> `RAILWAY_PUBLIC_DOMAIN` reference).
 3. Click **Create Template**, then **Publish** it (publishing is what makes the
    public deploy link resolve — a created-but-unpublished template 404s for
    anyone outside your workspace).
@@ -46,18 +55,15 @@ button.
 
 ## Why these values
 
-- No `RAILWAY_DOCKERFILE_PATH`, no `VITE_API_URL`. The build uses the root
-  `Dockerfile` automatically, and the web bundle targets its own origin
-  (`window.location.origin`), so the SPA finds the API at `/api` on the same
-  domain with zero configuration.
+- No `RAILWAY_DOCKERFILE_PATH`, no `VITE_API_URL`, no domain variables. The build
+  uses the root `Dockerfile` automatically, the web bundle targets its own origin
+  (`window.location.origin`), and the API infers its public URL from each request
+  — so the SPA finds the API at `/api` on the same domain with zero configuration.
 - `BETTER_AUTH_SECRET=${{ secret(32) }}` generates a 32-char secret, satisfying
   the `>= 32 chars` production guard in `apps/api/src/index.ts`.
 - `DATABASE_URL=file:/data/uang.db` points at the mounted volume, satisfying the
   "refuse to start without a persistent DATABASE_URL" guard (it rejects `/tmp/`
   and missing values).
-- `BETTER_AUTH_URL` / `WEB_ORIGIN` are the service's own public domain (a Railway
-  reference variable). Same origin for the app and API means `WEB_ORIGIN` (used by
-  better-auth's trusted origins and CORS) is simply the deploy's domain.
 
 ## Serverless (app sleeping)
 
@@ -72,8 +78,8 @@ off in the service settings.
 
 better-auth sets session cookies. Because the SPA and API share one origin, the
 session cookie is first-party and there is no cross-origin request to configure —
-CORS is effectively a no-op. `BETTER_AUTH_URL`/`WEB_ORIGIN` being the live HTTPS
-domain means `Secure` cookies work out of the box.
+CORS is effectively a no-op. The API infers its origin from the (HTTPS) request,
+and `Secure` cookies are on in production, so cookies work out of the box.
 
 ## Known gotchas
 

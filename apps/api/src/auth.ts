@@ -12,16 +12,18 @@ function isValidHttpUrl(value: string | undefined): value is string {
   }
 }
 
-// In dev these resolve to localhost; in production they come from Railway
-// reference variables. Guard against an unresolved reference — e.g. a service
-// without a public domain yet leaves `BETTER_AUTH_URL` as "https://", which
-// better-auth rejects, crash-looping the container. better-auth also reads
-// BETTER_AUTH_URL straight from process.env, so an invalid value must be removed
-// there (not just omitted from options) or it still picks it up and crashes.
+// The single-service deploy intentionally does NOT hard-wire a public URL: on
+// Railway, `RAILWAY_PUBLIC_DOMAIN` is empty in template deploys (a known Railway
+// bug), so `BETTER_AUTH_URL=https://${{ RAILWAY_PUBLIC_DOMAIN }}` would collapse
+// to "https://". Instead we let better-auth infer the base URL from the request
+// (the app and API share one origin), and treat BETTER_AUTH_URL as an *optional*
+// override for custom domains. better-auth reads BETTER_AUTH_URL straight from
+// process.env, so an invalid value must be removed there — not just omitted from
+// options — or it picks it up and crash-loops on "Invalid base URL".
 if (process.env.BETTER_AUTH_URL && !isValidHttpUrl(process.env.BETTER_AUTH_URL)) {
   delete process.env.BETTER_AUTH_URL;
 }
-// Valid configured URL → use it; otherwise infer from the request in production
+// Valid override → use it; otherwise infer from the request in production
 // (same-origin) and fall back to localhost in dev.
 const baseURL = isValidHttpUrl(process.env.BETTER_AUTH_URL)
   ? process.env.BETTER_AUTH_URL
