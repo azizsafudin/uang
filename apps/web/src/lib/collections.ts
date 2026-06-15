@@ -72,6 +72,9 @@ export const accountsCollection = createCollection(
         spendStartKind: m.spendStartKind,
         spendStartAge: m.spendStartAge,
         spendStartTargetMinor: m.spendStartTargetMinor,
+        contributionMinor: m.contributionMinor,
+        contributionUntilAge: m.contributionUntilAge,
+        compoundInterval: m.compoundInterval,
       });
       if (error) throw new Error(String(error));
     },
@@ -96,6 +99,9 @@ export const accountsCollection = createCollection(
         spendStartKind: m.spendStartKind,
         spendStartAge: m.spendStartAge,
         spendStartTargetMinor: m.spendStartTargetMinor,
+        contributionMinor: m.contributionMinor,
+        contributionUntilAge: m.contributionUntilAge,
+        compoundInterval: m.compoundInterval,
       });
       if (error) throw new Error(String(error));
     },

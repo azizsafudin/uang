@@ -1,6 +1,5 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { runMigrations } from "../db/migrate";
 import { db } from "../db/client";
 import { settings, user, accounts, accountOwners, memberProfiles, goals, groups, transactions, fxRates, instruments, prices, importParsers, importBatches, importRows } from "../db/schema";
 import { auth } from "../auth";
@@ -8,8 +7,9 @@ import { onboarding } from "../routes/onboarding";
 import { isInitialized } from "./settings";
 
 // Reset all app + settings tables (NOT better-auth tables unless asked) for a clean test.
+// Migrations run once in test-setup.ts (the bun:test preload); the in-memory DB
+// singleton keeps the schema for the whole process, so this only clears rows.
 export async function resetDb() {
-  await runMigrations();
   await db.delete(importRows);
   await db.delete(importBatches);
   await db.delete(importParsers);

@@ -63,6 +63,9 @@ export type AccountValuation = {
   spendStartKind: "age" | "target";
   spendStartAge: number | null;
   spendStartTargetMinor: number | null;
+  contributionMinor: number;
+  contributionUntilAge: number | null;
+  compoundInterval: "monthly" | "quarterly" | "annually";
   groupId: string | null; sortOrder: number;
 };
 
@@ -113,6 +116,9 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
       spendStartKind: a.spendStartKind,
       spendStartAge: a.spendStartAge ?? null,
       spendStartTargetMinor: a.spendStartTargetMinor ?? null,
+      contributionMinor: a.contributionMinor,
+      contributionUntilAge: a.contributionUntilAge ?? null,
+      compoundInterval: a.compoundInterval,
       groupId: a.groupId ?? null,
       sortOrder: a.sortOrder,
     });

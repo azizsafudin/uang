@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "03f6decc-50e2-4d35-9d60-8bbf692226ae",
-  "prevId": "1f91e368-b3ef-4087-8572-e6144f8c9e62",
+  "id": "3c968eb3-25a4-4c72-9878-dc6ae1aa38f1",
+  "prevId": "03f6decc-50e2-4d35-9d60-8bbf692226ae",
   "tables": {
     "account_owners": {
       "name": "account_owners",
@@ -903,6 +903,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": 90
+        },
+        "dashboard_tiles": {
+          "name": "dashboard_tiles",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[\"assets\",\"liabilities\",\"goalsOnTrack\"]'"
         },
         "created_at": {
           "name": "created_at",

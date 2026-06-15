@@ -25,12 +25,19 @@ const toMinor = (major: string, currency: string) =>
 
 type SpendType = AccountRow["spendType"];
 type SpendStartKind = AccountRow["spendStartKind"];
+type CompoundInterval = AccountRow["compoundInterval"];
 
 const SPEND_LABELS: Record<SpendType, string> = {
   none: "None (no withdrawal)",
   once: "One-time withdrawal",
   monthly: "Monthly income",
   percent: "% of balance / yr",
+};
+
+const COMPOUND_LABELS: Record<CompoundInterval, string> = {
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  annually: "Annually",
 };
 
 function seedForm(account: AccountRow, base: string) {
@@ -41,6 +48,10 @@ function seedForm(account: AccountRow, base: string) {
     earlyHaircutPct: toPct(account.earlyHaircutBps),
     illiquid: account.illiquid === 1,
     liquidationAge: account.liquidationAge == null ? "" : String(account.liquidationAge),
+    contribution: account.contributionMinor ? toMajor(account.contributionMinor, base) : "",
+    contributionUntilAge:
+      account.contributionUntilAge == null ? "" : String(account.contributionUntilAge),
+    compoundInterval: account.compoundInterval,
     spendType: account.spendType,
     spendAmount: account.spendAmountMinor == null ? "" : toMajor(account.spendAmountMinor, base),
     spendRate: account.spendRateBps == null ? "" : toPct(account.spendRateBps),
@@ -75,6 +86,11 @@ export function AccountProjectionForm({
       draft.earlyHaircutBps = fromPct(f.earlyHaircutPct);
       draft.illiquid = f.illiquid ? 1 : 0;
       draft.liquidationAge = f.liquidationAge === "" ? null : parseInt(f.liquidationAge, 10);
+      // Accumulation.
+      draft.contributionMinor = toMinor(f.contribution, baseCurrency);
+      draft.contributionUntilAge =
+        f.contributionUntilAge === "" ? null : parseInt(f.contributionUntilAge, 10);
+      draft.compoundInterval = f.compoundInterval;
       // Decumulation. Liabilities never withdraw.
       const spendType: SpendType = isLiability ? "none" : f.spendType;
       draft.spendType = spendType;
@@ -166,6 +182,47 @@ export function AccountProjectionForm({
             />
           </Field>
         )}
+
+        <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+          <Field label={`Monthly contribution (${baseCurrency})`}>
+            <Input
+              type="number"
+              step="any"
+              min="0"
+              placeholder="0"
+              value={f.contribution}
+              onChange={(e) => setF((p) => ({ ...p, contribution: e.target.value }))}
+            />
+          </Field>
+          <Field label="Contribute until age">
+            <Input
+              type="number"
+              min="0"
+              placeholder="no limit"
+              value={f.contributionUntilAge}
+              onChange={(e) => setF((p) => ({ ...p, contributionUntilAge: e.target.value }))}
+            />
+          </Field>
+          <Field label="Compound">
+            <Select
+              value={f.compoundInterval}
+              onValueChange={(v: string | null) =>
+                v && setF((p) => ({ ...p, compoundInterval: v as CompoundInterval }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue>{(v: unknown) => COMPOUND_LABELS[v as CompoundInterval]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(COMPOUND_LABELS) as CompoundInterval[]).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {COMPOUND_LABELS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
 
         {!isLiability && (
           <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
