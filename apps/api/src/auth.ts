@@ -39,19 +39,39 @@ const baseURL = isValidHttpUrl(process.env.BETTER_AUTH_URL)
       ? undefined
       : "http://localhost:3000";
 
-const configuredWebOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
-// Trust the configured web origin when valid; otherwise trust the request's own
-// origin. The latter only ever matches same-origin requests (the Origin header
-// of a cross-site request differs from the server's host), so it's safe.
-// better-auth may invoke this with no request during init, so guard for it.
-const trustedOrigins = isValidHttpUrl(configuredWebOrigin)
-  ? [configuredWebOrigin]
+// Derive a request's public origin, honoring the reverse proxy's forwarded
+// headers. Railway terminates TLS at the edge and forwards to the container over
+// HTTP, so `request.url` is `http://…` while the browser's Origin is `https://…`.
+// Using X-Forwarded-Proto/Host yields the real public origin so the CSRF origin
+// check matches (otherwise login fails with INVALID_ORIGIN).
+function requestPublicOrigin(request?: Request): string | undefined {
+  if (!request) return undefined;
+  try {
+    const url = new URL(request.url);
+    const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim()
+      || url.protocol.replace(":", "");
+    const host = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
+      || request.headers.get("host")
+      || url.host;
+    return host ? `${proto}://${host}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Trust an explicitly-configured WEB_ORIGIN when valid (e.g. cross-origin dev, or
+// a custom domain); otherwise trust the request's own (proxy-aware) public origin.
+// We check the RAW env var — not a localhost-defaulted value — so an unset
+// WEB_ORIGIN falls through to request-origin trust in BOTH dev (same-origin via
+// the Vite proxy) and production (the Railway domain), instead of wrongly trusting
+// only localhost. Trusting the request origin only ever matches same-origin
+// requests (a cross-site request's Origin header differs from the server's host),
+// so it's safe. better-auth may invoke this with no request during init, so guard.
+const trustedOrigins = isValidHttpUrl(process.env.WEB_ORIGIN)
+  ? [process.env.WEB_ORIGIN]
   : (request?: Request) => {
-      try {
-        return [new URL(request?.url ?? "").origin];
-      } catch {
-        return [];
-      }
+      const origin = requestPublicOrigin(request);
+      return origin ? [origin] : [];
     };
 
 export const auth = betterAuth({
