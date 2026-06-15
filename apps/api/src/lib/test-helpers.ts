@@ -2,7 +2,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { runMigrations } from "../db/migrate";
 import { db } from "../db/client";
-import { settings, user, accounts, accountOwners, memberProfiles, goals, groups, transactions, fxRates, instruments, prices } from "../db/schema";
+import { settings, user, accounts, accountOwners, memberProfiles, goals, groups, transactions, fxRates, instruments, prices, importParsers, importBatches, importRows } from "../db/schema";
 import { auth } from "../auth";
 import { onboarding } from "../routes/onboarding";
 import { isInitialized } from "./settings";
@@ -10,6 +10,9 @@ import { isInitialized } from "./settings";
 // Reset all app + settings tables (NOT better-auth tables unless asked) for a clean test.
 export async function resetDb() {
   await runMigrations();
+  await db.delete(importRows);
+  await db.delete(importBatches);
+  await db.delete(importParsers);
   await db.delete(accountOwners);
   await db.delete(memberProfiles);
   await db.delete(goals);

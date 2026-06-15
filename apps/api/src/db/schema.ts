@@ -58,6 +58,7 @@ export const transactions = sqliteTable("transactions", {
   unitPriceScaled: integer("unit_price_scaled"), // price per unit at trade time ×1e8 (SCALE for currencies)
   feesMinor: integer("fees_minor").notNull().default(0),
   notes: text("notes"),
+  importBatchId: text("import_batch_id"), // nullable logical FK → import_batches.id (traceability)
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
 });
@@ -119,5 +120,49 @@ export const goals = sqliteTable("goals", {
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
 });
+
+// A reusable, user-editable declarative parser for a statement format.
+// `config` and `fingerprint` are JSON strings (see lib/import/types.ts).
+export const importParsers = sqliteTable("import_parsers", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  sourceFormat: text("source_format").$type<"csv" | "ofx" | "qif" | "pdf">().notNull(),
+  config: text("config").notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  origin: text("origin").$type<"ai" | "manual">().notNull().default("manual"),
+  createdAt: integer("created_at").notNull(),
+  createdBy: text("created_by").notNull(),
+});
+
+// One per uploaded file. fileHash short-circuits exact re-uploads.
+export const importBatches = sqliteTable("import_batches", {
+  id: text("id").primaryKey(),
+  parserId: text("parser_id").notNull(),  // logical FK → import_parsers.id
+  accountId: text("account_id").notNull(),
+  filename: text("filename").notNull(),
+  fileHash: text("file_hash").notNull(),
+  status: text("status").$type<"parsing" | "review" | "committed" | "discarded">().notNull(),
+  rowCountNew: integer("row_count_new").notNull().default(0),
+  rowCountDuplicate: integer("row_count_duplicate").notNull().default(0),
+  rowCountError: integer("row_count_error").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  createdBy: text("created_by").notNull(),
+});
+
+// Staged canonical rows for a batch. `category` is reserved (Spec: ledger-only now).
+export const importRows = sqliteTable("import_rows", {
+  id: text("id").primaryKey(),
+  batchId: text("batch_id").notNull(),  // FK → import_batches.id
+  raw: text("raw").notNull(),           // JSON: original header→cell map
+  date: text("date"),                   // YYYY-MM-DD | null (null => error row)
+  amountMinor: integer("amount_minor"), // signed minor units | null
+  description: text("description").notNull().default(""),
+  category: text("category"),           // reserved, unused in v1
+  dedupHash: text("dedup_hash").notNull(),
+  status: text("status").$type<"new" | "duplicate" | "excluded" | "error">().notNull(),
+  errorReason: text("error_reason"),
+  matchedTxnId: text("matched_txn_id"),
+  committedTxnId: text("committed_txn_id"),
+}, (t) => [index("import_rows_batch_idx").on(t.batchId)]);
 
 export * from "./auth-schema";
