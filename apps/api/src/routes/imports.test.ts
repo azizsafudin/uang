@@ -50,6 +50,29 @@ test("detect suggests a matching parser", async () => {
   expect(candidates[0].confident).toBe(true);
 });
 
+test("GET batch returns batch + rows; PATCH row edits and toggles status", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const acc = await seedAccount();
+  const parserId = await seedParser(cookie);
+  const created = await (await app.handle(new Request(`http://localhost/accounts/${acc}/imports`, {
+    method: "POST", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ filename: "feb.csv", content: CSV, parserId }),
+  }))).json();
+
+  const got = await (await app.handle(new Request(`http://localhost/imports/${created.id}`, { headers: { cookie } }))).json();
+  expect(got.rows.length).toBe(2);
+
+  const rowId = got.rows[0].id;
+  const patched = await app.handle(new Request(`http://localhost/import-rows/${rowId}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ status: "excluded", description: "edited" }),
+  }));
+  expect(patched.status).toBe(200);
+  const after = await db.select().from(importRows).where(eq(importRows.id, rowId));
+  expect(after[0].status).toBe("excluded");
+  expect(after[0].description).toBe("edited");
+});
+
 test("parse stages rows with dedup status and counts", async () => {
   const { cookie } = await initAndLogin({ app });
   const acc = await seedAccount();
