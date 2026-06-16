@@ -48,14 +48,18 @@ test("buy a stock with a cash leg, set price, see value and gain roll up", async
     await expect(page.getByTestId("tx-row").filter({ hasText: "USD" })).toContainText("-1000");
   });
 
-  await test.step("set a higher price → market value and gain appreciate", async () => {
+  await test.step("set a higher price on the instrument → market value and gain appreciate", async () => {
     await page.getByRole("tab", { name: "Positions" }).click();
-    const row = page.getByTestId("position-row").filter({ hasText: "Acme Corp" });
-    await row.getByRole("button", { name: "Price" }).click();
+    // The position card links to the instrument page, where prices are managed.
+    await page.getByTestId("position-row").filter({ hasText: "Acme Corp" }).click();
+    await expect(page).toHaveURL(/\/instruments\//);
+    await page.getByRole("button", { name: "Add price" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByTestId("price-amount").fill("120");
     await dialog.getByRole("button", { name: "Save price" }).click();
     await expect(dialog).toBeHidden();
+    // Back on the account (reload to refetch positions), the holding reflects the new price.
+    await page.goBack();
     await page.reload();
     const priced = page.getByTestId("position-row").filter({ hasText: "Acme Corp" });
     await expect(priced).toContainText("1,200.00"); // 10 × 120
