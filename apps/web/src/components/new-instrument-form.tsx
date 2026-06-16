@@ -68,13 +68,17 @@ export function NewInstrumentForm({
     onResolved(ok ? { name: name.trim(), kind, currency: currency.trim().toUpperCase(), symbol: null, isin: null } : null);
   }
 
-  // Whichever listing the user picks, we store its concrete (exchange-qualified)
-  // resolved symbol so "Update prices" fetches exactly that listing — including
-  // ISIN-mode picks (storing the ISIN would let the resolver re-search and override
-  // the choice).
+  // Whichever listing the user picks, store its concrete (exchange-qualified)
+  // resolved symbol so "Update prices" fetches exactly that listing — the resolver
+  // prefers an explicit symbol over re-searching, so the pick is honoured even when
+  // we also record the ISIN. In ISIN mode we keep the ISIN for reference.
   function selectCandidate(c: Candidate) {
     setSelected(c.resolvedSymbol);
-    onResolved({ name: c.name, kind: c.kind, currency: c.currency, symbol: c.resolvedSymbol, isin: null });
+    onResolved({
+      name: c.name, kind: c.kind, currency: c.currency,
+      symbol: c.resolvedSymbol,
+      isin: mode === "isin" ? query.trim().toUpperCase() : null,
+    });
   }
 
   async function find() {

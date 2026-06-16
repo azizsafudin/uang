@@ -43,7 +43,20 @@ export function makeYahooPriceProvider(fetchImpl: typeof fetch = fetch): Instrum
     return sym;
   }
 
+  function resolveFromSymbol(inst: InstrumentRef): string | null {
+    if (!inst.symbol) return null;
+    if (/[.\-]/.test(inst.symbol)) return inst.symbol;       // already provider-formatted
+    if (inst.kind === "crypto") return `${inst.symbol}-${inst.currency}`;
+    if (inst.currency === "USD") return inst.symbol;          // US listing, no suffix
+    const suffix = SUFFIX[inst.currency];
+    return suffix ? `${inst.symbol}${suffix}` : null;         // ambiguous -> unsupported
+  }
+
   async function resolveUncached(inst: InstrumentRef): Promise<string | null> {
+    // Prefer an explicit, already-usable symbol so a chosen listing wins over an
+    // ISIN re-search; fall back to ISIN search only when the symbol can't resolve.
+    const fromSymbol = resolveFromSymbol(inst);
+    if (fromSymbol) return fromSymbol;
     if (inst.isin) {
       const res = await fetchImpl(`${endpoints.yahooSearch}?q=${encodeURIComponent(inst.isin)}&quotesCount=6&newsCount=0`, { headers: HEADERS });
       if (res.ok) {
@@ -53,13 +66,6 @@ export function makeYahooPriceProvider(fetchImpl: typeof fetch = fetch): Instrum
           .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
         if (best?.symbol) return best.symbol;
       }
-    }
-    if (inst.symbol) {
-      if (/[.\-]/.test(inst.symbol)) return inst.symbol;       // already provider-formatted
-      if (inst.kind === "crypto") return `${inst.symbol}-${inst.currency}`;
-      if (inst.currency === "USD") return inst.symbol;          // US listing, no suffix
-      const suffix = SUFFIX[inst.currency];
-      return suffix ? `${inst.symbol}${suffix}` : null;         // ambiguous -> unsupported
     }
     return null;
   }

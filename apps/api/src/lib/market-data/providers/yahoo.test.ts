@@ -55,6 +55,21 @@ test("passes a suffixed symbol through without searching", async () => {
   } finally { server.stop(true); }
 });
 
+test("prefers an explicit resolved symbol over the ISIN (no search) when both are set", async () => {
+  // ISIN-mode adds store the chosen listing's resolved symbol AND the ISIN; the
+  // resolved symbol must win so a non-default listing pick is honoured on refresh.
+  const server = mock((url) => {
+    expect(url.pathname.endsWith("/search")).toBe(false);
+    expect(decodeURIComponent(url.pathname)).toContain("0P0001OO2F.SI");
+    return { chart: { result: [{ meta: { regularMarketPrice: 223.25, currency: "SGD", regularMarketTime: 1_750_000_000 } }] } };
+  });
+  try {
+    const inst: InstrumentRef = { symbol: "0P0001OO2F.SI", isin: "LU2420246139", currency: "SGD", kind: "fund" };
+    const r = await makeYahooPriceProvider().fetchPrice(inst);
+    expect(r?.price).toBe(223.25);
+  } finally { server.stop(true); }
+});
+
 test("non-USD symbol with no suffix, no ISIN, and no suffix rule is unsupported", async () => {
   const noRule: InstrumentRef = { symbol: "FOO", isin: null, currency: "CHF", kind: "stock" };
   expect(await makeYahooPriceProvider().fetchPrice(noRule)).toBeNull();
