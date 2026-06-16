@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { instrumentsCollection } from "@/lib/collections";
+import { AddInstrumentDialog } from "@/components/add-instrument-dialog";
 import { formatMoney } from "@/components/money.ts";
 import { formatDate } from "@/lib/utils";
 import { SCALE, currencyDecimals } from "@uang/shared";
@@ -56,6 +57,7 @@ export function InstrumentsPage() {
         <Button variant="outline" size="sm" disabled={busy} onClick={updatePrices} data-testid="update-prices">
           {busy ? "Updating…" : "Update prices"}
         </Button>
+        <AddInstrumentDialog defaultCurrency="USD" />
         {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
       </div>
       {isLoading ? (
