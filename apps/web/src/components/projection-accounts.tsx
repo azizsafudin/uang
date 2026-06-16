@@ -16,7 +16,12 @@ import {
 } from "@/lib/collections";
 import { build, isOwnerCard, ownerIdsOf, type AccountValuation } from "@/lib/account-grouping";
 import { useUsers, type Member } from "@/lib/use-users";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 
 type NetWorthData = {
   baseCurrency: string;
@@ -277,15 +282,15 @@ function ProjectionEditDialog({
   onClose: () => void;
 }) {
   return (
-    <Dialog open={account !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{account?.name ?? "Account"}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog open={account !== null} onOpenChange={(open) => !open && onClose()}>
+      <ResponsiveDialogContent>
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>{account?.name ?? "Account"}</ResponsiveDialogTitle>
+        </ResponsiveDialogHeader>
         {account && (
           <AccountProjectionForm account={account} baseCurrency={baseCurrency} onClose={onClose} />
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }

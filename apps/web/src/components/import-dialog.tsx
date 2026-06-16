@@ -5,8 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogTrigger,
+} from "@/components/ui/responsive-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -302,18 +307,18 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
-      <DialogTrigger render={<Button variant="outline" />}>Import statement</DialogTrigger>
-      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-3xl">
-        <DialogHeader><DialogTitle>Import statement</DialogTitle></DialogHeader>
+    <ResponsiveDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset(); }}>
+      <ResponsiveDialogTrigger render={<Button variant="outline" />}>Import statement</ResponsiveDialogTrigger>
+      <ResponsiveDialogContent className="sm:max-w-3xl">
+        <ResponsiveDialogHeader><ResponsiveDialogTitle>Import statement</ResponsiveDialogTitle></ResponsiveDialogHeader>
 
         {batchId ? (
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto px-6 pb-2">
             <ImportReview batchId={batchId} accountCurrency={accountCurrency} onDone={() => { setOpen(false); reset(); }} />
           </div>
         ) : (
           <>
-            <div className="flex-1 space-y-5 overflow-y-auto py-1">
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 pt-1 pb-5">
             {/* Drop zone */}
             <div
               data-testid="import-dropzone"
@@ -478,15 +483,15 @@ export function ImportDialog({ accountId, accountCurrency }: { accountId: string
             )}
 
             </div>
-            <DialogFooter className="border-t pt-3">
+            <ResponsiveDialogFooter>
               <Button onClick={run} disabled={!canRun || busy} data-testid="import-run">
                 {busy ? "Parsing…" : "Parse & review"}
               </Button>
-            </DialogFooter>
+            </ResponsiveDialogFooter>
           </>
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 

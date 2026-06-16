@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SCALE } from "@uang/shared";
@@ -14,12 +15,13 @@ import { CurrencySelect } from "@/components/currency-select";
 import { useDestructiveAction } from "@/lib/use-destructive-action";
 import { useSession } from "@/lib/auth";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 
 // The API is mounted under `/api` (same base the eden client uses): same-origin
 // in production, or VITE_API_URL for the cross-origin dev API. These plain links
@@ -118,18 +120,20 @@ function RestoreSection() {
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Replace all data?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            This permanently replaces every account, transaction, goal, and
-            member with the contents of{" "}
-            <span className="font-medium">{file?.name}</span>, and signs everyone
-            out. This cannot be undone from the app.
-          </p>
-          <DialogFooter>
+      <ResponsiveDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Replace all data?</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
+          <ResponsiveDialogBody>
+            <p className="text-sm text-muted-foreground">
+              This permanently replaces every account, transaction, goal, and
+              member with the contents of{" "}
+              <span className="font-medium">{file?.name}</span>, and signs everyone
+              out. This cannot be undone from the app.
+            </p>
+          </ResponsiveDialogBody>
+          <ResponsiveDialogFooter>
             <Button
               variant="outline"
               onClick={() => setConfirmOpen(false)}
@@ -144,9 +148,9 @@ function RestoreSection() {
             >
               {importing ? "Restoring…" : "Replace all data"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </ResponsiveDialogFooter>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </Section>
   );
 }
@@ -296,33 +300,31 @@ export function SettingsPage() {
   const aiConfigured = !!(aiBaseUrl || aiModel || aiApiKeySet);
   const { confirm, dialog: confirmDialog } = useDestructiveAction();
 
-  const [fx, setFx] = useState({
-    currency: "",
-    date: new Date().toISOString().slice(0, 10),
-    rate: "",
+  const fxForm = useForm<{ currency: string; date: string; rate: string }>({
+    defaultValues: { currency: "", date: new Date().toISOString().slice(0, 10), rate: "" },
   });
-  const [invite, setInvite] = useState({ email: "", name: "", password: "" });
+  const inviteForm = useForm<{ email: string; name: string; password: string }>({
+    defaultValues: { email: "", name: "", password: "" },
+  });
 
-  async function addFx(e: React.FormEvent) {
-    e.preventDefault();
-    const rate = parseFloat(fx.rate);
+  async function addFx(values: { currency: string; date: string; rate: string }) {
+    const rate = parseFloat(values.rate);
     if (Number.isNaN(rate)) return;
     await fxCollection.insert({
       id: newId(),
-      currency: fx.currency.toUpperCase(),
-      date: fx.date,
+      currency: values.currency.toUpperCase(),
+      date: values.date,
       rateScaled: Math.round(rate * Number(SCALE)),
       source: "manual",
       createdAt: Math.floor(Date.now() / 1000),
     });
-    setFx((prev) => ({ ...prev, currency: "", rate: "" }));
+    fxForm.reset({ currency: "", date: values.date, rate: "" });
   }
 
-  async function addUser(e: React.FormEvent) {
-    e.preventDefault();
-    await api.users.post(invite);
+  async function addUser(values: { email: string; name: string; password: string }) {
+    await api.users.post(values);
     await qc.invalidateQueries({ queryKey: ["users"] });
-    setInvite({ email: "", name: "", password: "" });
+    inviteForm.reset();
   }
 
   return (
@@ -336,24 +338,29 @@ export function SettingsPage() {
           description="Set the value of one unit of each foreign currency in your base currency. The latest rate on or before a date is used."
         >
           <form
-            onSubmit={addFx}
+            onSubmit={fxForm.handleSubmit(addFx)}
             className="grid grid-cols-2 items-end gap-4 sm:grid-cols-4"
           >
             <Field label="Currency">
-              <CurrencySelect
-                data-testid="fx-currency"
-                value={fx.currency}
-                placeholder="Select"
-                onValueChange={(code) => setFx((p) => ({ ...p, currency: code }))}
+              <Controller
+                control={fxForm.control}
+                name="currency"
+                render={({ field }) => (
+                  <CurrencySelect
+                    data-testid="fx-currency"
+                    value={field.value}
+                    placeholder="Select"
+                    onValueChange={(code) => field.onChange(code)}
+                  />
+                )}
               />
             </Field>
             <Field label="Date">
               <Input
                 data-testid="fx-date"
                 type="date"
-                value={fx.date}
-                onChange={(e) => setFx((p) => ({ ...p, date: e.target.value }))}
                 required
+                {...fxForm.register("date", { required: true })}
               />
             </Field>
             <Field label="Rate">
@@ -362,9 +369,8 @@ export function SettingsPage() {
                 type="number"
                 step="any"
                 placeholder="0.22"
-                value={fx.rate}
-                onChange={(e) => setFx((p) => ({ ...p, rate: e.target.value }))}
                 required
+                {...fxForm.register("rate", { required: true })}
               />
             </Field>
             <Button type="submit">Add rate</Button>
@@ -404,40 +410,31 @@ export function SettingsPage() {
           description="Everyone you add shares all accounts and data, and can sign in with their own credentials."
         >
           <form
-            onSubmit={addUser}
+            onSubmit={inviteForm.handleSubmit(addUser)}
             className="grid grid-cols-2 items-end gap-4 sm:grid-cols-4"
           >
             <Field label="Name">
               <Input
                 data-testid="invite-name"
-                value={invite.name}
-                onChange={(e) =>
-                  setInvite((p) => ({ ...p, name: e.target.value }))
-                }
                 required
+                {...inviteForm.register("name", { required: true })}
               />
             </Field>
             <Field label="Email">
               <Input
                 data-testid="invite-email"
                 type="email"
-                value={invite.email}
-                onChange={(e) =>
-                  setInvite((p) => ({ ...p, email: e.target.value }))
-                }
                 required
+                {...inviteForm.register("email", { required: true })}
               />
             </Field>
             <Field label="Password">
               <Input
                 data-testid="invite-password"
                 type="password"
-                value={invite.password}
-                onChange={(e) =>
-                  setInvite((p) => ({ ...p, password: e.target.value }))
-                }
                 minLength={8}
                 required
+                {...inviteForm.register("password", { required: true, minLength: 8 })}
               />
             </Field>
             <Button type="submit">Invite</Button>

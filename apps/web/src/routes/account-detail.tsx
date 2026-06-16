@@ -17,13 +17,14 @@ import { AddTransactionDialog } from "@/components/add-transaction-dialog";
 import { ImportDialog } from "@/components/import-dialog";
 import { usePositions, PositionsPanel, HistoryPanel } from "@/components/account-history";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogTrigger,
+} from "@/components/ui/responsive-dialog";
 
 export function AccountDetailPage() {
   const { id } = useParams({ from: "/app/accounts/$id" });
@@ -102,29 +103,31 @@ export function AccountDetailPage() {
                 Removes all history. Cannot be undone.
               </p>
             </div>
-            <Dialog
+            <ResponsiveDialog
               open={deleteOpen}
               onOpenChange={(open) => {
                 setDeleteOpen(open);
                 if (!open) setDeleteName("");
               }}
             >
-              <DialogTrigger render={<Button variant="destructive" />}>
+              <ResponsiveDialogTrigger render={<Button variant="destructive" />}>
                 Delete permanently
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Delete "{account.name}" permanently?</DialogTitle>
-                </DialogHeader>
-                <p className="text-sm text-muted-foreground">
-                  This deletes the account and all its history. Type the account name to confirm.
-                </p>
-                <Input
-                  value={deleteName}
-                  onChange={(e) => setDeleteName(e.target.value)}
-                  placeholder={account.name}
-                />
-                <DialogFooter>
+              </ResponsiveDialogTrigger>
+              <ResponsiveDialogContent>
+                <ResponsiveDialogHeader>
+                  <ResponsiveDialogTitle>Delete "{account.name}" permanently?</ResponsiveDialogTitle>
+                </ResponsiveDialogHeader>
+                <ResponsiveDialogBody className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    This deletes the account and all its history. Type the account name to confirm.
+                  </p>
+                  <Input
+                    value={deleteName}
+                    onChange={(e) => setDeleteName(e.target.value)}
+                    placeholder={account.name}
+                  />
+                </ResponsiveDialogBody>
+                <ResponsiveDialogFooter>
                   <Button type="button" variant="ghost" onClick={() => setDeleteOpen(false)}>
                     Cancel
                   </Button>
@@ -135,9 +138,9 @@ export function AccountDetailPage() {
                   >
                     Delete permanently
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </ResponsiveDialogFooter>
+              </ResponsiveDialogContent>
+            </ResponsiveDialog>
           </div>
         </div>
       )}

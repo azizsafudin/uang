@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useForm, Controller } from "react-hook-form";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { useNavigate, useParams, Link } from "@tanstack/react-router";
@@ -15,14 +16,28 @@ import { OwnerPills } from "@/components/owner-pills";
 import { SCALE, currencyDecimals } from "@uang/shared";
 import { formatDate } from "@/lib/utils";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+  ResponsiveDialogTrigger,
+} from "@/components/ui/responsive-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
 const KINDS = ["currency", "stock", "etf", "fund", "crypto", "other"] as const;
 const kindLabel = (k: string) => (k === "etf" ? "ETF" : k.charAt(0).toUpperCase() + k.slice(1));
+
+type EditForm = {
+  name: string;
+  symbol: string;
+  isin: string;
+  currency: string;
+  kind: (typeof KINDS)[number];
+};
 
 const S = Number(SCALE);
 
@@ -61,12 +76,10 @@ export function InstrumentDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmName, setConfirmName] = useState("");
-  // Edit form state
-  const [name, setName] = useState("");
-  const [symbol, setSymbol] = useState("");
-  const [isin, setIsin] = useState("");
-  const [currency, setCurrency] = useState("");
-  const [kind, setKind] = useState("");
+  // Edit form
+  const { register, handleSubmit, control, reset } = useForm<EditForm>({
+    defaultValues: { name: "", symbol: "", isin: "", currency: "", kind: "stock" },
+  });
 
   const [refreshMsg, setRefreshMsg] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -99,22 +112,23 @@ export function InstrumentDetailPage() {
   const holders = (detail?.accounts ?? []).filter((a) => a.units !== 0);
 
   function openEdit() {
-    setName(instrument!.name);
-    setSymbol(instrument!.symbol ?? "");
-    setIsin(instrument!.isin ?? "");
-    setCurrency(instrument!.currency);
-    setKind(instrument!.kind);
+    reset({
+      name: instrument!.name,
+      symbol: instrument!.symbol ?? "",
+      isin: instrument!.isin ?? "",
+      currency: instrument!.currency,
+      kind: instrument!.kind as EditForm["kind"],
+    });
     setEditOpen(true);
   }
 
-  async function saveEdit(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveEdit(values: EditForm) {
     await instrumentsCollection.update(instrument!.id, (draft) => {
-      draft.name = name;
-      draft.symbol = symbol || null;
-      draft.isin = isin || null;
-      draft.currency = currency.toUpperCase();
-      draft.kind = kind as "currency" | "stock" | "etf" | "fund" | "crypto" | "other";
+      draft.name = values.name;
+      draft.symbol = values.symbol || null;
+      draft.isin = values.isin || null;
+      draft.currency = values.currency.toUpperCase();
+      draft.kind = values.kind;
     });
     await qc.invalidateQueries({ queryKey: ["instrument", id] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
@@ -254,16 +268,16 @@ export function InstrumentDetailPage() {
               Removes the instrument, its prices, and all its transactions (and their cash legs). Cannot be undone.
             </p>
           </div>
-          <Dialog
+          <ResponsiveDialog
             open={deleteOpen}
             onOpenChange={(open) => { setDeleteOpen(open); if (!open) setConfirmName(""); }}
           >
-            <DialogTrigger render={<Button variant="destructive" />}>Delete…</DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delete "{instrument.name}"?</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3 text-sm">
+            <ResponsiveDialogTrigger render={<Button variant="destructive" />}>Delete…</ResponsiveDialogTrigger>
+            <ResponsiveDialogContent>
+              <ResponsiveDialogHeader>
+                <ResponsiveDialogTitle>Delete "{instrument.name}"?</ResponsiveDialogTitle>
+              </ResponsiveDialogHeader>
+              <ResponsiveDialogBody className="space-y-3 text-sm">
                 <p className="text-muted-foreground">
                   This will delete <strong>{detail?.totalTx ?? 0}</strong> transaction(s) across these accounts:
                 </p>
@@ -275,63 +289,71 @@ export function InstrumentDetailPage() {
                 </ul>
                 <p className="text-muted-foreground">Type the instrument name to confirm.</p>
                 <Input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} placeholder={instrument.name} />
-              </div>
-              <DialogFooter>
+              </ResponsiveDialogBody>
+              <ResponsiveDialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setDeleteOpen(false)}>Cancel</Button>
                 <Button variant="destructive" disabled={confirmName !== instrument.name} onClick={deleteInstrument}>
                   Delete permanently
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </ResponsiveDialogFooter>
+            </ResponsiveDialogContent>
+          </ResponsiveDialog>
         </div>
       </section>
 
       {/* Edit dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit instrument</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={saveEdit} className="space-y-4">
-            <Field label="Name">
-              <Input value={name} onChange={(e) => setName(e.target.value)} required />
-            </Field>
-            <Field label="Kind">
-              <Select value={kind} onValueChange={(v: string | null) => v && setKind(v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue>{(v: unknown) => kindLabel(String(v))}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {KINDS.map((k) => (
-                    <SelectItem key={k} value={k}>{kindLabel(k)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Symbol">
-                <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} disabled={hasFetchedPrices} />
+      <ResponsiveDialog open={editOpen} onOpenChange={setEditOpen}>
+        <ResponsiveDialogContent>
+          <ResponsiveDialogHeader>
+            <ResponsiveDialogTitle>Edit instrument</ResponsiveDialogTitle>
+          </ResponsiveDialogHeader>
+          <form onSubmit={handleSubmit(saveEdit)} className="flex min-h-0 flex-1 flex-col">
+            <ResponsiveDialogBody className="space-y-4">
+              <Field label="Name">
+                <Input required {...register("name", { required: true })} />
               </Field>
-              <Field label="Currency">
-                <Input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} required />
+              <Field label="Kind">
+                <Controller
+                  control={control}
+                  name="kind"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={(v: string | null) => v && field.onChange(v as EditForm["kind"])}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue>{(v: unknown) => kindLabel(String(v))}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {KINDS.map((k) => (
+                          <SelectItem key={k} value={k}>{kindLabel(k)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </Field>
-            </div>
-            <Field label="ISIN">
-              <Input value={isin} onChange={(e) => setIsin(e.target.value)} disabled={hasFetchedPrices} />
-            </Field>
-            {hasFetchedPrices && (
-              <p className="text-xs text-muted-foreground">
-                Symbol and ISIN are locked because prices have been fetched for them. To change the security, delete this instrument (Danger zone) and re-add it.
-              </p>
-            )}
-            <DialogFooter>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Symbol">
+                  <Input disabled={hasFetchedPrices} {...register("symbol")} />
+                </Field>
+                <Field label="Currency">
+                  <Input maxLength={3} required {...register("currency", { required: true })} />
+                </Field>
+              </div>
+              <Field label="ISIN">
+                <Input disabled={hasFetchedPrices} {...register("isin")} />
+              </Field>
+              {hasFetchedPrices && (
+                <p className="text-xs text-muted-foreground">
+                  Symbol and ISIN are locked because prices have been fetched for them. To change the security, delete this instrument (Danger zone) and re-add it.
+                </p>
+              )}
+            </ResponsiveDialogBody>
+            <ResponsiveDialogFooter>
               <Button type="button" variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>
               <Button type="submit">Save</Button>
-            </DialogFooter>
+            </ResponsiveDialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </AppShell>
   );
 }

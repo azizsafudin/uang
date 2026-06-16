@@ -6,6 +6,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 const NAV = [
@@ -17,6 +18,7 @@ const NAV = [
 
 export function NavMain() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { isMobile, setOpenMobile } = useSidebar();
 
   return (
     <SidebarGroup>
@@ -28,6 +30,10 @@ export function NavMain() {
               render={<Link to={to} />}
               isActive={to === "/" ? pathname === "/" : pathname.startsWith(to)}
               tooltip={label}
+              onClick={() => {
+                // Dismiss the mobile nav sheet after navigating.
+                if (isMobile) setOpenMobile(false);
+              }}
             >
               <Icon />
               <span>{label}</span>
