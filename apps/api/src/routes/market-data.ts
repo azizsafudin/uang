@@ -21,8 +21,8 @@ export const marketDataRoutes = new Elysia({ prefix: "/market-data" })
   .post("/fx/refresh", async ({ body }: any) =>
     refreshFx(body ?? undefined), { body: range })
   .post("/lookup", async ({ body }: any) => {
-    const r = await lookupInstrument(body.query);
-    return r ? { found: true, ...r } : { found: false };
+    const candidates = await lookupInstrument(body.query);
+    return { candidates };
   }, { body: t.Object({ query: t.String({ minLength: 1 }) }) })
   .post("/test", async ({ body, isAdmin, set }: any) => {
     if (!isAdmin) { set.status = 403; return { error: "admin_only" }; }

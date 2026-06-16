@@ -177,6 +177,6 @@ export async function refreshFx(range?: RefreshRange, chain?: FxRateProvider[]):
   return summary;
 }
 
-export async function lookupInstrument(query: string): Promise<InstrumentLookupResult | null> {
+export async function lookupInstrument(query: string): Promise<InstrumentLookupResult[]> {
   return yahooLookup(query);
 }

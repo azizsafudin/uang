@@ -22,7 +22,15 @@ type Mode = "symbol" | "isin" | "manual";
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/;
 const KINDS: Kind[] = ["stock", "etf", "fund", "crypto", "other"];
 
-type Preview = { name: string; kind: Kind; currency: string; price: number; date: string; resolvedSymbol: string };
+type Candidate = {
+  resolvedSymbol: string;
+  name: string;
+  kind: Kind;
+  currency: string;
+  price: number;
+  date: string;
+  exchange: string;
+};
 
 export function NewInstrumentForm({
   defaultCurrency,
@@ -35,13 +43,15 @@ export function NewInstrumentForm({
   const [query, setQuery] = useState("");
   const [finding, setFinding] = useState(false);
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [selected, setSelected] = useState<string | null>(null); // resolvedSymbol
   const [mName, setMName] = useState("");
   const [mCurrency, setMCurrency] = useState(defaultCurrency);
   const [mKind, setMKind] = useState<Kind>("stock");
 
-  function clearPreview() {
-    setPreview(null);
+  function clearResults() {
+    setCandidates([]);
+    setSelected(null);
     setError("");
     onResolved(null);
   }
@@ -49,7 +59,7 @@ export function NewInstrumentForm({
   function switchMode(next: Mode) {
     setMode(next);
     setQuery("");
-    clearPreview();
+    clearResults();
     if (next === "manual") publishManual(mName, mCurrency, mKind);
   }
 
@@ -58,8 +68,17 @@ export function NewInstrumentForm({
     onResolved(ok ? { name: name.trim(), kind, currency: currency.trim().toUpperCase(), symbol: null, isin: null } : null);
   }
 
+  // Whichever listing the user picks, we store its concrete (exchange-qualified)
+  // resolved symbol so "Update prices" fetches exactly that listing — including
+  // ISIN-mode picks (storing the ISIN would let the resolver re-search and override
+  // the choice).
+  function selectCandidate(c: Candidate) {
+    setSelected(c.resolvedSymbol);
+    onResolved({ name: c.name, kind: c.kind, currency: c.currency, symbol: c.resolvedSymbol, isin: null });
+  }
+
   async function find() {
-    clearPreview();
+    clearResults();
     const q = query.trim().toUpperCase();
     if (!q) return;
     if (mode === "isin" && !ISIN_RE.test(q)) {
@@ -69,20 +88,13 @@ export function NewInstrumentForm({
     setFinding(true);
     const { data, error: err } = await api["market-data"].lookup.post({ query: q });
     setFinding(false);
-    if (err || !data || !("name" in data) || !data.found) {
+    if (err || !data || !("candidates" in data) || data.candidates.length === 0) {
       setError("No match found. Try Manual entry to add it with a price you set yourself.");
       return;
     }
-    const p: Preview = {
-      name: data.name, kind: data.kind as Kind, currency: data.currency,
-      price: data.price, date: data.date, resolvedSymbol: data.resolvedSymbol,
-    };
-    setPreview(p);
-    onResolved({
-      name: p.name, kind: p.kind, currency: p.currency,
-      symbol: mode === "symbol" ? p.resolvedSymbol : null,
-      isin: mode === "isin" ? q : null,
-    });
+    const list = data.candidates as Candidate[];
+    setCandidates(list);
+    selectCandidate(list[0]); // preselect the best match; user can change it
   }
 
   if (mode === "manual") {
@@ -142,7 +154,7 @@ export function NewInstrumentForm({
             data-testid="ni-query"
             value={query}
             placeholder={mode === "symbol" ? "AAPL, D05" : "LU2420246139"}
-            onChange={(e) => { setQuery(e.target.value); clearPreview(); }}
+            onChange={(e) => { setQuery(e.target.value); clearResults(); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); find(); } }}
           />
         </Field>
@@ -153,17 +165,43 @@ export function NewInstrumentForm({
 
       {error && <p className="text-sm text-destructive" data-testid="ni-error">{error}</p>}
 
-      {preview && (
-        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm" data-testid="ni-preview">
-          <p className="font-medium">
-            {preview.resolvedSymbol} · {preview.name}
-            <span className="ml-2 rounded-full bg-muted px-1.5 py-0.5 text-[0.65rem] font-medium text-muted-foreground">
-              {instrumentKindLabel(preview.kind)}
-            </span>
-          </p>
-          <p className="text-muted-foreground tabular-nums">
-            {preview.price} {preview.currency} · as of {preview.date}
-          </p>
+      {candidates.length > 0 && (
+        <div className="space-y-1.5" data-testid="ni-candidates">
+          {candidates.length > 1 && (
+            <p className="text-xs text-muted-foreground">{candidates.length} matches — pick the right listing:</p>
+          )}
+          <div className="overflow-hidden rounded-md border border-border">
+            {candidates.map((c, i) => {
+              const isSel = selected === c.resolvedSymbol;
+              return (
+                <button
+                  key={c.resolvedSymbol}
+                  type="button"
+                  data-testid="ni-candidate"
+                  onClick={() => selectCandidate(c)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors",
+                    i > 0 && "border-t border-border/70",
+                    isSel ? "bg-muted/70" : "hover:bg-muted/40",
+                  )}
+                >
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2">
+                      <span className={cn("size-2 shrink-0 rounded-full", isSel ? "bg-primary" : "bg-transparent ring-1 ring-border")} />
+                      <span className="truncate font-medium">{c.resolvedSymbol} · {c.name}</span>
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.65rem] font-medium text-muted-foreground">
+                        {instrumentKindLabel(c.kind)}
+                      </span>
+                    </span>
+                    <span className="ml-4 block text-xs text-muted-foreground">
+                      {c.exchange ? `${c.exchange} · ` : ""}as of {c.date}
+                    </span>
+                  </span>
+                  <span className="shrink-0 tabular-nums">{c.price} {c.currency}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

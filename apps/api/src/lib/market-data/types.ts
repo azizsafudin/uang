@@ -42,5 +42,6 @@ export interface InstrumentLookupResult {
   kind: "stock" | "etf" | "fund" | "crypto" | "other";
   price: number;
   date: string;  // YYYY-MM-DD
+  exchange: string; // provider exchange code (e.g. "SES", "NMS"); "" if unknown
   source: string;
 }

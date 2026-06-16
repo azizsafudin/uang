@@ -87,44 +87,58 @@ test("FX provider quotes a currency pair", async () => {
   } finally { server.stop(true); }
 });
 
-test("yahooLookup resolves a query to name, kind, currency, symbol and price", async () => {
+test("yahooLookup returns all priceable candidates, best-scored first", async () => {
   const server = mock((url) => {
     if (url.pathname.endsWith("/search")) {
       return { quotes: [
-        { symbol: "0P0001OO2F.SI", score: 20001, isYahooFinance: true, quoteType: "MUTUALFUND", longname: "Amundi Core MSCI EM Fund" },
-        { symbol: "LU2420246139-SGD.LU", score: 20000, isYahooFinance: true, quoteType: "MUTUALFUND", longname: "x" },
+        { symbol: "0P0001OO2F.SI", score: 20001, isYahooFinance: true, quoteType: "MUTUALFUND", longname: "Amundi Core MSCI EM Fund", exchange: "SES" },
+        { symbol: "LU2420246139-SGD.LU", score: 20000, isYahooFinance: true, quoteType: "MUTUALFUND", longname: "Amundi LU Listing", exchange: "LUX" },
       ] };
     }
-    expect(decodeURIComponent(url.pathname)).toContain("0P0001OO2F.SI");
-    return { chart: { result: [{ meta: { regularMarketPrice: 223.25, currency: "SGD", regularMarketTime: 1_750_000_000 } }] } };
+    const price = decodeURIComponent(url.pathname).includes("0P0001OO2F.SI") ? 223.25 : 229.3;
+    return { chart: { result: [{ meta: { regularMarketPrice: price, currency: "SGD", regularMarketTime: 1_750_000_000 } }] } };
   });
   try {
     const r = await yahooLookup("LU2420246139");
-    expect(r?.name).toBe("Amundi Core MSCI EM Fund");
-    expect(r?.kind).toBe("fund");
-    expect(r?.currency).toBe("SGD");
-    expect(r?.resolvedSymbol).toBe("0P0001OO2F.SI");
-    expect(r?.price).toBe(223.25);
-    expect(r?.source).toBe("yahoo");
+    expect(r.length).toBe(2);
+    expect(r[0].resolvedSymbol).toBe("0P0001OO2F.SI"); // highest score first
+    expect(r[0].name).toBe("Amundi Core MSCI EM Fund");
+    expect(r[0].kind).toBe("fund");
+    expect(r[0].currency).toBe("SGD");
+    expect(r[0].price).toBe(223.25);
+    expect(r[0].exchange).toBe("SES");
+    expect(r[0].source).toBe("yahoo");
+    expect(r[1].resolvedSymbol).toBe("LU2420246139-SGD.LU");
+    expect(r[1].price).toBe(229.3);
   } finally { server.stop(true); }
 });
 
-test("yahooLookup returns null when search has no match", async () => {
+test("yahooLookup returns [] when search has no match", async () => {
   const server = mock((url) => {
     if (url.pathname.endsWith("/search")) return { quotes: [] };
     return { chart: { result: [] } };
   });
   try {
-    expect(await yahooLookup("NOPE")).toBeNull();
+    expect(await yahooLookup("NOPE")).toEqual([]);
   } finally { server.stop(true); }
 });
 
-test("yahooLookup returns null when the resolved symbol has no price", async () => {
+test("yahooLookup drops candidates that have no price", async () => {
   const server = mock((url) => {
-    if (url.pathname.endsWith("/search")) return { quotes: [{ symbol: "X.Y", score: 1, isYahooFinance: true, quoteType: "EQUITY", shortname: "X" }] };
+    if (url.pathname.endsWith("/search")) {
+      return { quotes: [
+        { symbol: "HASPRICE.SI", score: 2, isYahooFinance: true, quoteType: "EQUITY", shortname: "Has Price" },
+        { symbol: "NOPRICE.SI", score: 1, isYahooFinance: true, quoteType: "EQUITY", shortname: "No Price" },
+      ] };
+    }
+    if (decodeURIComponent(url.pathname).includes("HASPRICE.SI")) {
+      return { chart: { result: [{ meta: { regularMarketPrice: 10, currency: "USD", regularMarketTime: 1_750_000_000 } }] } };
+    }
     return { chart: { result: [{ meta: { currency: "USD" } }] } }; // no regularMarketPrice
   });
   try {
-    expect(await yahooLookup("X")).toBeNull();
+    const r = await yahooLookup("X");
+    expect(r.length).toBe(1);
+    expect(r[0].resolvedSymbol).toBe("HASPRICE.SI");
   } finally { server.stop(true); }
 });

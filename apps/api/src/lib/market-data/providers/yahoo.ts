@@ -104,36 +104,38 @@ function kindFromQuoteType(t: string | undefined): InstrumentLookupResult["kind"
   }
 }
 
-// Resolve a free-form query (ticker or ISIN) to a preview: best Yahoo match's
-// name/type, plus its latest price/currency from the chart endpoint. Returns null
-// unless we get BOTH a name and a price (so a preview always shows a price and the
-// later "Update prices" can reproduce it).
-export async function yahooLookup(query: string, fetchImpl: typeof fetch = fetch): Promise<InstrumentLookupResult | null> {
+// Resolve a free-form query (ticker or ISIN) to candidate listings: every Yahoo
+// match with a name, each enriched with its latest price/currency from the chart
+// endpoint (fetched in parallel). Candidates without a price are dropped (so every
+// returned option is priceable and the later "Update prices" can reproduce it).
+// Sorted best-scored first; the caller decides which listing to use.
+export async function yahooLookup(query: string, fetchImpl: typeof fetch = fetch): Promise<InstrumentLookupResult[]> {
   const q = query.trim();
-  if (!q) return null;
-  const res = await fetchImpl(`${endpoints.yahooSearch}?q=${encodeURIComponent(q)}&quotesCount=6&newsCount=0`, { headers: HEADERS });
-  if (!res.ok) return null;
+  if (!q) return [];
+  const res = await fetchImpl(`${endpoints.yahooSearch}?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`, { headers: HEADERS });
+  if (!res.ok) return [];
   const body = await res.json() as {
-    quotes?: Array<{ symbol?: string; score?: number; isYahooFinance?: boolean; quoteType?: string; shortname?: string; longname?: string }>;
+    quotes?: Array<{ symbol?: string; score?: number; isYahooFinance?: boolean; quoteType?: string; shortname?: string; longname?: string; exchange?: string }>;
   };
-  const best = (body.quotes ?? [])
-    .filter((x) => x.isYahooFinance && typeof x.symbol === "string")
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
-  if (!best?.symbol) return null;
-  const name = best.longname ?? best.shortname;
-  if (!name) return null;
-  const r = await chartFetch(fetchImpl, best.symbol, "range=5d&interval=1d");
-  const meta = r?.meta;
-  if (!meta || typeof meta.regularMarketPrice !== "number") return null;
-  return {
-    resolvedSymbol: best.symbol,
-    name,
-    currency: meta.currency ?? "USD",
-    kind: kindFromQuoteType(best.quoteType),
-    price: meta.regularMarketPrice,
-    date: isoFromEpoch(meta.regularMarketTime),
-    source: "yahoo",
-  };
+  const quotes = (body.quotes ?? [])
+    .filter((x) => x.isYahooFinance && typeof x.symbol === "string" && (x.longname || x.shortname))
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const enriched = await Promise.all(quotes.map(async (qt): Promise<InstrumentLookupResult | null> => {
+    const r = await chartFetch(fetchImpl, qt.symbol!, "range=5d&interval=1d");
+    const meta = r?.meta;
+    if (!meta || typeof meta.regularMarketPrice !== "number") return null;
+    return {
+      resolvedSymbol: qt.symbol!,
+      name: (qt.longname ?? qt.shortname)!,
+      currency: meta.currency ?? "USD",
+      kind: kindFromQuoteType(qt.quoteType),
+      price: meta.regularMarketPrice,
+      date: isoFromEpoch(meta.regularMarketTime),
+      exchange: qt.exchange ?? "",
+      source: "yahoo",
+    };
+  }));
+  return enriched.filter((x): x is InstrumentLookupResult => x !== null);
 }
 
 export function makeYahooFxProvider(fetchImpl: typeof fetch = fetch): FxRateProvider {

@@ -63,7 +63,7 @@ test("POST /market-data/test is admin-gated and reports unconfigured", async () 
   expect((await res.json()).ok).toBe(false);
 });
 
-test("POST /market-data/lookup returns a preview for a resolvable query", async () => {
+test("POST /market-data/lookup returns candidates for a resolvable query", async () => {
   const { cookie } = await initAndLogin({ app });
   const server = Bun.serve({ port: 0, fetch(req) {
     const url = new URL(req.url);
@@ -80,15 +80,15 @@ test("POST /market-data/lookup returns a preview for a resolvable query", async 
     }));
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.found).toBe(true);
-    expect(json.name).toBe("Apple Inc.");
-    expect(json.kind).toBe("stock");
-    expect(json.resolvedSymbol).toBe("AAPL");
-    expect(json.price).toBe(200);
+    expect(json.candidates.length).toBe(1);
+    expect(json.candidates[0].name).toBe("Apple Inc.");
+    expect(json.candidates[0].kind).toBe("stock");
+    expect(json.candidates[0].resolvedSymbol).toBe("AAPL");
+    expect(json.candidates[0].price).toBe(200);
   } finally { server.stop(true); }
 });
 
-test("POST /market-data/lookup reports not found", async () => {
+test("POST /market-data/lookup returns no candidates when nothing matches", async () => {
   const { cookie } = await initAndLogin({ app });
   const server = Bun.serve({ port: 0, fetch() { return Response.json({ quotes: [] }); } });
   endpoints.yahooChart = `http://localhost:${server.port}/chart`;
@@ -97,6 +97,6 @@ test("POST /market-data/lookup reports not found", async () => {
     const res = await app.handle(new Request("http://localhost/market-data/lookup", {
       method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ query: "NOPE" }),
     }));
-    expect((await res.json()).found).toBe(false);
+    expect((await res.json()).candidates).toEqual([]);
   } finally { server.stop(true); }
 });
