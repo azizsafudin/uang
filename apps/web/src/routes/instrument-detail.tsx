@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { UpdatePrice } from "@/components/update-price";
+import { OwnerPills } from "@/components/owner-pills";
 import { SCALE, currencyDecimals } from "@uang/shared";
 import { formatDate } from "@/lib/utils";
 import {
@@ -25,11 +26,13 @@ const kindLabel = (k: string) => (k === "etf" ? "ETF" : k.charAt(0).toUpperCase(
 
 const S = Number(SCALE);
 
-type Holder = { accountId: string; name: string; units: number; txCount: number; marketValueMinor: number; missingPrice: boolean };
+type Holder = { accountId: string; name: string; ownerIds: string[]; units: number; txCount: number; marketValueMinor: number; missingPrice: boolean };
 type Detail = {
   instrument: { id: string; symbol: string | null; name: string; kind: string; currency: string };
   instrumentCurrency: string;
   latestPriceScaled: number | null;
+  latestPriceDate: string | null;
+  hasFetchedPrices: boolean;
   accounts: Holder[];
   totalTx: number;
 };
@@ -126,16 +129,13 @@ export function InstrumentDetailPage() {
     await nav({ to: "/instruments" });
   }
 
-  const sortedPrices = [...(prices ?? [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  // Latest effective price, regardless of source (manual / fetched / trade).
-  const latestPrice = sortedPrices[0];
-  // The list shows only manually-entered prices; fetched/trade prices are managed
-  // automatically via "Update prices" and would just be noise here.
-  const manualPrices = sortedPrices.filter((p) => p.source === "manual");
-  // Once prices have been FETCHED from a provider, the symbol/ISIN are locked:
-  // changing them would orphan/mix the fetched series against a different security.
-  // (trade-seeded and manual prices don't lock — they aren't symbol-derived.)
-  const hasFetchedPrices = (prices ?? []).some((p) => p.source !== "manual" && p.source !== "trade");
+  // The collection holds ONLY manual prices (fetched/trade are server-managed and
+  // can be a huge series). Latest effective price + the symbol/ISIN lock come from
+  // GET /instruments/:id instead of deriving from a full client-side series.
+  const manualPrices = [...(prices ?? [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  const latestPriceScaled = detail?.latestPriceScaled ?? null;
+  const latestPriceDate = detail?.latestPriceDate ?? null;
+  const hasFetchedPrices = detail?.hasFetchedPrices ?? false;
   // priceScaled (×1e8) → currency-formatted string, e.g. "$21.34".
   const fmtPrice = (scaled: number) =>
     formatMoney(Math.round((scaled / S) * 10 ** currencyDecimals(instrument.currency)), instrument.currency);
@@ -173,7 +173,10 @@ export function InstrumentDetailPage() {
                 className={`flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/40 ${i > 0 ? "border-t border-border/70" : ""}`}
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{h.name}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate font-medium">{h.name}</p>
+                    <OwnerPills ownerIds={h.ownerIds} />
+                  </div>
                   <p className="text-xs text-muted-foreground">{h.units / S} units</p>
                 </div>
                 <p className="shrink-0 tabular-nums font-medium">
@@ -191,10 +194,12 @@ export function InstrumentDetailPage() {
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <Eyebrow>Price</Eyebrow>
-              {latestPrice ? (
+              {latestPriceScaled !== null ? (
                 <p className="mt-1 font-medium tabular-nums" data-testid="latest-price">
-                  {fmtPrice(latestPrice.priceScaled)}{" "}
-                  <span className="text-sm font-normal text-muted-foreground">as of {formatDate(latestPrice.date)}</span>
+                  {fmtPrice(latestPriceScaled)}
+                  {latestPriceDate && (
+                    <span className="text-sm font-normal text-muted-foreground"> as of {formatDate(latestPriceDate)}</span>
+                  )}
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-muted-foreground">No price yet</p>

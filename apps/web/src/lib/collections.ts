@@ -250,8 +250,11 @@ function _makePricesCollection(instrumentId: string) {
   return createCollection(
     queryCollectionOptions<PriceRow, Error, [string, string], string>({
       queryKey: ["prices", instrumentId],
+      // Only manual prices reach the client — fetched/trade prices are managed
+      // automatically and could be a huge backfilled series. The latest effective
+      // price + hasFetchedPrices come from GET /instruments/:id instead.
       queryFn: async (): Promise<Array<PriceRow>> => {
-        const { data, error } = await api.instruments({ id: instrumentId }).prices.get();
+        const { data, error } = await api.instruments({ id: instrumentId }).prices.get({ query: { source: "manual" } });
         if (error) throw new Error(String(error));
         return Array.isArray(data) ? data : [];
       },

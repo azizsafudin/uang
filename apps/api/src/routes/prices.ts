@@ -1,15 +1,22 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
 import { prices } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { isUniqueViolation } from "../lib/db-errors";
 
 export const pricesRoutes = new Elysia()
   .use(authGuard)
-  .get("/instruments/:id/prices", async ({ params }) =>
-    db.select().from(prices).where(eq(prices.instrumentId, params.id)).orderBy(prices.date),
+  .get(
+    "/instruments/:id/prices",
+    async ({ params, query }: any) => {
+      const where = query.source
+        ? and(eq(prices.instrumentId, params.id), eq(prices.source, query.source))
+        : eq(prices.instrumentId, params.id);
+      return db.select().from(prices).where(where).orderBy(prices.date);
+    },
+    { query: t.Object({ source: t.Optional(t.String()) }) },
   )
   .post(
     "/instruments/:id/prices",
