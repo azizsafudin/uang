@@ -77,7 +77,9 @@ export async function refreshInstrumentPrice(
   const providers = chain ?? (await buildPriceChain());
   const ref: InstrumentRef = {
     symbol: inst.symbol, isin: inst.isin, currency: inst.currency,
-    kind: inst.kind === "currency" ? "other" : inst.kind,
+    // `inst.kind` is already narrowed to exclude "currency" by the guard above,
+    // so it matches InstrumentRef["kind"] directly.
+    kind: inst.kind,
   };
 
   const isBackfill = !!(range?.from || range?.backfill);

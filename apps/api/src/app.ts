@@ -19,6 +19,7 @@ import { importRoutes } from "./routes/import";
 import { instrumentsRoutes } from "./routes/instruments";
 import { positionsRoutes } from "./routes/positions";
 import { pricesRoutes } from "./routes/prices";
+import { marketDataRoutes } from "./routes/market-data";
 import { groupsRoutes } from "./routes/groups";
 import { importParsersRoutes } from "./routes/import-parsers";
 import { importsRoutes } from "./routes/imports";
@@ -49,6 +50,7 @@ export function createApiApp() {
     .use(instrumentsRoutes)
     .use(positionsRoutes)
     .use(pricesRoutes)
+    .use(marketDataRoutes)
     .use(groupsRoutes);
 }
 
