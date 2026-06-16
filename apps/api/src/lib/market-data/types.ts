@@ -34,3 +34,13 @@ export interface FxRateProvider {
   fetchRate(currency: string, base: string): Promise<FxResult | null>;
   fetchRateSeries?(currency: string, base: string, start: string, end: string): Promise<FxResult[] | null>;
 }
+
+export interface InstrumentLookupResult {
+  resolvedSymbol: string;
+  name: string;
+  currency: string;
+  kind: "stock" | "etf" | "fund" | "crypto" | "other";
+  price: number;
+  date: string;  // YYYY-MM-DD
+  source: string;
+}

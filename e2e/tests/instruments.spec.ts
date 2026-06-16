@@ -23,9 +23,11 @@ test("manage an instrument: list, holders, price history, edit, delete", async (
 
     await dialog.getByTestId("tx-instrument").click();
     await page.getByRole("option", { name: "New instrument…" }).click();
-    await dialog.getByTestId("tx-instr-name").fill("Acme Corp");
-    await dialog.getByTestId("tx-instr-symbol").fill("ACME");
-    await dialog.getByTestId("tx-instr-currency").fill("USD");
+    // The new-instrument form opens in Symbol/ISIN lookup mode (hits a live
+    // provider); switch to Manual so the journey stays deterministic offline.
+    await dialog.getByRole("button", { name: "Can't find it? Add manually" }).click();
+    await dialog.getByTestId("ni-manual-name").fill("Acme Corp");
+    await dialog.getByTestId("ni-manual-currency").fill("USD");
     await dialog.getByTestId("tx-units").fill("10");
     await dialog.getByTestId("tx-price").fill("100");
     // "Also record cash outflow" is checked by default.
@@ -97,5 +99,31 @@ test("manage an instrument: list, holders, price history, edit, delete", async (
     await expect(
       page.getByTestId("instrument-row").filter({ hasText: "Acme" }),
     ).toHaveCount(0);
+  });
+});
+
+test("Add instrument dialog (Manual mode) creates an instrument from /instruments", async ({ page }) => {
+  await page.goto("/instruments");
+  await expect(page).toHaveURL(/\/instruments$/);
+
+  await test.step("open the Add instrument dialog and switch to Manual mode", async () => {
+    await page.getByTestId("add-instrument").click();
+    const dialog = page.getByRole("dialog");
+    // The form opens in Symbol/ISIN lookup mode (live provider); Manual is the
+    // deterministic, offline path the e2e suite can rely on.
+    await expect(dialog.getByTestId("ni-mode-symbol")).toBeVisible();
+    await dialog.getByRole("button", { name: "Can't find it? Add manually" }).click();
+    await dialog.getByTestId("ni-manual-name").fill("Gold Bar");
+    await dialog.getByTestId("ni-manual-currency").fill("USD");
+    await dialog.getByTestId("add-instrument-submit").click();
+    await expect(dialog).toBeHidden();
+  });
+
+  await test.step("the new instrument appears in the list with no price (—)", async () => {
+    await page.reload();
+    const row = page.getByTestId("instrument-row").filter({ hasText: "Gold Bar" });
+    await expect(row).toBeVisible();
+    // Manual instruments carry no looked-up price until one is added.
+    await expect(row).toContainText("—");
   });
 });

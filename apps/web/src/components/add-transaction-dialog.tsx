@@ -22,7 +22,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { instrumentKindLabel } from "@/components/labels";
+import { NewInstrumentForm, type NewInstrumentSpec } from "@/components/new-instrument-form";
 
 const S = Number(SCALE);
 const NEW_CURRENCY = "__new_currency__";
@@ -32,7 +32,6 @@ const today = () => new Date().toISOString().slice(0, 10);
 type FormValues = {
   instrumentId: string;
   newCurrency: string;
-  newInstr: { name: string; symbol: string; currency: string; kind: string };
   amount: string;
   side: "buy" | "sell";
   units: string;
@@ -48,6 +47,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [splitApplied, setSplitApplied] = useState(false);
+  const [newSpec, setNewSpec] = useState<NewInstrumentSpec | null>(null);
   const { data: instruments } = useLiveQuery(instrumentsCollection);
   const { data: accounts } = useLiveQuery(accountsCollection);
 
@@ -57,7 +57,6 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   const defaults = (): FormValues => ({
     instrumentId: "",
     newCurrency: accountCurrency,
-    newInstr: { name: "", symbol: "", currency: accountCurrency, kind: "stock" },
     amount: "",
     side: "buy",
     units: "",
@@ -76,6 +75,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   function resetForm() {
     reset(defaults());
     setSplitApplied(false);
+    setNewSpec(null);
   }
 
   // Reactive reads driving conditional fields and derived hints.
@@ -86,7 +86,6 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   const fees = watch("fees");
   const side = watch("side");
   const recordCash = watch("recordCash");
-  const newInstrCurrency = watch("newInstr.currency");
 
   const selected = (instruments ?? []).find((i) => i.id === instrumentId);
   const isCurrencyMode = instrumentId === NEW_CURRENCY || selected?.kind === "currency";
@@ -120,7 +119,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   }
 
   const securityCurrency =
-    instrumentId === NEW_INSTRUMENT ? newInstrCurrency.toUpperCase() : selected?.currency ?? accountCurrency;
+    instrumentId === NEW_INSTRUMENT ? (newSpec?.currency ?? accountCurrency) : selected?.currency ?? accountCurrency;
   const cashAmount = (parseFloat(units) || 0) * (parseFloat(price) || 0) + (parseFloat(fees) || 0);
 
   async function ensureCurrencyId(symbol: string): Promise<string> {
@@ -153,22 +152,27 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
       // Resolve the security instrument id.
       let id = values.instrumentId;
       if (values.instrumentId === NEW_INSTRUMENT) {
+        if (!newSpec) return;
         const { data, error } = await api.instruments.post({
-          name: values.newInstr.name,
-          kind: values.newInstr.kind as "stock" | "etf" | "fund" | "crypto" | "other",
-          currency: values.newInstr.currency.toUpperCase(),
-          symbol: values.newInstr.symbol || undefined,
+          name: newSpec.name,
+          kind: newSpec.kind,
+          currency: newSpec.currency,
+          symbol: newSpec.symbol ?? undefined,
+          isin: newSpec.isin ?? undefined,
         });
         if (error || !data || !("id" in data) || !data.id) throw new Error(String(error ?? "instrument create failed"));
         id = data.id;
         await instrumentsCollection.utils.refetch();
+        if (newSpec.symbol || newSpec.isin) {
+          await api["market-data"].instrument({ id: data.id }).refresh.post({ backfill: true });
+        }
       }
       const u = parseFloat(values.units);
       const p = parseFloat(values.price);
       const fee = parseFloat(values.fees);
       if (Number.isNaN(u) || Number.isNaN(p)) return;
       const secCurrency =
-        values.instrumentId === NEW_INSTRUMENT ? values.newInstr.currency.toUpperCase() : sel?.currency ?? accountCurrency;
+        values.instrumentId === NEW_INSTRUMENT ? newSpec!.currency : sel?.currency ?? accountCurrency;
       const secDec = currencyDecimals(secCurrency);
       const signedUnits = values.side === "buy" ? u : -u;
       const cash = u * p + (Number.isNaN(fee) ? 0 : fee);
@@ -251,35 +255,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
             )}
 
             {instrumentId === NEW_INSTRUMENT && (
-              <div className="grid grid-cols-2 gap-4 rounded-lg border border-border p-3">
-                <Field label="Name" className="col-span-2">
-                  <Input data-testid="tx-instr-name" required {...register("newInstr.name", { required: true })} />
-                </Field>
-                <Field label="Symbol">
-                  <Input data-testid="tx-instr-symbol" placeholder="optional" {...register("newInstr.symbol")} />
-                </Field>
-                <Field label="Currency">
-                  <Input data-testid="tx-instr-currency" maxLength={3} required {...register("newInstr.currency", { required: true })} />
-                </Field>
-                <Field label="Kind" className="col-span-2">
-                  <Controller
-                    control={control}
-                    name="newInstr.kind"
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={(v: string | null) => v && field.onChange(v)}>
-                        <SelectTrigger className="w-full"><SelectValue>{(v: unknown) => instrumentKindLabel(String(v))}</SelectValue></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="stock">{instrumentKindLabel("stock")}</SelectItem>
-                          <SelectItem value="etf">{instrumentKindLabel("etf")}</SelectItem>
-                          <SelectItem value="fund">{instrumentKindLabel("fund")}</SelectItem>
-                          <SelectItem value="crypto">{instrumentKindLabel("crypto")}</SelectItem>
-                          <SelectItem value="other">{instrumentKindLabel("other")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </Field>
-              </div>
+              <NewInstrumentForm defaultCurrency={accountCurrency} onResolved={setNewSpec} />
             )}
 
             {instrumentId === "" ? (
@@ -321,6 +297,10 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
                   </div>
                 )}
               </>
+            ) : instrumentId === NEW_INSTRUMENT && !newSpec ? (
+              <p className="text-sm text-muted-foreground">
+                Look up a symbol or ISIN above (or add one manually) to continue.
+              </p>
             ) : (
               <>
                 <Field label="Side">
@@ -389,7 +369,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!instrumentId}>Add</Button>
+            <Button type="submit" disabled={!instrumentId || (instrumentId === NEW_INSTRUMENT && !newSpec)}>Add</Button>
           </ResponsiveDialogFooter>
         </form>
       </ResponsiveDialogContent>

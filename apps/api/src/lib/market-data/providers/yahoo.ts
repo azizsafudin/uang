@@ -1,5 +1,5 @@
 import { endpoints } from "../endpoints";
-import type { InstrumentPriceProvider, FxRateProvider, InstrumentRef, PriceResult, FxResult } from "../types";
+import type { InstrumentPriceProvider, FxRateProvider, InstrumentRef, PriceResult, FxResult, InstrumentLookupResult } from "../types";
 
 // Yahoo blocks the default fetch UA; send a browser-like one.
 const HEADERS = { "User-Agent": "Mozilla/5.0" };
@@ -91,6 +91,48 @@ export function makeYahooPriceProvider(fetchImpl: typeof fetch = fetch): Instrum
       }
       return out;
     },
+  };
+}
+
+function kindFromQuoteType(t: string | undefined): InstrumentLookupResult["kind"] {
+  switch (t) {
+    case "EQUITY": return "stock";
+    case "ETF": return "etf";
+    case "MUTUALFUND": return "fund";
+    case "CRYPTOCURRENCY": return "crypto";
+    default: return "other";
+  }
+}
+
+// Resolve a free-form query (ticker or ISIN) to a preview: best Yahoo match's
+// name/type, plus its latest price/currency from the chart endpoint. Returns null
+// unless we get BOTH a name and a price (so a preview always shows a price and the
+// later "Update prices" can reproduce it).
+export async function yahooLookup(query: string, fetchImpl: typeof fetch = fetch): Promise<InstrumentLookupResult | null> {
+  const q = query.trim();
+  if (!q) return null;
+  const res = await fetchImpl(`${endpoints.yahooSearch}?q=${encodeURIComponent(q)}&quotesCount=6&newsCount=0`, { headers: HEADERS });
+  if (!res.ok) return null;
+  const body = await res.json() as {
+    quotes?: Array<{ symbol?: string; score?: number; isYahooFinance?: boolean; quoteType?: string; shortname?: string; longname?: string }>;
+  };
+  const best = (body.quotes ?? [])
+    .filter((x) => x.isYahooFinance && typeof x.symbol === "string")
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0];
+  if (!best?.symbol) return null;
+  const name = best.longname ?? best.shortname;
+  if (!name) return null;
+  const r = await chartFetch(fetchImpl, best.symbol, "range=5d&interval=1d");
+  const meta = r?.meta;
+  if (!meta || typeof meta.regularMarketPrice !== "number") return null;
+  return {
+    resolvedSymbol: best.symbol,
+    name,
+    currency: meta.currency ?? "USD",
+    kind: kindFromQuoteType(best.quoteType),
+    price: meta.regularMarketPrice,
+    date: isoFromEpoch(meta.regularMarketTime),
+    source: "yahoo",
   };
 }
 

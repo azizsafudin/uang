@@ -1,6 +1,6 @@
 import { expect, test, afterEach } from "bun:test";
 import { endpoints } from "../endpoints";
-import { makeYahooPriceProvider, makeYahooFxProvider } from "./yahoo";
+import { makeYahooPriceProvider, makeYahooFxProvider, yahooLookup } from "./yahoo";
 import type { InstrumentRef } from "../types";
 
 const realChart = endpoints.yahooChart;
@@ -84,5 +84,47 @@ test("FX provider quotes a currency pair", async () => {
   try {
     const r = await makeYahooFxProvider().fetchRate("SGD", "USD");
     expect(r?.rate).toBe(0.74);
+  } finally { server.stop(true); }
+});
+
+test("yahooLookup resolves a query to name, kind, currency, symbol and price", async () => {
+  const server = mock((url) => {
+    if (url.pathname.endsWith("/search")) {
+      return { quotes: [
+        { symbol: "0P0001OO2F.SI", score: 20001, isYahooFinance: true, quoteType: "MUTUALFUND", longname: "Amundi Core MSCI EM Fund" },
+        { symbol: "LU2420246139-SGD.LU", score: 20000, isYahooFinance: true, quoteType: "MUTUALFUND", longname: "x" },
+      ] };
+    }
+    expect(decodeURIComponent(url.pathname)).toContain("0P0001OO2F.SI");
+    return { chart: { result: [{ meta: { regularMarketPrice: 223.25, currency: "SGD", regularMarketTime: 1_750_000_000 } }] } };
+  });
+  try {
+    const r = await yahooLookup("LU2420246139");
+    expect(r?.name).toBe("Amundi Core MSCI EM Fund");
+    expect(r?.kind).toBe("fund");
+    expect(r?.currency).toBe("SGD");
+    expect(r?.resolvedSymbol).toBe("0P0001OO2F.SI");
+    expect(r?.price).toBe(223.25);
+    expect(r?.source).toBe("yahoo");
+  } finally { server.stop(true); }
+});
+
+test("yahooLookup returns null when search has no match", async () => {
+  const server = mock((url) => {
+    if (url.pathname.endsWith("/search")) return { quotes: [] };
+    return { chart: { result: [] } };
+  });
+  try {
+    expect(await yahooLookup("NOPE")).toBeNull();
+  } finally { server.stop(true); }
+});
+
+test("yahooLookup returns null when the resolved symbol has no price", async () => {
+  const server = mock((url) => {
+    if (url.pathname.endsWith("/search")) return { quotes: [{ symbol: "X.Y", score: 1, isYahooFinance: true, quoteType: "EQUITY", shortname: "X" }] };
+    return { chart: { result: [{ meta: { currency: "USD" } }] } }; // no regularMarketPrice
+  });
+  try {
+    expect(await yahooLookup("X")).toBeNull();
   } finally { server.stop(true); }
 });
