@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { AppShell } from "@/components/app-layout";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
 import { instrumentsCollection } from "@/lib/collections";
 import { SCALE } from "@uang/shared";
 
@@ -17,9 +21,48 @@ export function InstrumentsPage() {
   const { data: instruments, isLoading } = useLiveQuery(instrumentsCollection);
   const rows = [...(instruments ?? [])].sort((a, b) => a.name.localeCompare(b.name));
 
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function refreshAll(backfill: boolean) {
+    setBusy(true); setMsg(backfill ? "Backfilling prices…" : "Refreshing prices…");
+    const { data } = await api["market-data"].instruments.refresh.post(backfill ? { backfill: true } : {});
+    if (data && "updated" in data) setMsg(`Prices: ${data.updated} updated · ${data.unsupported} unsupported · ${data.failed} failed · ${data.rowsWritten} rows`);
+    else setMsg("Prices: failed");
+    await qc.invalidateQueries({ queryKey: ["instruments"] });
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+    setBusy(false);
+  }
+
+  async function refreshFx(backfill: boolean) {
+    setBusy(true); setMsg(backfill ? "Backfilling FX…" : "Refreshing FX…");
+    const { data } = await api["market-data"].fx.refresh.post(backfill ? { backfill: true } : {});
+    if (data && "updated" in data) setMsg(`FX: ${data.updated} updated · ${data.unsupported} unsupported · ${data.failed} failed · ${data.rowsWritten} rows`);
+    else setMsg("FX: failed");
+    await qc.invalidateQueries({ queryKey: ["fx"] });
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+    setBusy(false);
+  }
+
   return (
     <AppShell>
       <PageHeader eyebrow="Holdings" title="Instruments" />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshAll(false)} data-testid="refresh-all-prices">
+          Refresh all prices
+        </Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshAll(true)}>
+          Backfill prices
+        </Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshFx(false)} data-testid="refresh-fx">
+          Refresh FX
+        </Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshFx(true)}>
+          Backfill FX
+        </Button>
+        {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
+      </div>
       {isLoading ? (
         <p className="text-muted-foreground">Loading…</p>
       ) : rows.length === 0 ? (
