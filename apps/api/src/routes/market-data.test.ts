@@ -62,3 +62,41 @@ test("POST /market-data/test is admin-gated and reports unconfigured", async () 
   expect(res.status).toBe(200);
   expect((await res.json()).ok).toBe(false);
 });
+
+test("POST /market-data/lookup returns a preview for a resolvable query", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const server = Bun.serve({ port: 0, fetch(req) {
+    const url = new URL(req.url);
+    if (url.pathname.endsWith("/search")) {
+      return Response.json({ quotes: [{ symbol: "AAPL", score: 1, isYahooFinance: true, quoteType: "EQUITY", shortname: "Apple Inc." }] });
+    }
+    return Response.json({ chart: { result: [{ meta: { regularMarketPrice: 200, currency: "USD", regularMarketTime: 1_750_000_000 } }] } });
+  }});
+  endpoints.yahooChart = `http://localhost:${server.port}/chart`;
+  endpoints.yahooSearch = `http://localhost:${server.port}/search`;
+  try {
+    const res = await app.handle(new Request("http://localhost/market-data/lookup", {
+      method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ query: "AAPL" }),
+    }));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.found).toBe(true);
+    expect(json.name).toBe("Apple Inc.");
+    expect(json.kind).toBe("stock");
+    expect(json.resolvedSymbol).toBe("AAPL");
+    expect(json.price).toBe(200);
+  } finally { server.stop(true); }
+});
+
+test("POST /market-data/lookup reports not found", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const server = Bun.serve({ port: 0, fetch() { return Response.json({ quotes: [] }); } });
+  endpoints.yahooChart = `http://localhost:${server.port}/chart`;
+  endpoints.yahooSearch = `http://localhost:${server.port}/search`;
+  try {
+    const res = await app.handle(new Request("http://localhost/market-data/lookup", {
+      method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify({ query: "NOPE" }),
+    }));
+    expect((await res.json()).found).toBe(false);
+  } finally { server.stop(true); }
+});

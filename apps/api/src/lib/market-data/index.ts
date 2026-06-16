@@ -4,11 +4,11 @@ import { and, eq, min, max } from "drizzle-orm";
 import { SCALE } from "@uang/shared";
 import { createId, nowEpoch } from "../ids";
 import { getSettings } from "../settings";
-import { makeYahooPriceProvider, makeYahooFxProvider } from "./providers/yahoo";
+import { makeYahooPriceProvider, makeYahooFxProvider, yahooLookup } from "./providers/yahoo";
 import { makeFrankfurterProvider } from "./providers/frankfurter";
 import { makeAlphaVantageProvider } from "./providers/alphavantage";
 import { resolvePriceLatest, resolvePriceSeries, resolveFxLatest, resolveFxSeries } from "./resolver";
-import type { InstrumentPriceProvider, FxRateProvider, InstrumentRef } from "./types";
+import type { InstrumentPriceProvider, FxRateProvider, InstrumentRef, InstrumentLookupResult } from "./types";
 
 const S = Number(SCALE);
 const scale = (n: number): number => Math.round(n * S);
@@ -175,4 +175,8 @@ export async function refreshFx(range?: RefreshRange, chain?: FxRateProvider[]):
     }
   }
   return summary;
+}
+
+export async function lookupInstrument(query: string): Promise<InstrumentLookupResult | null> {
+  return yahooLookup(query);
 }
