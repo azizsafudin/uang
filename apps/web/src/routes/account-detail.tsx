@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { accountsCollection } from "@/lib/collections";
 import { AccountInfoCard } from "@/components/account-info-card";
+import { OwnerPills } from "@/components/owner-pills";
 import { AccountProjectionCard } from "@/components/account-projection-card";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
 import { ImportDialog } from "@/components/import-dialog";
@@ -153,7 +154,12 @@ export function AccountDetailPage() {
 
       <PageHeader
         eyebrow={`${classLabel(account.class)} · ${subtypeLabel(account.subtype)} · ${account.currency}`}
-        title={account.name}
+        title={
+          <span className="inline-flex flex-wrap items-center gap-2">
+            {account.name}
+            <OwnerPills ownerIds={account.ownerIds} />
+          </span>
+        }
       />
       <p
         data-testid="account-total"

@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { GripVertical } from "lucide-react";
 import { Money } from "@/components/money.tsx";
 import { subtypeLabel } from "@/components/labels";
+import { OwnerPills } from "@/components/owner-pills";
 import { cn } from "@/lib/utils";
 
 type Account = {
@@ -13,6 +14,7 @@ type Account = {
   baseMinor: number;
   missingRate: boolean;
   class: string;
+  ownerIds: string[];
 };
 
 type Props = {
@@ -66,7 +68,10 @@ export function AccountRow({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{account.name}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-sm font-medium">{account.name}</p>
+          <OwnerPills ownerIds={account.ownerIds} />
+        </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
           <span>
             {subtypeLabel(account.subtype)} · {account.currency}

@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { Money } from "@/components/money.tsx";
-import { UpdatePrice } from "@/components/update-price";
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog";
 import { transactionsCollection, type TransactionRow } from "@/lib/collections";
 import { api } from "@/lib/api";
@@ -67,11 +67,13 @@ export function PositionsPanel({ accountId, accountCurrency }: { accountId: stri
       {positions.map((p, i) => {
         const isCash = p.instrument.kind === "currency";
         return (
-          <div
+          <Link
             key={p.instrument.id}
+            to="/instruments/$id"
+            params={{ id: p.instrument.id }}
             data-testid="position-row"
             className={cn(
-              "group flex items-center justify-between gap-4 px-4 py-3",
+              "flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/40",
               i > 0 && "border-t border-border/70",
             )}
           >
@@ -92,30 +94,23 @@ export function PositionsPanel({ accountId, accountCurrency }: { accountId: stri
                 )}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="shrink-0 text-right tabular-nums">
-                <p className="font-medium">
-                  {p.missingPrice ? "—" : <Money minor={p.valueDisplayMinor} currency={accountCurrency} />}
+            <div className="shrink-0 text-right tabular-nums">
+              <p className="font-medium">
+                {p.missingPrice ? "—" : <Money minor={p.valueDisplayMinor} currency={accountCurrency} />}
+              </p>
+              {!isCash && !p.missingPrice && (
+                <p
+                  className={cn(
+                    "text-xs",
+                    p.unrealizedGainMinor < 0 ? "text-destructive" : "text-muted-foreground",
+                  )}
+                >
+                  {p.unrealizedGainMinor >= 0 ? "+" : ""}
+                  <Money minor={p.unrealizedGainMinor} currency={p.instrumentCurrency} />
                 </p>
-                {!isCash && !p.missingPrice && (
-                  <p
-                    className={cn(
-                      "text-xs",
-                      p.unrealizedGainMinor < 0 ? "text-destructive" : "text-muted-foreground",
-                    )}
-                  >
-                    {p.unrealizedGainMinor >= 0 ? "+" : ""}
-                    <Money minor={p.unrealizedGainMinor} currency={p.instrumentCurrency} />
-                  </p>
-                )}
-              </div>
-              {!isCash && (
-                <div className="opacity-0 transition-opacity group-hover:opacity-100">
-                  <UpdatePrice instrumentId={p.instrument.id} accountId={accountId} label="Price" />
-                </div>
               )}
             </div>
-          </div>
+          </Link>
         );
       })}
     </div>
