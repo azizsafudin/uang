@@ -115,6 +115,49 @@ test("PATCH /instruments/:id edits fields", async () => {
   expect(row.symbol).toBe("AAPL.US");
 });
 
+test("PATCH /instruments/:id rejects a symbol change once a price has been fetched", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const id = createId();
+  await db.insert(instruments).values({
+    id, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  await db.insert(prices).values({
+    id: createId(), instrumentId: id, date: "2026-06-15", priceScaled: 100 * Number(SCALE), source: "yahoo", createdAt: nowEpoch(),
+  });
+  const res = await app.handle(new Request(`http://localhost/instruments/${id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ symbol: "AAPL.US" }),
+  }));
+  expect(res.status).toBe(409);
+  expect((await res.json()).error).toBe("symbol_locked");
+  // Non-symbol fields are still editable even when locked.
+  const ok = await app.handle(new Request(`http://localhost/instruments/${id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ name: "Apple Inc." }),
+  }));
+  expect(ok.status).toBe(200);
+});
+
+test("PATCH /instruments/:id allows a symbol change when only trade/manual prices exist", async () => {
+  const app = makeApp(instrumentsRoutes);
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const id = createId();
+  await db.insert(instruments).values({
+    id, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch(),
+  });
+  await db.insert(prices).values({
+    id: createId(), instrumentId: id, date: "2026-06-15", priceScaled: 100 * Number(SCALE), source: "trade", createdAt: nowEpoch(),
+  });
+  const res = await app.handle(new Request(`http://localhost/instruments/${id}`, {
+    method: "PATCH", headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({ symbol: "AAPL.US" }),
+  }));
+  expect(res.status).toBe(200);
+  const [row] = await db.select().from(instruments).where(eq(instruments.id, id));
+  expect(row.symbol).toBe("AAPL.US");
+});
+
 test("GET /instruments/:id returns holders with units, value, and tx counts", async () => {
   const app = makeApp(instrumentsRoutes);
   const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });

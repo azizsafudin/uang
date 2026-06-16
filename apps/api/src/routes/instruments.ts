@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
 import { instruments, transactions, prices, accounts } from "../db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray, notInArray } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
 import { ensureCurrencyInstrument } from "../lib/instruments";
@@ -83,6 +83,23 @@ export const instrumentsRoutes = new Elysia({ prefix: "/instruments" })
   .patch(
     "/:id",
     async ({ params, body, set }: any) => {
+      const [current] = await db.select().from(instruments).where(eq(instruments.id, params.id));
+      if (!current) { set.status = 404; return { error: "not_found" }; }
+
+      // Lock symbol/ISIN once provider prices have been fetched: changing them would
+      // mix the stored series against a different security. (manual/trade prices are
+      // not symbol-derived, so they don't lock.)
+      const newSymbol = body.symbol !== undefined ? (body.symbol ? body.symbol.toUpperCase() : null) : current.symbol;
+      const newIsin = body.isin !== undefined ? (body.isin || null) : current.isin;
+      if (newSymbol !== current.symbol || newIsin !== current.isin) {
+        const fetched = await db
+          .select({ id: prices.id })
+          .from(prices)
+          .where(and(eq(prices.instrumentId, params.id), notInArray(prices.source, ["manual", "trade"])))
+          .limit(1);
+        if (fetched.length > 0) { set.status = 409; return { error: "symbol_locked" }; }
+      }
+
       const update: Record<string, unknown> = {};
       if (body.name !== undefined) update.name = body.name;
       if (body.symbol !== undefined) update.symbol = body.symbol ? body.symbol.toUpperCase() : null;
