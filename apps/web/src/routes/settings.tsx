@@ -171,6 +171,11 @@ export function SettingsPage() {
   const [aiApiKeySet, setAiApiKeySet] = useState(false);
   const [aiTestMsg, setAiTestMsg] = useState("");
 
+  // Market data provider (Alpha Vantage key)
+  const [mdApiKey, setMdApiKey] = useState("");
+  const [mdApiKeySet, setMdApiKeySet] = useState(false);
+  const [mdTestMsg, setMdTestMsg] = useState("");
+
   const settingsQ = useQuery({
     queryKey: ["settings"],
     queryFn: async () => {
@@ -188,6 +193,7 @@ export function SettingsPage() {
       setAiBaseUrl(settingsData.aiBaseUrl ?? "");
       setAiModel(settingsData.aiModel ?? "");
       setAiApiKeySet(!!settingsData.aiApiKeySet);
+      setMdApiKeySet(!!settingsData.marketDataApiKeySet);
     }
   }, [settingsData]);
 
@@ -227,6 +233,34 @@ export function SettingsPage() {
     if (error) { setAiTestMsg("Couldn't remove the provider"); return; }
     setAiBaseUrl(""); setAiModel(""); setAiApiKey(""); setAiApiKeySet(false);
     setAiTestMsg("Provider removed");
+    await qc.invalidateQueries({ queryKey: ["settings"] });
+  }
+
+  async function saveMarketData() {
+    const payload: { marketDataApiKey?: string } = {};
+    if (mdApiKey) payload.marketDataApiKey = mdApiKey;
+    const { error } = await api.settings.patch(payload);
+    if (error) { setMdTestMsg("Save failed"); return; }
+    setMdApiKey("");
+    setMdApiKeySet(mdApiKeySet || !!mdApiKey);
+    setMdTestMsg("Saved");
+    await qc.invalidateQueries({ queryKey: ["settings"] });
+  }
+
+  async function testMarketData() {
+    setMdTestMsg("Testing…");
+    const { data } = await api["market-data"].test.post();
+    if (data && "ok" in data) {
+      setMdTestMsg(data.ok ? "Connection ok" : `Failed: ${"message" in data && typeof data.message === "string" ? data.message : "error"}`);
+    } else {
+      setMdTestMsg("Failed: error");
+    }
+  }
+
+  async function removeMarketData() {
+    const { error } = await api.settings.patch({ clearMarketData: true });
+    if (error) { setMdTestMsg("Couldn't remove the key"); return; }
+    setMdApiKey(""); setMdApiKeySet(false); setMdTestMsg("Key removed");
     await qc.invalidateQueries({ queryKey: ["settings"] });
   }
 
@@ -486,6 +520,57 @@ export function SettingsPage() {
                   {aiTestMsg}
                 </span>
               )}
+            </div>
+          </div>
+        </Section>
+
+        <Section
+          eyebrow="Market data"
+          title="Market data provider"
+          description="Optional. Prices come from Yahoo and FX from Frankfurter — both free, no key needed. Add an Alpha Vantage API key only to use it as a fallback for instruments Yahoo can't resolve."
+        >
+          <div className="grid gap-3 sm:max-w-lg">
+            <Field
+              label={
+                <>
+                  Alpha Vantage API key{" "}
+                  {mdApiKeySet && (
+                    <Label className="text-muted-foreground font-normal">
+                      (set — leave blank to keep)
+                    </Label>
+                  )}
+                </>
+              }
+            >
+              <Input
+                type="password"
+                value={mdApiKey}
+                onChange={(e) => setMdApiKey(e.target.value)}
+                placeholder={mdApiKeySet ? "••••••••" : "optional"}
+                data-testid="md-api-key"
+              />
+            </Field>
+            <div className="flex items-center gap-2">
+              <Button onClick={saveMarketData} data-testid="md-save">Save</Button>
+              <Button variant="outline" onClick={testMarketData} data-testid="md-test">
+                Test connection
+              </Button>
+              {mdApiKeySet && (
+                <Button
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => confirm({
+                    title: "Remove Alpha Vantage key?",
+                    description: "This deletes the stored key. Instrument prices will use Yahoo only.",
+                    confirmLabel: "Remove",
+                    onConfirm: removeMarketData,
+                  })}
+                  data-testid="md-remove"
+                >
+                  Remove
+                </Button>
+              )}
+              {mdTestMsg && <span className="text-sm text-muted-foreground">{mdTestMsg}</span>}
             </div>
           </div>
         </Section>
