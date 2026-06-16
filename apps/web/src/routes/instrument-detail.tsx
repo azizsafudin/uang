@@ -132,6 +132,10 @@ export function InstrumentDetailPage() {
   // The list shows only manually-entered prices; fetched/trade prices are managed
   // automatically via "Update prices" and would just be noise here.
   const manualPrices = sortedPrices.filter((p) => p.source === "manual");
+  // Once prices have been FETCHED from a provider, the symbol/ISIN are locked:
+  // changing them would orphan/mix the fetched series against a different security.
+  // (trade-seeded and manual prices don't lock — they aren't symbol-derived.)
+  const hasFetchedPrices = (prices ?? []).some((p) => p.source !== "manual" && p.source !== "trade");
   // priceScaled (×1e8) → currency-formatted string, e.g. "$21.34".
   const fmtPrice = (scaled: number) =>
     formatMoney(Math.round((scaled / S) * 10 ** currencyDecimals(instrument.currency)), instrument.currency);
@@ -302,15 +306,20 @@ export function InstrumentDetailPage() {
             </Field>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Symbol">
-                <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} />
+                <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} disabled={hasFetchedPrices} />
               </Field>
               <Field label="Currency">
                 <Input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} required />
               </Field>
             </div>
             <Field label="ISIN">
-              <Input value={isin} onChange={(e) => setIsin(e.target.value)} />
+              <Input value={isin} onChange={(e) => setIsin(e.target.value)} disabled={hasFetchedPrices} />
             </Field>
+            {hasFetchedPrices && (
+              <p className="text-xs text-muted-foreground">
+                Symbol and ISIN are locked because prices have been fetched for them. To change the security, delete this instrument (Danger zone) and re-add it.
+              </p>
+            )}
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>
               <Button type="submit">Save</Button>
