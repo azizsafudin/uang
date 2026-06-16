@@ -249,6 +249,7 @@ export function SettingsPage() {
       currency: fx.currency.toUpperCase(),
       date: fx.date,
       rateScaled: Math.round(rate * Number(SCALE)),
+      source: "manual",
       createdAt: Math.floor(Date.now() / 1000),
     });
     setFx((prev) => ({ ...prev, currency: "", rate: "" }));

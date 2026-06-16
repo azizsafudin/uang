@@ -10,3 +10,10 @@ export async function getSettings() {
 export async function isInitialized(): Promise<boolean> {
   return (await getSettings()) !== null;
 }
+
+// Market-data provider config from the singleton settings row. Alpha Vantage is
+// the only keyed provider; Yahoo/Frankfurter need no key.
+export async function loadMarketDataConfig(): Promise<{ alphaVantageApiKey?: string }> {
+  const s = await getSettings();
+  return { alphaVantageApiKey: s?.marketDataApiKey ?? undefined };
+}

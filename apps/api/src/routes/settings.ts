@@ -20,6 +20,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       aiBaseUrl: s?.aiBaseUrl ?? "",
       aiModel: s?.aiModel ?? "",
       aiApiKeySet: !!s?.aiApiKey,
+      marketDataApiKeySet: !!s?.marketDataApiKey,
     };
   })
   .patch(
@@ -28,7 +29,9 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       const touchesAi =
         body.aiBaseUrl !== undefined || body.aiModel !== undefined
         || body.aiApiKey !== undefined || body.clearAi === true;
-      if (touchesAi && !isAdmin) {
+      const touchesMarketData =
+        body.marketDataApiKey !== undefined || body.clearMarketData === true;
+      if ((touchesAi || touchesMarketData) && !isAdmin) {
         set.status = 403;
         return { error: "admin_only" };
       }
@@ -40,6 +43,9 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       if (body.aiModel !== undefined) update.aiModel = body.aiModel || null;
       // Empty/omitted aiApiKey preserves the stored key (write-only field).
       if (typeof body.aiApiKey === "string" && body.aiApiKey.length > 0) update.aiApiKey = body.aiApiKey;
+      // Same write-only rule for the market-data key.
+      if (typeof body.marketDataApiKey === "string" && body.marketDataApiKey.length > 0) update.marketDataApiKey = body.marketDataApiKey;
+      if (body.clearMarketData === true) update.marketDataApiKey = null;
       // Explicit disconnect: wipe the whole provider, including the stored key.
       if (body.clearAi === true) {
         update.aiBaseUrl = null;
@@ -60,6 +66,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         aiModel: t.Optional(t.String()),
         aiApiKey: t.Optional(t.String()),
         clearAi: t.Optional(t.Boolean()),
+        marketDataApiKey: t.Optional(t.String()),
+        clearMarketData: t.Optional(t.Boolean()),
       }),
     },
   )

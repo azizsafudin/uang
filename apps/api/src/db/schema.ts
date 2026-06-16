@@ -16,6 +16,9 @@ export const settings = sqliteTable("settings", {
   aiBaseUrl: text("ai_base_url"),
   aiModel: text("ai_model"),
   aiApiKey: text("ai_api_key"),
+  // Market data provider (Alpha Vantage). Optional keyed alternative for instrument
+  // prices; Yahoo (no key) is the primary. Key is never returned to the client.
+  marketDataApiKey: text("market_data_api_key"),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -112,6 +115,7 @@ export const fxRates = sqliteTable("fx_rates", {
   currency: text("currency").notNull(),
   date: text("date").notNull(),
   rateScaled: integer("rate_scaled").notNull(),
+  source: text("source").notNull().default("manual"),
   createdAt: integer("created_at").notNull(),
 }, (t) => [uniqueIndex("fx_rates_currency_date_uq").on(t.currency, t.date)]);
 
