@@ -25,9 +25,11 @@ test("buy a stock with a cash leg, set price, see value and gain roll up", async
 
     await dialog.getByTestId("tx-instrument").click();
     await page.getByRole("option", { name: "New instrument…" }).click();
-    await dialog.getByTestId("tx-instr-name").fill("Acme Corp");
-    await dialog.getByTestId("tx-instr-symbol").fill("ACME");
-    await dialog.getByTestId("tx-instr-currency").fill("USD");
+    // The new-instrument form opens in Symbol/ISIN lookup mode (hits a live
+    // provider); switch to Manual so the journey stays deterministic offline.
+    await dialog.getByRole("button", { name: "Can't find it? Add manually" }).click();
+    await dialog.getByTestId("ni-manual-name").fill("Acme Corp");
+    await dialog.getByTestId("ni-manual-currency").fill("USD");
     await dialog.getByTestId("tx-units").fill("10");
     await dialog.getByTestId("tx-price").fill("100");
     // "Also record cash outflow" is checked by default.
