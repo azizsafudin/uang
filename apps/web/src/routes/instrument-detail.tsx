@@ -4,14 +4,15 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { useNavigate, useParams, Link } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { instrumentsCollection, pricesCollection } from "@/lib/collections";
-import { Money } from "@/components/money.tsx";
+import { Money, formatMoney } from "@/components/money.tsx";
 import { AppShell, Eyebrow } from "@/components/app-layout";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { UpdatePrice } from "@/components/update-price";
-import { SCALE } from "@uang/shared";
+import { SCALE, currencyDecimals } from "@uang/shared";
+import { formatDate } from "@/lib/utils";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -126,6 +127,14 @@ export function InstrumentDetailPage() {
   }
 
   const sortedPrices = [...(prices ?? [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  // Latest effective price, regardless of source (manual / fetched / trade).
+  const latestPrice = sortedPrices[0];
+  // The list shows only manually-entered prices; fetched/trade prices are managed
+  // automatically via "Update prices" and would just be noise here.
+  const manualPrices = sortedPrices.filter((p) => p.source === "manual");
+  // priceScaled (×1e8) → currency-formatted string, e.g. "$21.34".
+  const fmtPrice = (scaled: number) =>
+    formatMoney(Math.round((scaled / S) * 10 ** currencyDecimals(instrument.currency)), instrument.currency);
 
   async function delPrice(priceId: string) {
     await pricesCollection(id).delete(priceId);
@@ -176,7 +185,17 @@ export function InstrumentDetailPage() {
       {!isCurrency && (
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <Eyebrow>Price history</Eyebrow>
+            <div className="min-w-0">
+              <Eyebrow>Price</Eyebrow>
+              {latestPrice ? (
+                <p className="mt-1 font-medium tabular-nums" data-testid="latest-price">
+                  {fmtPrice(latestPrice.priceScaled)}{" "}
+                  <span className="text-sm font-normal text-muted-foreground">as of {formatDate(latestPrice.date)}</span>
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">No price yet</p>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               {refreshMsg && <span className="text-xs text-muted-foreground">{refreshMsg}</span>}
               <Button variant="outline" size="sm" disabled={refreshing} onClick={updatePrice} data-testid="update-price">
@@ -185,25 +204,21 @@ export function InstrumentDetailPage() {
               <UpdatePrice instrumentId={id} label="Add price" />
             </div>
           </div>
-          {sortedPrices.length === 0 ? (
+          {manualPrices.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-8 text-center text-sm text-muted-foreground">
-              No prices recorded yet.
+              No manually-entered prices. Fetched prices update automatically via "Update prices".
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-border bg-card">
-              {sortedPrices.map((p, i) => (
+              {manualPrices.map((p, i) => (
                 <div
                   key={p.id}
                   data-testid="price-row"
                   className={`group flex items-center justify-between gap-4 px-4 py-3 ${i > 0 ? "border-t border-border/70" : ""}`}
                 >
                   <div className="min-w-0">
-                    <p className="font-medium tabular-nums">
-                      {instrument.currency} {(p.priceScaled / S).toLocaleString(undefined, { maximumFractionDigits: 6 })}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.date}{p.source === "trade" ? " · from trade" : ""}
-                    </p>
+                    <p className="font-medium tabular-nums">{fmtPrice(p.priceScaled)}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(p.date)}</p>
                   </div>
                   <Button
                     variant="ghost"

@@ -7,14 +7,16 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { instrumentsCollection } from "@/lib/collections";
-import { SCALE } from "@uang/shared";
+import { formatMoney } from "@/components/money.ts";
+import { formatDate } from "@/lib/utils";
+import { SCALE, currencyDecimals } from "@uang/shared";
 
 const S = Number(SCALE);
 
 function priceLabel(kind: string, scaled: number | null, currency: string): string {
   if (kind === "currency") return "1.00 (implicit)";
   if (scaled === null) return "—";
-  return `${currency} ${(scaled / S).toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
+  return formatMoney(Math.round((scaled / S) * 10 ** currencyDecimals(currency)), currency);
 }
 
 export function InstrumentsPage() {
@@ -85,7 +87,7 @@ export function InstrumentsPage() {
               </div>
               <div className="shrink-0 text-right tabular-nums text-sm">
                 <p className="font-medium">{priceLabel(i.kind, i.latestPriceScaled, i.currency)}</p>
-                {i.latestPriceDate && <p className="text-xs text-muted-foreground">{i.latestPriceDate}</p>}
+                {i.latestPriceDate && <p className="text-xs text-muted-foreground">as of {formatDate(i.latestPriceDate)}</p>}
               </div>
             </Link>
           ))}

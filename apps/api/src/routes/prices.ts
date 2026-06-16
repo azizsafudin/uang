@@ -28,7 +28,9 @@ export const pricesRoutes = new Elysia()
           })
           .onConflictDoUpdate({
             target: [prices.instrumentId, prices.date],
-            set: { priceScaled: body.priceScaled },
+            // A manual entry always wins and is marked manual, even if a trade/fetched
+            // row already existed for that date.
+            set: { priceScaled: body.priceScaled, source: "manual" },
           });
       } catch (e) {
         if (isUniqueViolation(e)) {
