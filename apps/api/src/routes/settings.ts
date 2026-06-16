@@ -71,21 +71,41 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       }),
     },
   )
-  .post("/ai/test", async ({ isAdmin, set }: any) => {
-    if (!isAdmin) {
-      set.status = 403;
-      return { error: "admin_only" };
-    }
-    const s = (await db.select().from(settings).where(eq(settings.id, 1)))[0];
-    if (!s?.aiBaseUrl || !s?.aiModel) return { ok: false, message: "AI is not configured" };
-    try {
-      await chatJson(
-        { baseUrl: s.aiBaseUrl, model: s.aiModel, apiKey: s.aiApiKey ?? undefined },
-        "Reply with {\"ok\":true} as JSON.",
-        "ping",
-      );
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, message: e instanceof AiError ? e.message : "request failed" };
-    }
-  });
+  .post(
+    "/ai/test",
+    async ({ body, isAdmin, set }: any) => {
+      if (!isAdmin) {
+        set.status = 403;
+        return { error: "admin_only" };
+      }
+      const s = (await db.select().from(settings).where(eq(settings.id, 1)))[0];
+      // Prefer the (possibly unsaved) values from the form; fall back to stored
+      // config. A blank API key means "use the stored key" (write-only field).
+      const baseUrl = body?.aiBaseUrl || s?.aiBaseUrl;
+      const model = body?.aiModel || s?.aiModel;
+      const apiKey =
+        typeof body?.aiApiKey === "string" && body.aiApiKey.length > 0
+          ? body.aiApiKey
+          : (s?.aiApiKey ?? undefined);
+      if (!baseUrl || !model) return { ok: false, message: "AI is not configured" };
+      try {
+        await chatJson(
+          { baseUrl, model, apiKey },
+          "Reply with {\"ok\":true} as JSON.",
+          "ping",
+        );
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, message: e instanceof AiError ? e.message : "request failed" };
+      }
+    },
+    {
+      body: t.Optional(
+        t.Object({
+          aiBaseUrl: t.Optional(t.String()),
+          aiModel: t.Optional(t.String()),
+          aiApiKey: t.Optional(t.String()),
+        }),
+      ),
+    },
+  );

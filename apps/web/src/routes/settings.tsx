@@ -214,18 +214,32 @@ export function SettingsPage() {
     await qc.invalidateQueries({ queryKey: ["settings"] });
   }
 
+  // Tests the values currently in the form (unsaved). Returns true on success;
+  // on failure it sets the status message and returns false.
+  async function runAiTest(): Promise<boolean> {
+    const payload: { aiBaseUrl: string; aiModel: string; aiApiKey?: string } = {
+      aiBaseUrl,
+      aiModel,
+    };
+    if (aiApiKey) payload.aiApiKey = aiApiKey;
+    const { data } = await api.settings.ai.test.post(payload);
+    if (data && "ok" in data && data.ok) return true;
+    setAiTestMsg(
+      data && "ok" in data && "message" in data && typeof data.message === "string"
+        ? `Failed: ${data.message}`
+        : "Failed: error",
+    );
+    return false;
+  }
+
   async function testAi() {
     setAiTestMsg("Testing…");
-    const { data } = await api.settings.ai.test.post();
-    if (data && "ok" in data) {
-      setAiTestMsg(
-        data.ok
-          ? "Connection ok"
-          : `Failed: ${"message" in data && typeof data.message === "string" ? data.message : "error"}`,
-      );
-    } else {
-      setAiTestMsg("Failed: error");
-    }
+    if (await runAiTest()) setAiTestMsg("Connection ok");
+  }
+
+  async function testAndSaveAi() {
+    setAiTestMsg("Testing…");
+    if (await runAiTest()) await saveAi();
   }
 
   async function removeAi() {
@@ -247,14 +261,29 @@ export function SettingsPage() {
     await qc.invalidateQueries({ queryKey: ["settings"] });
   }
 
+  // Tests the key currently in the form (unsaved). Returns true on success;
+  // on failure it sets the status message and returns false.
+  async function runMarketDataTest(): Promise<boolean> {
+    const { data } = await api["market-data"].test.post(
+      mdApiKey ? { marketDataApiKey: mdApiKey } : {},
+    );
+    if (data && "ok" in data && data.ok) return true;
+    setMdTestMsg(
+      data && "ok" in data && "message" in data && typeof data.message === "string"
+        ? `Failed: ${data.message}`
+        : "Failed: error",
+    );
+    return false;
+  }
+
   async function testMarketData() {
     setMdTestMsg("Testing…");
-    const { data } = await api["market-data"].test.post();
-    if (data && "ok" in data) {
-      setMdTestMsg(data.ok ? "Connection ok" : `Failed: ${"message" in data && typeof data.message === "string" ? data.message : "error"}`);
-    } else {
-      setMdTestMsg("Failed: error");
-    }
+    if (await runMarketDataTest()) setMdTestMsg("Connection ok");
+  }
+
+  async function testAndSaveMarketData() {
+    setMdTestMsg("Testing…");
+    if (await runMarketDataTest()) await saveMarketData();
   }
 
   async function removeMarketData() {
@@ -490,15 +519,15 @@ export function SettingsPage() {
               />
             </Field>
             <div className="flex items-center gap-2">
-              <Button onClick={saveAi} data-testid="ai-save">
-                Save
-              </Button>
               <Button
                 variant="outline"
                 onClick={testAi}
                 data-testid="ai-test"
               >
                 Test connection
+              </Button>
+              <Button onClick={testAndSaveAi} data-testid="ai-save">
+                Test connection and Save
               </Button>
               {aiConfigured && (
                 <Button
@@ -551,9 +580,11 @@ export function SettingsPage() {
               />
             </Field>
             <div className="flex items-center gap-2">
-              <Button onClick={saveMarketData} data-testid="md-save">Save</Button>
               <Button variant="outline" onClick={testMarketData} data-testid="md-test">
                 Test connection
+              </Button>
+              <Button onClick={testAndSaveMarketData} data-testid="md-save">
+                Test connection and Save
               </Button>
               {mdApiKeySet && (
                 <Button

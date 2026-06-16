@@ -20,15 +20,25 @@ export const marketDataRoutes = new Elysia({ prefix: "/market-data" })
     refreshAllPrices(body ?? undefined), { body: range })
   .post("/fx/refresh", async ({ body }: any) =>
     refreshFx(body ?? undefined), { body: range })
-  .post("/test", async ({ isAdmin, set }: any) => {
+  .post("/test", async ({ body, isAdmin, set }: any) => {
     if (!isAdmin) { set.status = 403; return { error: "admin_only" }; }
     const s = (await db.select().from(settings).where(eq(settings.id, 1)))[0];
-    if (!s?.marketDataApiKey) return { ok: false, message: "No Alpha Vantage key configured" };
+    // Prefer the (possibly unsaved) key from the form; a blank field falls back
+    // to the stored key (write-only field).
+    const apiKey =
+      typeof body?.marketDataApiKey === "string" && body.marketDataApiKey.length > 0
+        ? body.marketDataApiKey
+        : s?.marketDataApiKey;
+    if (!apiKey) return { ok: false, message: "No Alpha Vantage key configured" };
     try {
-      const r = await makeAlphaVantageProvider(s.marketDataApiKey)
+      const r = await makeAlphaVantageProvider(apiKey)
         .fetchPrice({ symbol: "IBM", isin: null, currency: "USD", kind: "stock" });
       return r ? { ok: true } : { ok: false, message: "No data (rate-limited or invalid key)" };
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : "request failed" };
     }
+  }, {
+    body: t.Optional(t.Object({
+      marketDataApiKey: t.Optional(t.String()),
+    })),
   });
