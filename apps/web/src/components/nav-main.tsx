@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Target, TrendingUp, CandlestickChart } from "lucide-react";
+import { LayoutDashboard, Target, TrendingUp, CandlestickChart, ArrowLeftRight } from "lucide-react";
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -12,6 +12,7 @@ import {
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/instruments", label: "Instruments", icon: CandlestickChart },
+  { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { to: "/goals", label: "Goals", icon: Target },
   { to: "/projections", label: "Projections", icon: TrendingUp },
 ] as const;

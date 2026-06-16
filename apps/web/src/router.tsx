@@ -12,6 +12,7 @@ import { LoginPage } from "./routes/login";
 import { DashboardPage } from "./routes/dashboard";
 import { AccountDetailPage } from "./routes/account-detail";
 import { InstrumentsPage } from "./routes/instruments";
+import { TransactionsPage } from "./routes/transactions";
 import { InstrumentDetailPage } from "./routes/instrument-detail";
 import { SettingsPage } from "./routes/settings";
 import { ProjectionsPage } from "./routes/projections";
@@ -115,6 +116,12 @@ const instrumentsRoute = createRoute({
   component: InstrumentsPage,
 });
 
+const transactionsRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: "/transactions",
+  component: TransactionsPage,
+});
+
 const instrumentDetailRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/instruments/$id",
@@ -152,6 +159,7 @@ const routeTree = rootRoute.addChildren([
     dashboardRoute,
     accountDetailRoute,
     instrumentsRoute,
+    transactionsRoute,
     instrumentDetailRoute,
     settingsRoute,
     projectionsRoute,

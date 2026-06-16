@@ -156,6 +156,30 @@ test("PATCH editing a trade's price updates its trade-sourced price row", async 
   expect(row.priceScaled).toBe(60 * S);
 });
 
+test("GET /transactions lists transactions across all accounts, newest first", async () => {
+  const { cookie } = await initAndLogin({ app });
+  const acc1 = createId(), acc2 = createId(), inst = createId();
+  await db.insert(accounts).values([
+    { id: acc1, name: "Brokerage", class: "asset", subtype: "brokerage", currency: "USD", createdAt: nowEpoch(), createdBy: "admin" },
+    { id: acc2, name: "Savings", class: "asset", subtype: "cash", currency: "SGD", createdAt: nowEpoch(), createdBy: "admin" },
+  ]);
+  await db.insert(instruments).values({ id: inst, symbol: "AAPL", isin: null, name: "Apple", kind: "stock", currency: "USD", createdAt: nowEpoch() });
+  await db.insert(transactions).values([
+    { id: createId(), accountId: acc1, instrumentId: inst, date: "2026-01-01", unitsDelta: 100000000, createdAt: nowEpoch(), createdBy: "admin" },
+    { id: createId(), accountId: acc2, instrumentId: inst, date: "2026-03-01", unitsDelta: 200000000, createdAt: nowEpoch(), createdBy: "admin" },
+  ]);
+
+  const res = await app.handle(new Request("http://localhost/transactions", { headers: { cookie } }));
+  expect(res.status).toBe(200);
+  const rows = await res.json();
+  expect(rows.length).toBe(2);
+  // newest date first
+  expect(rows[0].date).toBe("2026-03-01");
+  expect(rows[0].account.name).toBe("Savings");
+  expect(rows[0].instrument.symbol).toBe("AAPL");
+  expect(rows[1].account.name).toBe("Brokerage");
+});
+
 test("POST with cashLeg links the cash leg to the main trade", async () => {
   const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
   const acc = await seedAccount();

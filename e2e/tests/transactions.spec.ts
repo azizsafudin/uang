@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { seedHousehold, createAccount } from "./helpers";
+import { seedHousehold, createAccount, addCashDeposit } from "./helpers";
 
 test.beforeEach(async ({ backend, request, context }) => {
   await backend.freshDb();
@@ -99,5 +99,50 @@ test("buy a stock with a cash leg, set price, see value and gain roll up", async
     // Without the −1,000 cash leg, net worth is just the +1,200 stock value.
     await page.goto("/");
     await expect(page.getByTestId("networth-hero")).toContainText("1,200.00");
+  });
+});
+
+test("the all-transactions page lists rows across accounts and edits one in place", async ({ page }) => {
+  await page.goto("/");
+
+  await test.step("seed two accounts, each with a cash deposit", async () => {
+    await createAccount(page, { name: "Brokerage", currency: "USD" });
+    await createAccount(page, { name: "Savings", currency: "USD" });
+
+    await page.reload();
+    await page.getByTestId("account-row").filter({ hasText: "Brokerage" }).click();
+    await expect(page).toHaveURL(/\/accounts\//);
+    await addCashDeposit(page, { amount: "1000", currency: "USD" });
+
+    await page.goto("/");
+    await page.getByTestId("account-row").filter({ hasText: "Savings" }).click();
+    await expect(page).toHaveURL(/\/accounts\//);
+    await addCashDeposit(page, { amount: "2000", currency: "USD" });
+  });
+
+  await test.step("the /transactions page lists both accounts' rows, newest first", async () => {
+    await page.getByRole("link", { name: "Transactions" }).click();
+    await expect(page).toHaveURL(/\/transactions$/);
+
+    const rows = page.getByTestId("all-tx-row");
+    await expect(rows).toHaveCount(2);
+    // Both accounts are represented in the list.
+    await expect(page.getByTestId("all-tx-row").filter({ hasText: "Brokerage" })).toHaveCount(1);
+    await expect(page.getByTestId("all-tx-row").filter({ hasText: "Savings" })).toHaveCount(1);
+  });
+
+  await test.step("clicking a row opens the edit dialog; editing notes is reflected in the list", async () => {
+    await page.getByTestId("all-tx-row").filter({ hasText: "Savings" }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("Edit transaction")).toBeVisible();
+    await dialog.getByTestId("edit-tx-notes").fill("payday top-up");
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(dialog).toBeHidden();
+
+    // The closed editor invalidates the all-list; the note now shows on its row.
+    await expect(
+      page.getByTestId("all-tx-row").filter({ hasText: "payday top-up" }),
+    ).toBeVisible();
   });
 });

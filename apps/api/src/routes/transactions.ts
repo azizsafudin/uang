@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
-import { transactions, instruments } from "../db/schema";
+import { transactions, instruments, accounts } from "../db/schema";
 import { eq, desc } from "drizzle-orm";
 import { SCALE } from "@uang/shared";
 import { authGuard } from "../lib/auth-guard";
@@ -25,6 +25,22 @@ export const transactionsRoutes = new Elysia()
         id: r.instruments.id, symbol: r.instruments.symbol, name: r.instruments.name,
         kind: r.instruments.kind, currency: r.instruments.currency,
       },
+    }));
+  })
+  .get("/transactions", async () => {
+    const rows = await db
+      .select()
+      .from(transactions)
+      .innerJoin(instruments, eq(transactions.instrumentId, instruments.id))
+      .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+      .orderBy(desc(transactions.date), desc(transactions.createdAt));
+    return rows.map((r) => ({
+      ...r.transactions,
+      instrument: {
+        id: r.instruments.id, symbol: r.instruments.symbol, name: r.instruments.name,
+        kind: r.instruments.kind, currency: r.instruments.currency,
+      },
+      account: { id: r.accounts.id, name: r.accounts.name, currency: r.accounts.currency },
     }));
   })
   .post(
