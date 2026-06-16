@@ -48,6 +48,27 @@ test("backfill inserts a series but never overwrites an existing manual row", as
   expect(manual.source).toBe("manual");
 });
 
+test("backfill with no explicit range starts from the latest stored price date (incremental)", async () => {
+  const id = await seedInstrument();
+  // Already have a price on 2026-06-10; incremental backfill should anchor there.
+  await db.insert(prices).values({ id: createId(), instrumentId: id, date: "2026-06-10", priceScaled: 50 * 1e8, source: "yahoo", createdAt: nowEpoch() });
+  let capturedStart: string | null = null;
+  const capturing: InstrumentPriceProvider = {
+    name: "cap",
+    async fetchPrice() { return { price: 1, currency: "USD", date: "2026-06-20" }; },
+    async fetchPriceSeries(_inst, start) {
+      capturedStart = start;
+      return [
+        { price: 50, currency: "USD", date: "2026-06-10" }, // already stored -> skipped
+        { price: 60, currency: "USD", date: "2026-06-20" }, // new
+      ];
+    },
+  };
+  const r = await refreshInstrumentPrice(id, { backfill: true }, [capturing]);
+  expect(capturedStart).toBe("2026-06-10");
+  expect(r.rowsWritten).toBe(1); // only the new 2026-06-20 row
+});
+
 test("currency instruments are skipped", async () => {
   const id = await seedInstrument("currency");
   const r = await refreshInstrumentPrice(id, undefined, [fakePrice]);

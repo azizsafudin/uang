@@ -67,12 +67,13 @@ export function InstrumentDetailPage() {
   const [refreshMsg, setRefreshMsg] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  async function refreshPrice(backfill: boolean) {
+  async function updatePrice() {
     setRefreshing(true);
-    setRefreshMsg(backfill ? "Backfilling…" : "Refreshing…");
-    const { data, error } = await api["market-data"].instrument({ id }).refresh.post(backfill ? { backfill: true } : {});
+    setRefreshMsg("Updating…");
+    // Incremental: fetch only dates missing since the last stored price, up to today.
+    const { data, error } = await api["market-data"].instrument({ id }).refresh.post({ backfill: true });
     if (error || !data || !("status" in data)) { setRefreshMsg("Failed"); setRefreshing(false); return; }
-    if (data.status === "updated") setRefreshMsg(`Updated · ${data.rowsWritten} row(s) · ${data.source ?? ""}`);
+    if (data.status === "updated") setRefreshMsg(data.rowsWritten === 0 ? "Already up to date" : `${data.rowsWritten} new price${data.rowsWritten === 1 ? "" : "s"} · ${data.source ?? ""}`);
     else if (data.status === "unsupported") setRefreshMsg("No free source for this symbol");
     else setRefreshMsg("Failed");
     await qc.invalidateQueries({ queryKey: ["prices", id] });
@@ -178,11 +179,8 @@ export function InstrumentDetailPage() {
             <Eyebrow>Price history</Eyebrow>
             <div className="flex items-center gap-2">
               {refreshMsg && <span className="text-xs text-muted-foreground">{refreshMsg}</span>}
-              <Button variant="outline" size="sm" disabled={refreshing} onClick={() => refreshPrice(false)} data-testid="refresh-price">
-                Refresh price
-              </Button>
-              <Button variant="outline" size="sm" disabled={refreshing} onClick={() => refreshPrice(true)} data-testid="backfill-price">
-                Backfill history
+              <Button variant="outline" size="sm" disabled={refreshing} onClick={updatePrice} data-testid="update-price">
+                {refreshing ? "Updating…" : "Update prices"}
               </Button>
               <UpdatePrice instrumentId={id} label="Add price" />
             </div>

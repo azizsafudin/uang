@@ -1,6 +1,6 @@
 import { db } from "../../db/client";
 import { instruments, prices, fxRates, accounts, transactions } from "../../db/schema";
-import { and, eq, min } from "drizzle-orm";
+import { and, eq, min, max } from "drizzle-orm";
 import { SCALE } from "@uang/shared";
 import { createId, nowEpoch } from "../ids";
 import { getSettings } from "../settings";
@@ -65,6 +65,18 @@ async function earliestTxnDate(instrumentId?: string): Promise<string | null> {
   return rows[0]?.d ?? null;
 }
 
+// Latest date we already have a stored price for. Used as the incremental
+// backfill anchor: we only re-fetch from the last-known date forward.
+async function latestStoredPriceDate(instrumentId: string): Promise<string | null> {
+  const rows = await db.select({ d: max(prices.date) }).from(prices).where(eq(prices.instrumentId, instrumentId));
+  return rows[0]?.d ?? null;
+}
+
+async function latestStoredFxDate(currency: string): Promise<string | null> {
+  const rows = await db.select({ d: max(fxRates.date) }).from(fxRates).where(eq(fxRates.currency, currency));
+  return rows[0]?.d ?? null;
+}
+
 export async function refreshInstrumentPrice(
   instrumentId: string,
   range?: RefreshRange,
@@ -85,7 +97,9 @@ export async function refreshInstrumentPrice(
   const isBackfill = !!(range?.from || range?.backfill);
   try {
     if (isBackfill) {
-      const start = range?.from ?? (await earliestTxnDate(instrumentId));
+      // Incremental: start from the last date we already have a price for (insert-if-absent
+      // skips it), else the earliest transaction date. So we only fetch what's missing to date.
+      const start = range?.from ?? (await latestStoredPriceDate(instrumentId)) ?? (await earliestTxnDate(instrumentId));
       if (!start) return refreshInstrumentPrice(instrumentId, undefined, providers);
       const end = range?.to ?? today();
       const got = await resolvePriceSeries(providers, ref, start, end);
@@ -141,7 +155,7 @@ export async function refreshFx(range?: RefreshRange, chain?: FxRateProvider[]):
   for (const cur of currencies) {
     try {
       if (isBackfill) {
-        const start = range?.from ?? (await earliestTxnDate());
+        const start = range?.from ?? (await latestStoredFxDate(cur)) ?? (await earliestTxnDate());
         const end = range?.to ?? today();
         const got = start ? await resolveFxSeries(providers, cur, base, start, end) : null;
         if (!got) { summary.unsupported++; summary.details.push({ id: cur, name: cur, status: "unsupported", rows: 0 }); continue; }

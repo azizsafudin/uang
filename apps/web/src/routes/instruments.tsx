@@ -25,21 +25,23 @@ export function InstrumentsPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
 
-  async function refreshAll(backfill: boolean) {
-    setBusy(true); setMsg(backfill ? "Backfilling prices…" : "Refreshing prices…");
-    const { data } = await api["market-data"].instruments.refresh.post(backfill ? { backfill: true } : {});
-    if (data && "updated" in data) setMsg(`Prices: ${data.updated} updated · ${data.unsupported} unsupported · ${data.failed} failed · ${data.rowsWritten} rows`);
-    else setMsg("Prices: failed");
+  // Single action: bring every instrument price and FX rate up to date, fetching only
+  // the dates missing since the last stored value (incremental backfill).
+  async function updatePrices() {
+    setBusy(true); setMsg("Updating…");
+    const [prices, fx] = await Promise.all([
+      api["market-data"].instruments.refresh.post({ backfill: true }),
+      api["market-data"].fx.refresh.post({ backfill: true }),
+    ]);
+    const p = prices.data, f = fx.data;
+    if (p && "updated" in p && f && "updated" in f) {
+      const rows = p.rowsWritten + f.rowsWritten;
+      const issues = p.unsupported + p.failed + f.unsupported + f.failed;
+      setMsg(rows === 0 && issues === 0 ? "Already up to date" : `${rows} new price${rows === 1 ? "" : "s"}${issues > 0 ? ` · ${issues} unsupported/failed` : ""}`);
+    } else {
+      setMsg("Update failed");
+    }
     await qc.invalidateQueries({ queryKey: ["instruments"] });
-    await qc.invalidateQueries({ queryKey: ["networth"] });
-    setBusy(false);
-  }
-
-  async function refreshFx(backfill: boolean) {
-    setBusy(true); setMsg(backfill ? "Backfilling FX…" : "Refreshing FX…");
-    const { data } = await api["market-data"].fx.refresh.post(backfill ? { backfill: true } : {});
-    if (data && "updated" in data) setMsg(`FX: ${data.updated} updated · ${data.unsupported} unsupported · ${data.failed} failed · ${data.rowsWritten} rows`);
-    else setMsg("FX: failed");
     await qc.invalidateQueries({ queryKey: ["fx"] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
     setBusy(false);
@@ -49,17 +51,8 @@ export function InstrumentsPage() {
     <AppShell>
       <PageHeader eyebrow="Holdings" title="Instruments" />
       <div className="mt-2 mb-5 flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshAll(false)} data-testid="refresh-all-prices">
-          Refresh all prices
-        </Button>
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshAll(true)}>
-          Backfill prices
-        </Button>
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshFx(false)} data-testid="refresh-fx">
-          Refresh FX
-        </Button>
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshFx(true)}>
-          Backfill FX
+        <Button variant="outline" size="sm" disabled={busy} onClick={updatePrices} data-testid="update-prices">
+          {busy ? "Updating…" : "Update prices"}
         </Button>
         {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
       </div>
