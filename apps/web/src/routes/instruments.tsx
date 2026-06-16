@@ -48,7 +48,7 @@ export function InstrumentsPage() {
   return (
     <AppShell>
       <PageHeader eyebrow="Holdings" title="Instruments" />
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-2 mb-5 flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" disabled={busy} onClick={() => refreshAll(false)} data-testid="refresh-all-prices">
           Refresh all prices
         </Button>
