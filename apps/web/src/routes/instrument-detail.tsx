@@ -64,6 +64,24 @@ export function InstrumentDetailPage() {
   const [currency, setCurrency] = useState("");
   const [kind, setKind] = useState("");
 
+  const [refreshMsg, setRefreshMsg] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function refreshPrice(backfill: boolean) {
+    setRefreshing(true);
+    setRefreshMsg(backfill ? "Backfilling…" : "Refreshing…");
+    const { data, error } = await api["market-data"].instrument({ id }).refresh.post(backfill ? { backfill: true } : {});
+    if (error || !data || !("status" in data)) { setRefreshMsg("Failed"); setRefreshing(false); return; }
+    if (data.status === "updated") setRefreshMsg(`Updated · ${data.rowsWritten} row(s) · ${data.source ?? ""}`);
+    else if (data.status === "unsupported") setRefreshMsg("No free source for this symbol");
+    else setRefreshMsg("Failed");
+    await qc.invalidateQueries({ queryKey: ["prices", id] });
+    await qc.invalidateQueries({ queryKey: ["instrument", id] });
+    await qc.invalidateQueries({ queryKey: ["instruments"] });
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+    setRefreshing(false);
+  }
+
   if (isLoading || !instrument) {
     return (
       <AppShell>
@@ -156,9 +174,18 @@ export function InstrumentDetailPage() {
       {/* Price history (hidden for currencies) */}
       {!isCurrency && (
         <section className="mt-8">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between gap-2">
             <Eyebrow>Price history</Eyebrow>
-            <UpdatePrice instrumentId={id} label="Add price" />
+            <div className="flex items-center gap-2">
+              {refreshMsg && <span className="text-xs text-muted-foreground">{refreshMsg}</span>}
+              <Button variant="outline" size="sm" disabled={refreshing} onClick={() => refreshPrice(false)} data-testid="refresh-price">
+                Refresh price
+              </Button>
+              <Button variant="outline" size="sm" disabled={refreshing} onClick={() => refreshPrice(true)} data-testid="backfill-price">
+                Backfill history
+              </Button>
+              <UpdatePrice instrumentId={id} label="Add price" />
+            </div>
           </div>
           {sortedPrices.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-8 text-center text-sm text-muted-foreground">
