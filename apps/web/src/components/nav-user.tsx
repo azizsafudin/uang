@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronsUpDownIcon, LogOutIcon } from "lucide-react";
 import { signOut } from "@/lib/auth";
+import { invalidateAuthGate } from "@/lib/guards";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -82,6 +83,7 @@ export function NavUser({
             <DropdownMenuItem
               onClick={async () => {
                 await signOut();
+                await invalidateAuthGate();
                 await nav({ to: "/login" });
               }}
             >

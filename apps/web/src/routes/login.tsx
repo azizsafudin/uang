@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { signIn } from "@/lib/auth";
+import { invalidateAuthGate } from "@/lib/guards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -20,6 +21,7 @@ export function LoginPage() {
       setError("Invalid email or password.");
       return;
     }
+    await invalidateAuthGate();
     await nav({ to: "/" });
   }
 

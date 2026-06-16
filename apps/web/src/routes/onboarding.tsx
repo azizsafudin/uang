@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { signIn } from "@/lib/auth";
+import { invalidateAuthGate } from "@/lib/guards";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -35,6 +36,7 @@ export function OnboardingPage() {
       email: form.email,
       password: form.password,
     });
+    await invalidateAuthGate();
     await nav({ to: signedIn.error ? "/login" : "/" });
   }
 
