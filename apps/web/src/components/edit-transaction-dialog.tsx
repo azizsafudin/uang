@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { SCALE, currencyDecimals } from "@uang/shared";
 import { transactionsCollection, type TransactionRow } from "@/lib/collections";
+import { useDestructiveAction } from "@/lib/use-destructive-action";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ export function EditTransactionDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const qc = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useDestructiveAction();
   const isCash = tx.instrument.kind === "currency";
   const dec = currencyDecimals(tx.instrument.currency);
 
@@ -57,7 +59,16 @@ export function EditTransactionDialog({
     onOpenChange(false);
   }
 
+  async function del() {
+    await transactionsCollection(accountId).delete(tx.id);
+    await qc.invalidateQueries({ queryKey: ["positions", accountId] });
+    await qc.invalidateQueries({ queryKey: ["networth"] });
+    onOpenChange(false);
+  }
+
   return (
+    <>
+    {confirmDialog}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
@@ -101,12 +112,30 @@ export function EditTransactionDialog({
             </Field>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit">Save</Button>
+          <DialogFooter className="sm:justify-between">
+            <Button
+              type="button"
+              variant="ghost"
+              data-testid="edit-tx-delete"
+              className="text-destructive hover:text-destructive"
+              onClick={() =>
+                confirm({
+                  title: "Delete transaction?",
+                  description: "This transaction will be permanently removed and the position recalculated.",
+                  onConfirm: del,
+                })
+              }
+            >
+              Delete
+            </Button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+              <Button type="submit">Save</Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

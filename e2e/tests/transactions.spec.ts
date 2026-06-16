@@ -67,4 +67,33 @@ test("buy a stock with a cash leg, set price, see value and gain roll up", async
     await page.goto("/");
     await expect(page.getByTestId("networth-hero")).toContainText("200.00");
   });
+
+  await test.step("tapping a History row opens the edit dialog; delete is confirmed inside it", async () => {
+    await page.getByTestId("account-row").filter({ hasText: "Brokerage" }).click();
+    await page.getByRole("tab", { name: "History" }).click();
+
+    const cashRow = page.getByTestId("tx-row").filter({ hasText: "USD" });
+    await expect(cashRow).toBeVisible();
+    await cashRow.click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("Edit transaction")).toBeVisible();
+
+    // Delete opens a confirmation; cancel keeps the transaction.
+    await dialog.getByTestId("edit-tx-delete").click();
+    const confirm = page.getByRole("dialog").filter({ hasText: "Delete transaction?" });
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    await expect(confirm).toBeHidden();
+    await expect(cashRow).toBeVisible();
+
+    // Confirming removes the row and rolls the cash outflow back into net worth.
+    await dialog.getByTestId("edit-tx-delete").click();
+    await page.getByRole("dialog").filter({ hasText: "Delete transaction?" })
+      .getByRole("button", { name: "Delete" }).click();
+    await expect(cashRow).toBeHidden();
+
+    // Without the −1,000 cash leg, net worth is just the +1,200 stock value.
+    await page.goto("/");
+    await expect(page.getByTestId("networth-hero")).toContainText("1,200.00");
+  });
 });

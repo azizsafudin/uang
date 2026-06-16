@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
 import { Money } from "@/components/money.tsx";
-import { Button } from "@/components/ui/button";
 import { UpdatePrice } from "@/components/update-price";
 import { EditTransactionDialog } from "@/components/edit-transaction-dialog";
 import { transactionsCollection, type TransactionRow } from "@/lib/collections";
@@ -124,16 +123,9 @@ export function PositionsPanel({ accountId, accountCurrency }: { accountId: stri
 }
 
 export function HistoryPanel({ accountId }: { accountId: string }) {
-  const qc = useQueryClient();
   const txCollection = transactionsCollection(accountId);
   const { data: txns } = useLiveQuery(txCollection);
   const [editing, setEditing] = useState<TransactionRow | null>(null);
-
-  async function delTx(id: string) {
-    await txCollection.delete(id);
-    await qc.invalidateQueries({ queryKey: ["positions", accountId] });
-    await qc.invalidateQueries({ queryKey: ["networth"] });
-  }
 
   const sortedTxns = [...(txns ?? [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
@@ -150,8 +142,17 @@ export function HistoryPanel({ accountId }: { accountId: string }) {
           <div
             key={t.id}
             data-testid="tx-row"
+            role="button"
+            tabIndex={0}
+            onClick={() => setEditing(t)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setEditing(t);
+              }
+            }}
             className={cn(
-              "group flex items-center justify-between gap-4 px-4 py-3",
+              "flex cursor-pointer items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-muted/50",
               i > 0 && "border-t border-border/70",
             )}
           >
@@ -170,24 +171,6 @@ export function HistoryPanel({ accountId }: { accountId: string }) {
                 {t.unitsDelta >= 0 ? "+" : ""}
                 {amountMajor} {isCash ? t.instrument.currency : "units"}
               </p>
-              <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-foreground"
-                  onClick={() => setEditing(t)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => delTx(t.id)}
-                >
-                  Delete
-                </Button>
-              </div>
             </div>
           </div>
         );
