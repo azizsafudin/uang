@@ -14,6 +14,7 @@ import { AccountInfoCard } from "@/components/account-info-card";
 import { OwnerPills } from "@/components/owner-pills";
 import { AccountProjectionCard } from "@/components/account-projection-card";
 import { AddTransactionDialog } from "@/components/add-transaction-dialog";
+import { AdjustBalanceDialog } from "@/components/adjust-balance-dialog";
 import { ImportDialog } from "@/components/import-dialog";
 import { usePositions, PositionsPanel, HistoryPanel } from "@/components/account-history";
 import {
@@ -178,6 +179,11 @@ export function AccountDetailPage() {
 
       <div className="mt-5 flex gap-2">
         <AddTransactionDialog accountId={id} accountCurrency={account.currency} />
+        <AdjustBalanceDialog
+          accountId={id}
+          accountCurrency={account.currency}
+          currentMinor={pos?.totalMinor ?? 0}
+        />
         <ImportDialog accountId={id} accountCurrency={account.currency} />
       </div>
 

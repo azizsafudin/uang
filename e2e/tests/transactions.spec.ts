@@ -104,6 +104,45 @@ test("buy a stock with a cash leg, set price, see value and gain roll up", async
   });
 });
 
+test("adjust balance posts a delta transaction that brings the account to the target", async ({ page }) => {
+  await page.goto("/");
+
+  await test.step("create a USD account with a 1,000 cash deposit", async () => {
+    await createAccount(page, { name: "Savings", currency: "USD" });
+    await page.reload();
+    await page.getByTestId("account-row").filter({ hasText: "Savings" }).click();
+    await expect(page).toHaveURL(/\/accounts\//);
+    await addCashDeposit(page, { amount: "1000", currency: "USD" });
+    await page.reload();
+    await expect(page.getByTestId("account-total")).toContainText("1,000.00");
+  });
+
+  await test.step("adjust the balance up to 2,500", async () => {
+    await page.getByRole("button", { name: "Adjust balance" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByTestId("adjust-balance-amount").fill("2500");
+    await dialog.getByRole("button", { name: "Adjust" }).click();
+    await expect(dialog).toBeHidden();
+  });
+
+  await test.step("the account total reflects the target balance", async () => {
+    await page.reload();
+    await expect(page.getByTestId("account-total")).toContainText("2,500.00");
+  });
+
+  await test.step("History records the +1,500 delta with an 'Adjusted balance' note", async () => {
+    await page.getByRole("tab", { name: "History" }).click();
+    const row = page.getByTestId("tx-row").filter({ hasText: "Adjusted balance" });
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("+1500");
+  });
+
+  await test.step("it rolls into the dashboard net worth", async () => {
+    await page.goto("/");
+    await expect(page.getByTestId("networth-hero")).toContainText("2,500.00");
+  });
+});
+
 test("the all-transactions page lists rows across accounts and edits one in place", async ({ page }) => {
   await page.goto("/");
 
