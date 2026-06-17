@@ -273,3 +273,18 @@ test("contributions combine standalone cash and security buys", async () => {
   const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-01" });
   expect(series.points[0].netDepositsBaseMinor).toBe(250000); // $2000 + $500
 });
+
+test("a security buy's fees are excluded from contribution cost basis", async () => {
+  await seedSettings("USD");
+  const acc = await seedBrokerage();
+  const stock = await ensureSecurity("AAPL", "USD");
+  // Buy 10 @ $100 with $50 of fees. Cost basis should be $1000, NOT $1050.
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: stock, date: "2026-01-01",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 5000, notes: null,
+    createdAt: nowEpoch(), createdBy: "u",
+  });
+
+  const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-01" });
+  expect(series.points[0].netDepositsBaseMinor).toBe(100000); // $1000, fees ignored
+});
