@@ -101,7 +101,7 @@ function MembersSection() {
 export function PlanPage() {
   return (
     <AppShell>
-      <PageHeader title="Plan" description="Your net worth over time, the goals it funds, and the accounts behind them." />
+      <PageHeader title="Projection" description="Your net worth over time, the goals it funds, and the accounts behind them." />
       <div className="space-y-6">
         <ProjectionChart />
         <section>

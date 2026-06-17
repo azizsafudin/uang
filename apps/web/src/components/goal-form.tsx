@@ -4,6 +4,7 @@ import { useLiveQuery } from "@tanstack/react-db";
 import { useQueryClient } from "@tanstack/react-query";
 import { currencyDecimals } from "@uang/shared";
 import { goalsCollection, newId, type GoalRow, accountsCollection } from "@/lib/collections";
+import { useUsers } from "@/lib/use-users";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +72,20 @@ export function GoalForm({
   const eligible = accounts.filter((a) => a.class === "asset" && a.isArchived === 0);
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [contributionAccountId, setContributionAccountId] = useState<string | null>(null);
+
+  // Group the eligible accounts by owner set (e.g. "Aziz", "Jihan", "Aziz & Jihan"),
+  // matching how accounts are organised elsewhere. First-seen order is preserved.
+  const { data: users } = useUsers();
+  const nameById = new Map((users ?? []).map((u) => [u.id, u.name] as const));
+  const ownerLabel = (ids: string[]) =>
+    ids.length === 0 ? "Unassigned" : ids.map((id) => nameById.get(id) ?? "Unknown").join(" & ");
+  const ownerGroups: { label: string; accounts: typeof eligible }[] = [];
+  for (const a of eligible) {
+    const label = ownerLabel(a.ownerIds);
+    let g = ownerGroups.find((x) => x.label === label);
+    if (!g) { g = { label, accounts: [] }; ownerGroups.push(g); }
+    g.accounts.push(a);
+  }
 
   const defaults = (): FormValues => ({
     name: goal?.name ?? "",
@@ -253,29 +268,38 @@ export function GoalForm({
 
             <div className="space-y-2 border-t border-border/70 pt-4">
               <Field label="Funded by">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2.5">
                   {eligible.length === 0 && (
                     <p className="text-sm text-muted-foreground">No asset accounts yet.</p>
                   )}
-                  {eligible.map((a) => {
-                    const checked = accountIds.includes(a.id);
-                    return (
-                      <label key={a.id} className="flex items-center gap-2 text-sm" data-testid={`assign-${a.id}`}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            setAccountIds((prev) => {
-                              const next = e.target.checked ? [...prev, a.id] : prev.filter((id) => id !== a.id);
-                              if (!next.includes(contributionAccountId ?? "")) setContributionAccountId(next[0] ?? null);
-                              return next;
-                            });
-                          }}
-                        />
-                        <span>{a.name}</span>
-                      </label>
-                    );
-                  })}
+                  {ownerGroups.map((group) => (
+                    <div key={group.label} className="flex flex-col gap-1.5">
+                      {ownerGroups.length > 1 && (
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                          {group.label}
+                        </span>
+                      )}
+                      {group.accounts.map((a) => {
+                        const checked = accountIds.includes(a.id);
+                        return (
+                          <label key={a.id} className="flex items-center gap-2 text-sm" data-testid={`assign-${a.id}`}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setAccountIds((prev) => {
+                                  const next = e.target.checked ? [...prev, a.id] : prev.filter((id) => id !== a.id);
+                                  if (!next.includes(contributionAccountId ?? "")) setContributionAccountId(next[0] ?? null);
+                                  return next;
+                                });
+                              }}
+                            />
+                            <span>{a.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               </Field>
               {accountIds.length > 0 && (

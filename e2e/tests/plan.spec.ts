@@ -13,9 +13,9 @@ test("plan page: projection chart, create a goal, and goal card appears", async 
     await createAccount(page, { name: "Savings", currency: "USD" });
   });
 
-  await test.step("navigate to /plan via sidebar", async () => {
-    await page.getByRole("link", { name: "Plan" }).click();
-    await expect(page.getByRole("heading", { name: "Plan" })).toBeVisible();
+  await test.step("navigate to /goals via sidebar", async () => {
+    await page.getByRole("link", { name: "Goals" }).click();
+    await expect(page.getByRole("heading", { name: "Projection" })).toBeVisible();
   });
 
   await test.step("projection chart is visible", async () => {

@@ -214,7 +214,13 @@ export function ProjectionChart() {
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  labelFormatter={(l) => `Year ${l}`}
+                  // Header reads the actual calendar year off the hovered point
+                  // plus its offset from today (this year = Year 1), e.g. "2030 · Year 5".
+                  labelFormatter={(_label, payload) => {
+                    const yr = (payload?.[0]?.payload as { year?: number } | undefined)?.year;
+                    if (yr == null) return "";
+                    return `${yr} · Year ${yr - thisYear + 1}`;
+                  }}
                   formatter={(value, name) =>
                     `${name === "total" ? "Total" : "Accessible"}: ${money(Number(value), base)}`
                   }

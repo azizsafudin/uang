@@ -162,22 +162,23 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-const planRoute = createRoute({
+const goalsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
-  path: "/plan",
+  path: "/goals",
   component: PlanPage,
 });
 
-const goalsRedirect = createRoute({
+// Old paths now redirect to the renamed /goals page.
+const planRedirect = createRoute({
   getParentRoute: () => appLayoutRoute,
-  path: "/goals",
-  beforeLoad: () => { throw redirect({ to: "/plan" }); },
+  path: "/plan",
+  beforeLoad: () => { throw redirect({ to: "/goals" }); },
 });
 
 const projectionsRedirect = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/projections",
-  beforeLoad: () => { throw redirect({ to: "/plan" }); },
+  beforeLoad: () => { throw redirect({ to: "/goals" }); },
 });
 
 const goalDetailRoute = createRoute({
@@ -197,8 +198,8 @@ const routeTree = rootRoute.addChildren([
     transactionsRoute,
     instrumentDetailRoute,
     settingsRoute,
-    planRoute,
-    goalsRedirect,
+    goalsRoute,
+    planRedirect,
     projectionsRedirect,
     goalDetailRoute,
   ]),

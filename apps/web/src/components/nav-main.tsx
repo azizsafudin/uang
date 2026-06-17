@@ -14,7 +14,7 @@ const NAV = [
   { to: "/assets", label: "Assets", icon: Wallet },
   { to: "/instruments", label: "Instruments", icon: CandlestickChart },
   { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
-  { to: "/plan", label: "Plan", icon: TrendingUp },
+  { to: "/goals", label: "Goals", icon: TrendingUp },
 ] as const;
 
 export function NavMain() {

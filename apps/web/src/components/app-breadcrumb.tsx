@@ -11,7 +11,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
-type Crumb = { label: string; to?: "/" | "/plan" | "/instruments" };
+type Crumb = { label: string; to?: "/" | "/goals" | "/instruments" };
 
 // The id segment of a /goals/:id detail path, else null.
 function goalIdFromPath(pathname: string): string | null {
@@ -38,12 +38,12 @@ function crumbsFor(
   instrumentName?: string,
 ): Crumb[] {
   if (pathname === "/") return [{ label: "Dashboard" }];
-  if (pathname.startsWith("/plan")) return [{ label: "Plan" }];
-  if (pathname.startsWith("/projections")) return [{ label: "Plan" }];
+  if (pathname.startsWith("/plan")) return [{ label: "Goals" }];
+  if (pathname.startsWith("/projections")) return [{ label: "Goals" }];
   if (pathname.startsWith("/settings")) return [{ label: "Settings" }];
   if (pathname.startsWith("/goals/"))
-    return [{ label: "Plan", to: "/plan" }, { label: goalName ?? "Goal" }];
-  if (pathname.startsWith("/goals")) return [{ label: "Plan" }];
+    return [{ label: "Goals", to: "/goals" }, { label: goalName ?? "Goal" }];
+  if (pathname.startsWith("/goals")) return [{ label: "Goals" }];
   if (pathname.startsWith("/instruments/"))
     return [{ label: "Instruments", to: "/instruments" }, { label: instrumentName ?? "Instrument" }];
   if (pathname.startsWith("/instruments")) return [{ label: "Instruments" }];
