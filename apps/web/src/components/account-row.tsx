@@ -30,7 +30,7 @@ type Props = {
   // instead of linking to the account detail page.
   onSelect?: () => void;
   // When provided, replaces the right-hand balance block (e.g. show projection
-  // config instead of the account value on the /projections page).
+  // config instead of the account value on the /goals page).
   trailing?: React.ReactNode;
 };
 

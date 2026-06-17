@@ -78,7 +78,7 @@ function seedForm(account: AccountRow): FormValues {
 
 // The projection assumptions editor for one account (vessel-only: growth,
 // accessibility, compound interval, and loan terms for liabilities).
-// Rendered inside the edit dialog on /projections.
+// Rendered inside the edit dialog on /goals.
 export function AccountProjectionForm({
   account,
   baseCurrency,

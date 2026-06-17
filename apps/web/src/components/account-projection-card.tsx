@@ -9,7 +9,7 @@ import { AccountProjectionForm } from "@/components/account-projection-form";
 const pct = (bps: number) => `${bps / 100}%`;
 
 // Read-only summary of an account's projection assumptions, mirroring the
-// /projections page. Editing reuses the same `AccountProjectionForm`, shown
+// /goals page. Editing reuses the same `AccountProjectionForm`, shown
 // inline in place of the summary (matching the Details tab's edit pattern).
 export function AccountProjectionCard({ account }: { account: AccountRow }) {
   const [editing, setEditing] = useState(false);

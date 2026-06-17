@@ -168,19 +168,6 @@ const goalsRoute = createRoute({
   component: PlanPage,
 });
 
-// Old paths now redirect to the renamed /goals page.
-const planRedirect = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: "/plan",
-  beforeLoad: () => { throw redirect({ to: "/goals" }); },
-});
-
-const projectionsRedirect = createRoute({
-  getParentRoute: () => appLayoutRoute,
-  path: "/projections",
-  beforeLoad: () => { throw redirect({ to: "/goals" }); },
-});
-
 const goalDetailRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/goals/$id",
@@ -199,8 +186,6 @@ const routeTree = rootRoute.addChildren([
     instrumentDetailRoute,
     settingsRoute,
     goalsRoute,
-    planRedirect,
-    projectionsRedirect,
     goalDetailRoute,
   ]),
 ]);

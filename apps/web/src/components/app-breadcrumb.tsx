@@ -38,8 +38,6 @@ function crumbsFor(
   instrumentName?: string,
 ): Crumb[] {
   if (pathname === "/") return [{ label: "Dashboard" }];
-  if (pathname.startsWith("/plan")) return [{ label: "Goals" }];
-  if (pathname.startsWith("/projections")) return [{ label: "Goals" }];
   if (pathname.startsWith("/settings")) return [{ label: "Settings" }];
   if (pathname.startsWith("/goals/"))
     return [{ label: "Goals", to: "/goals" }, { label: goalName ?? "Goal" }];
