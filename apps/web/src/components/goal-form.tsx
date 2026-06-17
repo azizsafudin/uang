@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { useLiveQuery } from "@tanstack/react-db";
+import { useQueryClient } from "@tanstack/react-query";
 import { currencyDecimals } from "@uang/shared";
 import { goalsCollection, newId, type GoalRow, accountsCollection } from "@/lib/collections";
 import { api } from "@/lib/api";
@@ -59,6 +60,7 @@ export function GoalForm({
   hideTrigger?: boolean;
 }) {
   const editing = !!goal;
+  const qc = useQueryClient();
   const currency = goal?.currency ?? defaultCurrency;
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
@@ -159,6 +161,9 @@ export function GoalForm({
       });
     }
     await api.goals({ id: goalId }).accounts.put({ accountIds });
+    // Funding-set / contribution-account edits don't change the goal's scalar
+    // signature, so force the analysis (donut sources + chart flows) to refetch.
+    await qc.invalidateQueries({ queryKey: ["goals", "analysis"] });
     setOpen(false);
   }
 
