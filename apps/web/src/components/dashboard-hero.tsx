@@ -67,7 +67,7 @@ export function DashboardHero({
       </div>
 
       {/* grand, centered net-worth headline */}
-      <div className="mt-7 flex flex-col items-center text-center">
+      <div className="mt-2 flex flex-col items-center text-center">
         <p
           data-testid="networth-hero"
           className="mt-3 font-heading text-[3.25rem] font-medium leading-none tracking-tight tabular-nums md:text-[4.25rem]"
