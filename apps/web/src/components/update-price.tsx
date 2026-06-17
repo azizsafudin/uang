@@ -53,6 +53,7 @@ export function UpdatePrice({
     });
     if (accountId) await qc.invalidateQueries({ queryKey: ["positions", accountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     await qc.invalidateQueries({ queryKey: ["instrument", instrumentId] });
     setOpen(false);
   }

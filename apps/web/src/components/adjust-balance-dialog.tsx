@@ -76,6 +76,7 @@ export function AdjustBalanceDialog({
     await transactionsCollection(accountId).utils.refetch();
     await qc.invalidateQueries({ queryKey: ["positions", accountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     setOpen(false);
   }
 

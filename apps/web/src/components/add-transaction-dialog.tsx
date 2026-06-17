@@ -253,6 +253,7 @@ export function AddTransactionDialog({
     await transactionsCollection(effectiveAccountId).utils.refetch();
     await qc.invalidateQueries({ queryKey: ["positions", effectiveAccountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     await qc.invalidateQueries({ queryKey: ["transactions", "all"] });
     setDialogOpen(false);
     resetForm();

@@ -243,6 +243,7 @@ export function DashboardSection({
     // Server also nullifies member accounts' groupId on its side.
     await groupsCollection.delete(id);
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
   }
 
   function findContainer(id: string): string | undefined {
@@ -272,6 +273,7 @@ export function DashboardSection({
     }
     await api.accounts.reorder.patch({ items });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     await qc.invalidateQueries({ queryKey: ["groups"] });
   }
 

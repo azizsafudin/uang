@@ -123,6 +123,7 @@ export function AccountProjectionForm({
       draft.compoundInterval = f.compoundInterval;
     });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     onClose();
   }
 

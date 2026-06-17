@@ -54,6 +54,7 @@ export function AccountDetailPage() {
       draft.isArchived = 1;
     });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
   }
 
   async function restoreAccount() {
@@ -61,11 +62,13 @@ export function AccountDetailPage() {
       draft.isArchived = 0;
     });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
   }
 
   async function deleteAccount() {
     await accountsCollection.delete(account!.id);
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     await nav({ to: "/" });
   }
 

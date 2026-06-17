@@ -47,6 +47,7 @@ export function InstrumentsPage() {
     await qc.invalidateQueries({ queryKey: ["instruments"] });
     await qc.invalidateQueries({ queryKey: ["fx"] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     setBusy(false);
   }
 

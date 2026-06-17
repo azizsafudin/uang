@@ -97,6 +97,7 @@ export function InstrumentDetailPage() {
     await qc.invalidateQueries({ queryKey: ["instrument", id] });
     await qc.invalidateQueries({ queryKey: ["instruments"] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     setRefreshing(false);
   }
 
@@ -132,6 +133,7 @@ export function InstrumentDetailPage() {
     });
     await qc.invalidateQueries({ queryKey: ["instrument", id] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     setEditOpen(false);
   }
 
@@ -140,6 +142,7 @@ export function InstrumentDetailPage() {
     if (error) throw new Error(String(error));
     await qc.invalidateQueries({ queryKey: ["instruments"] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     await nav({ to: "/instruments" });
   }
 
@@ -158,6 +161,7 @@ export function InstrumentDetailPage() {
     await pricesCollection(id).delete(priceId);
     await qc.invalidateQueries({ queryKey: ["instrument", id] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
   }
 
   return (

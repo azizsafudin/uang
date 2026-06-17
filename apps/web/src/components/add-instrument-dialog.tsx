@@ -40,6 +40,7 @@ export function AddInstrumentDialog({ defaultCurrency }: { defaultCurrency: stri
     await instrumentsCollection.utils.refetch();
     await qc.invalidateQueries({ queryKey: ["instruments"] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     setBusy(false);
     setOpen(false);
     setSpec(null);

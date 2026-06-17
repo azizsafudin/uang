@@ -81,6 +81,7 @@ export function AccountInfoCard({ account }: Props) {
       await qc.invalidateQueries({ queryKey: ["accounts"] });
     }
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     setEditing(false);
   }
 

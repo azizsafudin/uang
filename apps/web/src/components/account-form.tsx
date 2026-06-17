@@ -121,6 +121,7 @@ export function AccountForm({
     };
     await accountsCollection.insert(row);
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     onOpenChange(false);
   }
 

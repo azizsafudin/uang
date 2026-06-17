@@ -81,6 +81,7 @@ export function EditTransactionDialog({
 
     await qc.invalidateQueries({ queryKey: ["positions", accountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     onOpenChange(false);
   }
 
@@ -88,6 +89,7 @@ export function EditTransactionDialog({
     await transactionsCollection(accountId).delete(tx.id);
     await qc.invalidateQueries({ queryKey: ["positions", accountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
+    await qc.invalidateQueries({ queryKey: ["holdings"] });
     onOpenChange(false);
   }
 
