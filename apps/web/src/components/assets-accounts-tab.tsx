@@ -18,6 +18,21 @@ const DIMENSIONS: { key: Dimension; label: string }[] = [
   { key: "liquidity", label: "Liquidity" },
 ];
 
+// Liquidity tier for an account: the illiquid flag wins; otherwise an
+// accessible-from age becomes its own bucket (e.g. "Accessible from 55"),
+// annotated with the early-withdrawal penalty when set; else "Liquid".
+function liquidityLabel(a: AccountValuation): string {
+  if (a.illiquid) return "Illiquid";
+  if (a.accessibleFromAge > 0) {
+    const penalty =
+      a.earlyWithdrawal === "penalty" && a.earlyHaircutBps > 0
+        ? ` · ${+(a.earlyHaircutBps / 100).toFixed(2)}% penalty before`
+        : "";
+    return `Accessible from ${a.accessibleFromAge}${penalty}`;
+  }
+  return "Liquid";
+}
+
 // Bucket asset accounts by the chosen dimension, summing base value. Accounts
 // missing a rate are excluded (no reliable base value). Returns largest-first.
 function bucketize(
@@ -31,8 +46,7 @@ function bucketize(
     let label: string;
     if (dim === "type") label = subtypeLabel(a.subtype);
     else if (dim === "currency") label = a.currency;
-    // Illiquid if explicitly flagged OR locked until a future age (e.g. CPF at 55).
-    else if (dim === "liquidity") label = a.illiquid || a.accessibleFromAge > 0 ? "Illiquid" : "Liquid";
+    else if (dim === "liquidity") label = liquidityLabel(a);
     else label = a.ownerIds.length >= 2 ? "Shared" : a.ownerIds.map(userName).join(", ") || "Unassigned";
     totals.set(label, (totals.get(label) ?? 0) + a.baseMinor);
   }

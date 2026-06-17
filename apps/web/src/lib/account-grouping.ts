@@ -17,6 +17,8 @@ export type AccountValuation = {
   shared: boolean;
   illiquid: boolean;
   accessibleFromAge: number;
+  earlyWithdrawal: "none" | "penalty";
+  earlyHaircutBps: number;
   groupId: string | null;
   sortOrder: number;
 };
