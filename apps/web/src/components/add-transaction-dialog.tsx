@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { useLiveQuery } from "@tanstack/react-db";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SCALE, currencyDecimals } from "@uang/shared";
 import { accountsCollection, instrumentsCollection, transactionsCollection, newId } from "@/lib/collections";
 import { api } from "@/lib/api";
+import { resolveDefaultAccountId } from "@/lib/last-used-account";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,20 +44,65 @@ type FormValues = {
   notes: string;
 };
 
-export function AddTransactionDialog({ accountId, accountCurrency }: { accountId: string; accountCurrency: string }) {
+type AddTransactionDialogProps = {
+  // When omitted, the dialog runs in "global" mode: it shows an account picker
+  // (pre-filled to the last-used account) and expects controlled open state.
+  accountId?: string;
+  accountCurrency?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+};
+
+export function AddTransactionDialog({
+  accountId,
+  accountCurrency,
+  open,
+  onOpenChange,
+  showTrigger = true,
+}: AddTransactionDialogProps) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const globalMode = accountId === undefined;
+
+  // Open state: controlled by the parent when `open` is provided, else internal.
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = open !== undefined;
+  const dialogOpen = isControlled ? open : internalOpen;
+
   const [splitApplied, setSplitApplied] = useState(false);
   const [newSpec, setNewSpec] = useState<NewInstrumentSpec | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState("");
   const { data: instruments } = useLiveQuery(instrumentsCollection);
   const { data: accounts } = useLiveQuery(accountsCollection);
+
+  // Global mode needs the all-accounts feed to pick the last-used account.
+  const { data: allTx } = useQuery({
+    queryKey: ["transactions", "all"],
+    queryFn: async () => {
+      const { data, error } = await api.transactions.get();
+      if (error) throw new Error(String(error));
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: globalMode,
+  });
+
+  const effectiveAccountId = accountId ?? selectedAccountId;
+  const effectiveAccountCurrency =
+    accountCurrency ?? (accounts ?? []).find((a) => a.id === effectiveAccountId)?.currency ?? "";
+
+  // Pre-select the last-used account the first time global mode has data.
+  useEffect(() => {
+    if (!globalMode || selectedAccountId) return;
+    const def = resolveDefaultAccountId(allTx, accounts);
+    if (def) setSelectedAccountId(def);
+  }, [globalMode, selectedAccountId, allTx, accounts]);
 
   const currencies = useMemo(() => (instruments ?? []).filter((i) => i.kind === "currency"), [instruments]);
   const securities = useMemo(() => (instruments ?? []).filter((i) => i.kind !== "currency"), [instruments]);
 
   const defaults = (): FormValues => ({
     instrumentId: "",
-    newCurrency: accountCurrency,
+    newCurrency: effectiveAccountCurrency,
     amount: "",
     side: "buy",
     units: "",
@@ -78,6 +124,11 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
     setNewSpec(null);
   }
 
+  function setDialogOpen(v: boolean) {
+    if (isControlled) onOpenChange?.(v);
+    else setInternalOpen(v);
+  }
+
   // Reactive reads driving conditional fields and derived hints.
   const instrumentId = watch("instrumentId");
   const amount = watch("amount");
@@ -90,7 +141,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   const selected = (instruments ?? []).find((i) => i.id === instrumentId);
   const isCurrencyMode = instrumentId === NEW_CURRENCY || selected?.kind === "currency";
   const currencyModeCurrency =
-    instrumentId === NEW_CURRENCY ? watch("newCurrency").toUpperCase() : selected?.currency ?? accountCurrency;
+    instrumentId === NEW_CURRENCY ? watch("newCurrency").toUpperCase() : selected?.currency ?? effectiveAccountCurrency;
 
   const amountNum = parseFloat(amount);
 
@@ -98,8 +149,8 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   // payment is part interest, part principal. Only the principal pays down the
   // balance, so we suggest the principal amount and prefill the interest in the
   // note. One month of interest on the outstanding balance (matches projections).
-  const acctRow = (accounts ?? []).find((a) => a.id === accountId);
-  const dec = currencyDecimals(accountCurrency);
+  const acctRow = (accounts ?? []).find((a) => a.id === effectiveAccountId);
+  const dec = currencyDecimals(effectiveAccountCurrency || "USD");
   const loanRateBps = acctRow?.class === "liability" ? acctRow.growthRateBps : 0;
   const outstandingMajor = acctRow ? Math.abs(acctRow.balanceMinor) / 10 ** dec : 0;
   const monthlyInterestMajor = (outstandingMajor * (loanRateBps / 10000)) / 12;
@@ -114,12 +165,12 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
 
   function applyLoanSplit() {
     setValue("amount", principalMajor.toFixed(dec));
-    setValue("notes", `Interest: ${monthlyInterestMajor.toFixed(dec)} ${accountCurrency} (${loanRateBps / 100}%/yr)`);
+    setValue("notes", `Interest: ${monthlyInterestMajor.toFixed(dec)} ${effectiveAccountCurrency} (${loanRateBps / 100}%/yr)`);
     setSplitApplied(true);
   }
 
   const securityCurrency =
-    instrumentId === NEW_INSTRUMENT ? (newSpec?.currency ?? accountCurrency) : selected?.currency ?? accountCurrency;
+    instrumentId === NEW_INSTRUMENT ? (newSpec?.currency ?? effectiveAccountCurrency) : selected?.currency ?? effectiveAccountCurrency;
   const cashAmount = (parseFloat(units) || 0) * (parseFloat(price) || 0) + (parseFloat(fees) || 0);
 
   async function ensureCurrencyId(symbol: string): Promise<string> {
@@ -130,6 +181,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
   }
 
   async function onSubmit(values: FormValues) {
+    if (!effectiveAccountId) return;
     const sel = (instruments ?? []).find((i) => i.id === values.instrumentId);
     const isCash = values.instrumentId === NEW_CURRENCY || sel?.kind === "currency";
 
@@ -139,7 +191,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
       if (values.instrumentId === NEW_CURRENCY) id = await ensureCurrencyId(values.newCurrency);
       const amt = parseFloat(values.amount);
       if (Number.isNaN(amt) || amt === 0) return;
-      const { error } = await api.accounts({ id: accountId }).transactions.post({
+      const { error } = await api.accounts({ id: effectiveAccountId }).transactions.post({
         id: newId(),
         instrumentId: id,
         date: values.date,
@@ -172,7 +224,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
       const fee = parseFloat(values.fees);
       if (Number.isNaN(u) || Number.isNaN(p)) return;
       const secCurrency =
-        values.instrumentId === NEW_INSTRUMENT ? newSpec!.currency : sel?.currency ?? accountCurrency;
+        values.instrumentId === NEW_INSTRUMENT ? newSpec!.currency : sel?.currency ?? effectiveAccountCurrency;
       const secDec = currencyDecimals(secCurrency);
       const signedUnits = values.side === "buy" ? u : -u;
       const cash = u * p + (Number.isNaN(fee) ? 0 : fee);
@@ -185,7 +237,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
         cashLeg = { instrumentId: cashId, unitsDelta: Math.round(cashUnits * S) };
       }
 
-      const { error } = await api.accounts({ id: accountId }).transactions.post({
+      const { error } = await api.accounts({ id: effectiveAccountId }).transactions.post({
         id: newId(),
         instrumentId: id,
         date: values.date,
@@ -198,22 +250,45 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
       if (error) throw new Error(String(error));
     }
 
-    await transactionsCollection(accountId).utils.refetch();
-    await qc.invalidateQueries({ queryKey: ["positions", accountId] });
+    await transactionsCollection(effectiveAccountId).utils.refetch();
+    await qc.invalidateQueries({ queryKey: ["positions", effectiveAccountId] });
     await qc.invalidateQueries({ queryKey: ["networth"] });
-    setOpen(false);
+    await qc.invalidateQueries({ queryKey: ["transactions", "all"] });
+    setDialogOpen(false);
     resetForm();
   }
 
   return (
-    <ResponsiveDialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
-      <ResponsiveDialogTrigger render={<Button />}>Add transaction</ResponsiveDialogTrigger>
+    <ResponsiveDialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) resetForm(); }}>
+      {showTrigger ? (
+        <ResponsiveDialogTrigger render={<Button />}>Add transaction</ResponsiveDialogTrigger>
+      ) : null}
       <ResponsiveDialogContent>
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>Add transaction</ResponsiveDialogTitle>
         </ResponsiveDialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
           <ResponsiveDialogBody className="space-y-4">
+            {globalMode ? (
+              <Field label="Account">
+                <Select value={selectedAccountId} onValueChange={(v: string | null) => v && setSelectedAccountId(v)}>
+                  <SelectTrigger className="w-full" data-testid="tx-account">
+                    <SelectValue>
+                      {(v: unknown) => {
+                        const a = (accounts ?? []).find((x) => x.id === String(v));
+                        return a ? a.name : "Select account";
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(accounts ?? []).map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            ) : null}
+
             <Field label="Instrument">
               <Controller
                 control={control}
@@ -255,7 +330,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
             )}
 
             {instrumentId === NEW_INSTRUMENT && (
-              <NewInstrumentForm defaultCurrency={accountCurrency} onResolved={setNewSpec} />
+              <NewInstrumentForm defaultCurrency={effectiveAccountCurrency} onResolved={setNewSpec} />
             )}
 
             {instrumentId === "" ? (
@@ -286,7 +361,7 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
                 {showLoanSplit && (
                   <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
                     <p className="text-muted-foreground">
-                      Loan payment: ~{monthlyInterestMajor.toFixed(dec)} {accountCurrency} interest this month ·{" "}
+                      Loan payment: ~{monthlyInterestMajor.toFixed(dec)} {effectiveAccountCurrency} interest this month ·{" "}
                       {principalMajor.toFixed(dec)} principal.
                     </p>
                     <Button type="button" variant="outline" size="sm" className="mt-2"
@@ -366,10 +441,10 @@ export function AddTransactionDialog({ accountId, accountCurrency }: { accountId
           </ResponsiveDialogBody>
 
           <ResponsiveDialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+            <Button type="button" variant="ghost" onClick={() => { setDialogOpen(false); resetForm(); }}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!instrumentId || (instrumentId === NEW_INSTRUMENT && !newSpec)}>Add</Button>
+            <Button type="submit" disabled={!instrumentId || (globalMode && !selectedAccountId) || (instrumentId === NEW_INSTRUMENT && !newSpec)}>Add</Button>
           </ResponsiveDialogFooter>
         </form>
       </ResponsiveDialogContent>
