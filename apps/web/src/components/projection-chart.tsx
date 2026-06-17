@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
-import { projectNetWorth, milestoneYears, type ProjectionAccount } from "@uang/shared";
+import { projectNetWorth, milestoneYears, deriveAccountFlows, type ProjectionAccount, type GoalFlowInput } from "@uang/shared";
 import { api } from "@/lib/api";
 import { useMoney } from "@/lib/values-hidden";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,19 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+
+type GoalAnalysisRow = {
+  id: string;
+  targetDate: string | null;
+  reachDate: string | null;
+  monthlyContributionMinor: number;
+  contributionAccountId: string | null;
+  accountIds: string[];
+  spendType: "none" | "once" | "monthly" | "percent";
+  spendAmountMinor: number | null;
+  spendRateBps: number | null;
+};
+type GoalAnalysisResponse = { goals: GoalAnalysisRow[] };
 
 type NwAccount = {
   id: string;
@@ -24,14 +37,6 @@ type NwAccount = {
   earlyHaircutBps: number;
   illiquid: boolean;
   liquidationAge: number | null;
-  spendType: "none" | "once" | "monthly" | "percent";
-  spendAmountMinor: number | null;
-  spendRateBps: number | null;
-  spendStartKind: "age" | "target";
-  spendStartAge: number | null;
-  spendStartTargetMinor: number | null;
-  contributionMinor: number;
-  contributionUntilAge: number | null;
   compoundInterval: "monthly" | "quarterly" | "annually";
   loanTermMonths: number | null;
 };
@@ -53,6 +58,12 @@ async function fetchMembers(): Promise<Member[]> {
   const { data, error } = await api.members.get();
   if (error) throw new Error(String(error));
   return (data as unknown as Member[]) ?? [];
+}
+
+async function fetchGoalAnalysis(): Promise<GoalAnalysisResponse> {
+  const { data, error } = await api.goals.analysis.get();
+  if (error) throw new Error(String(error));
+  return data as unknown as GoalAnalysisResponse;
 }
 
 const MILESTONE_COLORS = ["var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
@@ -88,6 +99,7 @@ export function ProjectionChart() {
   const [endAge, setEndAge] = useState(90);
   const nwQ = useQuery({ queryKey: ["networth", "household"], queryFn: fetchNetWorth });
   const membersQ = useQuery({ queryKey: ["members"], queryFn: fetchMembers });
+  const goalsQ = useQuery({ queryKey: ["goals", "analysis"], queryFn: fetchGoalAnalysis });
 
   const base = nwQ.data?.baseCurrency ?? "";
   const thisYear = new Date().getFullYear();
@@ -97,6 +109,24 @@ export function ProjectionChart() {
     const members = membersQ.data ?? [];
     const birthById = new Map(members.map((m) => [m.id, m.birthYear]));
 
+    const yearOf = (iso: string | null): number | null => (iso ? parseInt(iso.slice(0, 10), 10) : null);
+    const goalRows = goalsQ.data?.goals ?? [];
+    const goalFlows: GoalFlowInput[] = goalRows.map((g) => {
+      const targetYear = yearOf(g.targetDate);
+      const routeAccountId = g.contributionAccountId ?? g.accountIds[0] ?? null;
+      return {
+        monthlyContributionMinor: g.monthlyContributionMinor,
+        contributionAccountId: routeAccountId,
+        contributionUntilYear: targetYear ?? yearOf(g.reachDate),
+        spendType: g.spendType,
+        spendAmountMinor: g.spendAmountMinor ?? null,
+        spendRateBps: g.spendRateBps ?? null,
+        payoutStartYear: targetYear,
+        payoutAccountId: routeAccountId,
+      };
+    });
+    const flows = deriveAccountFlows(goalFlows);
+
     const projAccounts: ProjectionAccount[] = accounts.map((a) => ({
       baseMinor: a.baseMinor,
       growthRateBps: a.growthRateBps,
@@ -105,20 +135,12 @@ export function ProjectionChart() {
       earlyHaircutBps: a.earlyHaircutBps,
       illiquid: a.illiquid,
       liquidationAge: a.liquidationAge,
-      ownerBirthYears: a.ownerIds
-        .map((id) => birthById.get(id) ?? null)
-        .filter((y): y is number => y != null),
-      spendType: a.spendType,
-      spendAmountMinor: a.spendAmountMinor,
-      spendRateBps: a.spendRateBps,
-      spendStartKind: a.spendStartKind,
-      spendStartAge: a.spendStartAge,
-      spendStartTargetMinor: a.spendStartTargetMinor,
-      contributionMinor: a.contributionMinor,
-      contributionUntilAge: a.contributionUntilAge,
+      ownerBirthYears: a.ownerIds.map((id) => birthById.get(id) ?? null).filter((y): y is number => y != null),
       compoundInterval: a.compoundInterval,
       isLiability: a.class === "liability",
       loanTermMonths: a.loanTermMonths,
+      contributions: flows.get(a.id)?.contributions ?? [],
+      payouts: flows.get(a.id)?.payouts ?? [],
     }));
 
     const birthYears = members.map((m) => m.birthYear).filter((y): y is number => y != null);
@@ -150,7 +172,7 @@ export function ProjectionChart() {
       );
 
     return { rows, milestones };
-  }, [nwQ.data, membersQ.data, endAge, thisYear]);
+  }, [nwQ.data, membersQ.data, goalsQ.data, endAge, thisYear]);
 
   return (
     <section data-testid="projection-chart" className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm md:px-6 md:py-5">
@@ -168,7 +190,7 @@ export function ProjectionChart() {
         />
       </div>
 
-      {nwQ.isLoading || membersQ.isLoading ? (
+      {nwQ.isLoading || membersQ.isLoading || goalsQ.isLoading ? (
         <div className="h-[260px] animate-pulse rounded-xl bg-muted/40" />
       ) : rows.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">No accounts to project.</p>

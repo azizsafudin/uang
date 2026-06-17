@@ -32,6 +32,8 @@ export type GoalAnalysis = {
   onTrack: boolean | null;            // dated: projected >= target; indefinite: null (no deadline)
   reachDate: string | null;          // YYYY-MM-DD the plan first reaches target (null = not within ~100y)
   spendType: SpendType;              // how this goal spends at/after targetDate
+  spendAmountMinor: number | null;   // lump / monthly flat; null for percent/none goals
+  spendRateBps: number | null;       // percent-of-balance rate; null for other spend types
   annualIncomeMinor: number | null;  // derived recurring income (monthly/percent); null otherwise
   accountIds: string[];              // accounts assigned to fund this goal
   contributionAccountId: string | null; // assigned account the monthly contribution lands in
@@ -232,6 +234,8 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
       onTrack,
       reachDate: reachMonths === null ? null : addMonthsISO(todayISO, reachMonths),
       spendType: g.spendType,
+      spendAmountMinor: g.spendAmountMinor,
+      spendRateBps: g.spendRateBps,
       annualIncomeMinor: annualIncomeMinorFor(g.spendType, g.spendAmountMinor, g.spendRateBps, balanceAtTarget),
       accountIds: accountIdsByGoal.get(g.id) ?? [],
       contributionAccountId: g.contributionAccountId,
