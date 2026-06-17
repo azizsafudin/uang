@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { membersCollection } from "@/lib/collections";
 import { ProjectionChart } from "@/components/projection-chart";
+import { GoalsList } from "@/components/goals-list";
 import { ProjectionAccounts } from "@/components/projection-accounts";
 import { AppShell, Section } from "@/components/app-layout";
 import { PageHeader } from "@/components/page-header";
@@ -97,17 +98,24 @@ function MembersSection() {
   );
 }
 
-export function ProjectionsPage() {
+export function PlanPage() {
   return (
     <AppShell>
-      <PageHeader title="Projections" description="Total vs accessible net worth over time, at your assumed growth rates." />
-      <div className="space-y-5">
+      <PageHeader title="Plan" description="Your net worth over time, the goals it funds, and the accounts behind them." />
+      <div className="space-y-6">
         <ProjectionChart />
+        <section>
+          <h2 className="mb-3 font-heading text-lg">Goals</h2>
+          <GoalsList />
+        </section>
+        <section>
+          <h2 className="mb-3 font-heading text-lg">Accounts</h2>
+          <ProjectionAccounts />
+        </section>
         <div className="grid gap-5 md:grid-cols-2">
           <MembersSection />
           <ProjectionAssumptionsSection />
         </div>
-        <ProjectionAccounts />
       </div>
     </AppShell>
   );

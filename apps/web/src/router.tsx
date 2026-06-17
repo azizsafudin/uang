@@ -16,8 +16,7 @@ import { InstrumentsPage } from "./routes/instruments";
 import { TransactionsPage } from "./routes/transactions";
 import { InstrumentDetailPage } from "./routes/instrument-detail";
 import { SettingsPage } from "./routes/settings";
-import { ProjectionsPage } from "./routes/projections";
-import { GoalsPage } from "./routes/goals";
+import { PlanPage } from "./routes/plan";
 import { GoalDetailPage } from "./routes/goal-detail";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -129,16 +128,22 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-const projectionsRoute = createRoute({
+const planRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
-  path: "/projections",
-  component: ProjectionsPage,
+  path: "/plan",
+  component: PlanPage,
 });
 
-const goalsRoute = createRoute({
+const goalsRedirect = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/goals",
-  component: GoalsPage,
+  beforeLoad: () => { throw redirect({ to: "/plan" }); },
+});
+
+const projectionsRedirect = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: "/projections",
+  beforeLoad: () => { throw redirect({ to: "/plan" }); },
 });
 
 const goalDetailRoute = createRoute({
@@ -158,8 +163,9 @@ const routeTree = rootRoute.addChildren([
     transactionsRoute,
     instrumentDetailRoute,
     settingsRoute,
-    projectionsRoute,
-    goalsRoute,
+    planRoute,
+    goalsRedirect,
+    projectionsRedirect,
     goalDetailRoute,
   ]),
 ]);
