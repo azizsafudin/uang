@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Money } from "@/components/money.tsx";
+import { AccountsBreakdownCard } from "@/components/accounts-breakdown-card";
 import { TILE_REGISTRY, getTile, DEFAULT_TILES, type Tile, type TileData } from "@/lib/dashboard-tiles/registry";
 import { cn } from "@/lib/utils";
 
@@ -80,7 +81,7 @@ export function DashboardTiles({
 
   if (!editing) {
     return (
-      <div data-testid="dashboard-tiles" className="grid auto-rows-fr gap-4">
+      <div data-testid="dashboard-tiles" className="flex flex-col gap-4">
         {visible.map((t) => (
           <TileCard key={t.id} tile={t} data={data} baseCurrency={baseCurrency} />
         ))}
@@ -155,16 +156,29 @@ export function DashboardTiles({
 }
 
 function TileCard({ tile, data, baseCurrency }: { tile: Tile; data: TileData; baseCurrency: string }) {
+  // Breakdown tiles render an allocation donut over the asset accounts.
+  if (tile.breakdown) {
+    return (
+      <AccountsBreakdownCard
+        title={tile.label}
+        dim={tile.breakdown}
+        accounts={data.assetAccounts}
+        baseCurrency={baseCurrency}
+      />
+    );
+  }
+
   const isCount = tile.id === "goalsOnTrack";
+  const value = tile.value?.(data) ?? 0;
   return (
     <div className="flex flex-col justify-center rounded-[14px] border border-border bg-card px-5 py-4">
       <div className="text-[11px] uppercase tracking-widest text-muted-foreground">{tile.label}</div>
       <div className="mt-1 font-heading text-[1.6rem] tabular-nums">
         {isCount ? (
-          <span>{tile.value(data)}</span>
+          <span>{value}</span>
         ) : (
           <>
-            <Money minor={tile.value(data)} currency={baseCurrency} />
+            <Money minor={value} currency={baseCurrency} />
             {tile.valueSuffix && <span className="text-base text-muted-foreground">{tile.valueSuffix}</span>}
           </>
         )}

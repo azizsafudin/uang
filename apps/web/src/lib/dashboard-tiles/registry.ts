@@ -1,8 +1,13 @@
+import type { AccountValuation } from "@/lib/account-grouping";
+
 export type TileAccount = { class: string; baseMinor: number; illiquid: boolean };
 
 export type TileData = {
   baseCurrency: string;
   accounts: TileAccount[];
+  // Full asset accounts (owner-filtered) — needed by breakdown tiles to bucket
+  // by liquidity/owner. Numeric tiles use the lighter `accounts` list above.
+  assetAccounts: AccountValuation[];
   goalsTotal: number;
   goalsOnTrack: number;
   periodDeltaMinor: number | null;
@@ -12,8 +17,12 @@ export type Tile = {
   id: string;
   label: string;
   isAvailable: (d: TileData) => boolean;
-  // Numeric value in base minor units (or a count for goalsOnTrack).
-  value: (d: TileData) => number;
+  // Numeric value in base minor units (or a count for goalsOnTrack). Omitted for
+  // breakdown tiles, which render a donut instead of a single figure.
+  value?: (d: TileData) => number;
+  // When set, the tile renders an allocation donut of the asset accounts bucketed
+  // by this dimension instead of a numeric figure.
+  breakdown?: "liquidity" | "owner";
   // Optional suffix appended after the primary value (e.g. "/yr").
   valueSuffix?: string;
   // Optional small subtitle line (e.g. "across 9 accounts").
@@ -28,8 +37,6 @@ const sumAssets = (d: TileData) =>
   d.accounts.filter((a) => a.class === "asset").reduce((s, a) => s + a.baseMinor, 0);
 const sumLiabilities = (d: TileData) =>
   d.accounts.filter((a) => a.class === "liability").reduce((s, a) => s + a.baseMinor, 0);
-const sumLiquid = (d: TileData) =>
-  d.accounts.filter((a) => a.class === "asset" && !a.illiquid).reduce((s, a) => s + a.baseMinor, 0);
 const countAssets = (d: TileData) => d.accounts.filter((a) => a.class === "asset").length;
 const countLiabilities = (d: TileData) => d.accounts.filter((a) => a.class === "liability").length;
 // Net worth = assets minus liabilities (liability balances are stored negative).
@@ -54,10 +61,16 @@ export const TILE_REGISTRY: Tile[] = [
     subtitle: (d) => `across ${countLiabilities(d)} account${countLiabilities(d) === 1 ? "" : "s"}`,
   },
   {
-    id: "liquidAssets",
-    label: "Liquid assets",
-    isAvailable: (d) => d.accounts.some((a) => a.class === "asset" && !a.illiquid),
-    value: sumLiquid,
+    id: "liquidityMix",
+    label: "Liquidity",
+    isAvailable: (d) => countAssets(d) > 0,
+    breakdown: "liquidity",
+  },
+  {
+    id: "ownerMix",
+    label: "Owner",
+    isAvailable: (d) => countAssets(d) > 0,
+    breakdown: "owner",
   },
   {
     id: "goalsOnTrack",

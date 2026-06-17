@@ -10,7 +10,7 @@ import { groupsCollection } from "@/lib/collections";
 import { useUsers } from "@/lib/use-users";
 import type { AccountValuation } from "@/lib/account-grouping";
 
-type Dimension = "type" | "currency" | "owner" | "liquidity";
+export type Dimension = "type" | "currency" | "owner" | "liquidity";
 const DIMENSIONS: { key: Dimension; label: string }[] = [
   { key: "type", label: "By type" },
   { key: "currency", label: "Currency" },
@@ -35,7 +35,7 @@ function liquidityLabel(a: AccountValuation): string {
 
 // Bucket asset accounts by the chosen dimension, summing base value. Accounts
 // missing a rate are excluded (no reliable base value). Returns largest-first.
-function bucketize(
+export function bucketize(
   accounts: AccountValuation[],
   dim: Dimension,
   userName: (id: string) => string,

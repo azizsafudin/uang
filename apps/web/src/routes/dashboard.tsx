@@ -1,17 +1,13 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLiveQuery } from "@tanstack/react-db";
-import { Pencil } from "lucide-react";
 import { api } from "@/lib/api";
 import { AppShell } from "@/components/app-layout";
-import { Button } from "@/components/ui/button";
 import { NetWorthChart } from "@/components/net-worth-chart";
 import { DashboardSection, type AccountValuation } from "@/components/dashboard-section";
 import { DashboardHero } from "@/components/dashboard-hero";
-import { DashboardTiles } from "@/components/dashboard-tiles/dashboard-tiles";
 import { groupsCollection } from "@/lib/collections";
 import { visibleForOwner } from "@/lib/account-grouping";
-import { TILE_REGISTRY, type TileData } from "@/lib/dashboard-tiles/registry";
 
 type NetWorth = {
   baseCurrency: string;
@@ -21,13 +17,6 @@ type NetWorth = {
 
 type SeriesPoint = { date: string; totalBaseMinor: number };
 type Series = { baseCurrency: string; points: SeriesPoint[] };
-
-type GoalAnalysis = { id: string; onTrack: boolean };
-type AnalysisResponse = {
-  baseCurrency: string;
-  goals: GoalAnalysis[];
-  overall: { onTrack: boolean; behindCount: number };
-};
 
 async function fetchNw(owner: string): Promise<NetWorth> {
   const { data, error } = await api.networth.get({ query: { owner } });
@@ -46,12 +35,6 @@ async function fetchSeries(from: string, owner: string): Promise<Series> {
   return data as unknown as Series;
 }
 
-async function fetchAnalysis(): Promise<AnalysisResponse> {
-  const { data, error } = await api.goals.analysis.get();
-  if (error) throw new Error(String(error));
-  return data as unknown as AnalysisResponse;
-}
-
 const CLASS_SECTIONS = [
   { cls: "asset", label: "Assets" },
   { cls: "liability", label: "Liabilities" },
@@ -59,7 +42,6 @@ const CLASS_SECTIONS = [
 
 export function DashboardPage() {
   const [owner, setOwner] = useState("household");
-  const [editingTiles, setEditingTiles] = useState(false);
 
   // Always fetch the whole-household list once; the owner toggle then filters it
   // client-side (see `visibleForOwner` below) so we don't refetch per owner.
@@ -80,7 +62,6 @@ export function DashboardPage() {
   });
 
   const { data: allGroups } = useLiveQuery(groupsCollection);
-  const { data: analysis } = useQuery({ queryKey: ["goals", "analysis"], queryFn: fetchAnalysis });
 
   const base = listData?.baseCurrency ?? "";
   const allAccounts = listData?.accounts ?? [];
@@ -94,53 +75,13 @@ export function DashboardPage() {
       ? (periodDeltaMinor / Math.abs(points[0].totalBaseMinor)) * 100
       : null;
 
-  const tileData: TileData = useMemo(
-    () => ({
-      baseCurrency: base,
-      accounts: accounts.map((a) => ({ class: a.class, baseMinor: a.baseMinor, illiquid: a.illiquid })),
-      goalsTotal: analysis?.goals.length ?? 0,
-      goalsOnTrack: analysis?.goals.filter((g) => g.onTrack).length ?? 0,
-      periodDeltaMinor,
-    }),
-    [base, accounts, analysis, periodDeltaMinor],
-  );
-
-  // Only offer tile editing once at least one tile actually has data to show.
-  const hasAvailableTiles = useMemo(
-    () => TILE_REGISTRY.some((t) => t.isAvailable(tileData)),
-    [tileData],
-  );
-
   return (
     <AppShell>
       <DashboardHero
-        owner={owner}
         totalBaseMinor={headline ? headline.totalBaseMinor : null}
         baseCurrency={headline?.baseCurrency ?? base}
-        series={points}
         changeMinor={periodDeltaMinor}
         changePct={periodPct}
-        tiles={
-          <DashboardTiles
-            data={tileData}
-            baseCurrency={base}
-            editing={editingTiles}
-            onEditingChange={setEditingTiles}
-          />
-        }
-        actions={
-          hasAvailableTiles && !editingTiles ? (
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              onClick={() => setEditingTiles(true)}
-              aria-label="Edit tiles"
-            >
-              <Pencil className="size-4" />
-            </Button>
-          ) : undefined
-        }
       />
 
       <div className="mt-6">

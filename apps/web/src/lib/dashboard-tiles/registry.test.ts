@@ -8,6 +8,7 @@ const base: TileData = {
     { class: "asset", baseMinor: 5_000_000, illiquid: true },
     { class: "liability", baseMinor: 2_749_000, illiquid: false },
   ],
+  assetAccounts: [],
   goalsTotal: 4,
   goalsOnTrack: 3,
   periodDeltaMinor: 524_000,
@@ -21,10 +22,6 @@ test("assets tile sums asset accounts", () => {
 
 test("liabilities tile sums liability accounts", () => {
   expect(getTile("liabilities")!.value(base)).toBe(2_749_000);
-});
-
-test("liquidAssets excludes illiquid asset accounts", () => {
-  expect(getTile("liquidAssets")!.value(base)).toBe(31_240_000);
 });
 
 test("goalsOnTrack is unavailable when there are no goals", () => {

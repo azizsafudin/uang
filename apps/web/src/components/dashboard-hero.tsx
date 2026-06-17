@@ -1,6 +1,6 @@
 import { useSession } from "@/lib/auth";
-import { Eyebrow } from "@/components/app-layout";
 import { Money } from "@/components/money.tsx";
+import { OdometerMoney } from "@/components/odometer-money";
 import { cn } from "@/lib/utils";
 
 function greeting(hour: number): string {
@@ -14,27 +14,26 @@ function todayLabel(): string {
 }
 
 export function DashboardHero({
-  owner,
   totalBaseMinor,
   baseCurrency,
-  series,
   changeMinor,
   changePct,
+  holdings,
   tiles,
   actions,
 }: {
-  owner: string;
   totalBaseMinor: number | null;
   baseCurrency: string;
-  series: { date: string; totalBaseMinor: number }[];
   changeMinor: number | null;
   changePct: number | null;
-  tiles: React.ReactNode; // companion tiles, rendered beside the vault
+  holdings?: React.ReactNode; // optional portfolio breakdown panel
+  tiles?: React.ReactNode; // optional companion tiles, rendered beside the holdings panel
   actions?: React.ReactNode; // top-right controls (e.g. tile edit toggle)
 }) {
   const { data: session } = useSession();
   const name = session?.user?.name ?? "there";
   const now = new Date();
+  const up = changeMinor !== null && changeMinor >= 0;
 
   return (
     <section
@@ -60,69 +59,46 @@ export function DashboardHero({
           <div className="font-heading text-[1.8rem] font-medium tracking-tight">
             {greeting(now.getHours())}, <span className="italic text-gold">{name}</span>.
           </div>
-          <div className="mt-1 text-sm text-muted-foreground">{todayLabel()}</div>
+          <div className="mt-1.5 font-heading text-[1.05rem] italic tracking-tight text-muted-foreground">
+            {todayLabel()}
+          </div>
         </div>
         {actions && <div className="relative shrink-0">{actions}</div>}
       </div>
 
-      <div className="mt-5 grid gap-4 md:grid-cols-[1.45fr_1fr]">
-        {/* pine-green vault */}
-        <div
-          className="relative overflow-hidden rounded-[14px] px-6 py-5 text-[#f6efdf]"
-          style={{
-            backgroundImage:
-              "radial-gradient(130% 130% at 92% -20%, #2a7361, var(--primary) 45%, #17463a)",
-          }}
+      {/* grand, centered net-worth headline */}
+      <div className="mt-7 flex flex-col items-center text-center">
+        <p
+          data-testid="networth-hero"
+          className="mt-3 font-heading text-[3.25rem] font-medium leading-none tracking-tight tabular-nums md:text-[4.25rem]"
         >
-          <Eyebrow className="[&_span:last-child]:text-[rgba(245,239,231,0.7)] [&_span:first-child]:bg-gold/80">
-            Net worth · {owner === "household" ? "household" : "personal"}
-          </Eyebrow>
-          <p
-            data-testid="networth-hero"
+          {totalBaseMinor === null ? (
+            "—"
+          ) : (
+            <OdometerMoney minor={totalBaseMinor} currency={baseCurrency} />
+          )}
+        </p>
+        {changeMinor !== null && (
+          <span
             className={cn(
-              "mt-2 font-heading text-[2.75rem] font-medium leading-none tabular-nums text-[#f6efdf]",
+              "mt-4 inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium",
+              up ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive",
             )}
           >
-            {totalBaseMinor === null ? "—" : <Money minor={totalBaseMinor} currency={baseCurrency} />}
-          </p>
-          <HeroSparkline points={series} />
-          {changeMinor !== null && (
-            <div className="relative mt-3">
-              <span className="rounded-full bg-gold/20 px-3 py-1 text-xs font-medium text-[#dff0e4]">
-                {changeMinor >= 0 ? "▲" : "▼"}{" "}
-                <Money minor={Math.abs(changeMinor)} currency={baseCurrency} />
-                {changePct !== null ? ` (${Math.abs(changePct).toFixed(1)}%)` : ""} this period
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* companion tiles */}
-        {tiles}
+            <span aria-hidden>{up ? "▲" : "▼"}</span>
+            <Money minor={Math.abs(changeMinor)} currency={baseCurrency} />
+            {changePct !== null ? ` (${Math.abs(changePct).toFixed(1)}%)` : ""}
+            <span className="font-normal text-muted-foreground">this period</span>
+          </span>
+        )}
       </div>
-    </section>
-  );
-}
 
-function HeroSparkline({ points }: { points: { totalBaseMinor: number }[] }) {
-  if (points.length < 2) return <div className="mt-2 h-10" />;
-  const values = points.map((p) => p.totalBaseMinor);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const stepX = 360 / (values.length - 1);
-  const coords = values.map((v, i) => `${(i * stepX).toFixed(1)},${(36 - ((v - min) / span) * 32).toFixed(1)}`);
-  return (
-    <svg
-      width="100%"
-      height="40"
-      viewBox="0 0 360 40"
-      preserveAspectRatio="none"
-      className="relative mt-2"
-      aria-hidden
-    >
-      <polyline points={coords.join(" ")} stroke="var(--gold)" strokeWidth={2} fill="none" />
-      <polyline points={`${coords.join(" ")} 360,40 0,40`} fill="color-mix(in oklab, var(--gold) 12%, transparent)" stroke="none" />
-    </svg>
+      {(holdings || tiles) && (
+        <div className={cn("mt-7 grid items-stretch gap-4", holdings && tiles && "md:grid-cols-2")}>
+          {holdings}
+          {tiles}
+        </div>
+      )}
+    </section>
   );
 }

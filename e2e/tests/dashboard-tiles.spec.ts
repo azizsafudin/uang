@@ -1,6 +1,11 @@
 import { test, expect } from "./fixtures";
 import { seedHousehold, createAccount, addCashDeposit } from "./helpers";
 
+// The companion dashboard tiles are hidden pending a full refactor of that area
+// (the tile registry/components are kept but no longer rendered on the
+// dashboard). Skip these specs until the new tiles UX lands.
+test.describe.skip("dashboard tiles (hidden pending refactor)", () => {
+
 test.beforeEach(async ({ backend, request, context }) => {
   await backend.freshDb();
   await seedHousehold(request, context, backend.apiURL);
@@ -9,7 +14,9 @@ test.beforeEach(async ({ backend, request, context }) => {
 test("dashboard shows hero + tiles, Add account in Assets header", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("dashboard-hero")).toBeVisible();
-  await expect(page.getByTestId("dashboard-tiles")).toBeVisible();
+  // With nothing seeded yet there are no numeric tiles to show, so the grid is
+  // empty (collapsed); assert it's rendered. It gains content once funded below.
+  await expect(page.getByTestId("dashboard-tiles")).toBeAttached();
   // Add account now lives behind the Assets section actions (dot) menu.
   await expect(page.getByRole("button", { name: "Assets actions" })).toBeVisible();
   await page.getByRole("button", { name: "Assets actions" }).click();
@@ -28,7 +35,7 @@ test("dashboard shows hero + tiles, Add account in Assets header", async ({ page
 });
 
 test("tile edit mode swaps a tile within the 3-cap and persists across reload", async ({ page }) => {
-  // Seed a liquid asset so the "Liquid assets" tile has data to render.
+  // Fund an account so net worth is positive and the "Simple income" tile renders.
   await page.goto("/");
   await createAccount(page, { name: "Checking", currency: "USD" });
   await page.reload();
@@ -38,13 +45,15 @@ test("tile edit mode swaps a tile within the 3-cap and persists across reload", 
 
   await page.getByRole("button", { name: "Edit tiles" }).click();
   // The three default tiles fill the cap, so a fourth is blocked until a slot
-  // is freed. Confirm the cap, then swap one out for "Liquid assets".
-  await expect(page.getByRole("checkbox", { name: /Liquid assets/i })).toBeDisabled();
+  // is freed. Confirm the cap, then swap one out for "Simple income".
+  await expect(page.getByRole("checkbox", { name: /Simple income/i })).toBeDisabled();
   await page.getByRole("checkbox", { name: /Goals on track/i }).click();
-  await page.getByRole("checkbox", { name: /Liquid assets/i }).click();
+  await page.getByRole("checkbox", { name: /Simple income/i }).click();
   await page.getByRole("button", { name: "Done editing tiles" }).click();
-  await expect(page.getByTestId("dashboard-tiles")).toContainText("Liquid assets");
+  await expect(page.getByTestId("dashboard-tiles")).toContainText("Simple income");
 
   await page.reload();
-  await expect(page.getByTestId("dashboard-tiles")).toContainText("Liquid assets");
+  await expect(page.getByTestId("dashboard-tiles")).toContainText("Simple income");
+});
+
 });
