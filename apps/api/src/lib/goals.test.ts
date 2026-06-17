@@ -59,12 +59,16 @@ test("analyzeGoals: soonest-first allocation, short sees cash only, long picks u
   // Member well under 55 at the short target (2030) and over 55 at the long one (2050).
   await db.insert(memberProfiles).values({ userId, birthYear: 1990 });
 
-  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 5_000_000, ownerId: userId });
-  await addAccount({ name: "CPF", subtype: "other", accessibleFromAge: 55, openingMinor: 10_000_000, ownerId: userId });
+  const cashId = await addAccount({ name: "Cash", subtype: "bank", openingMinor: 5_000_000, ownerId: userId });
+  const cpfId = await addAccount({ name: "CPF", subtype: "other", accessibleFromAge: 55, openingMinor: 10_000_000, ownerId: userId });
 
   await db.insert(goals).values([
     { id: "short", name: "Car", targetAmountMinor: 3_000_000, currency: "USD", targetDate: "2030-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed" },
     { id: "long", name: "Retire", targetAmountMinor: 100_000_000, currency: "USD", targetDate: "2050-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed" },
+  ]);
+  await db.insert(goalAccounts).values([
+    { goalId: "short", accountId: cashId }, { goalId: "short", accountId: cpfId },
+    { goalId: "long", accountId: cashId },  { goalId: "long", accountId: cpfId },
   ]);
 
   const r = await analyzeGoals();
@@ -95,7 +99,7 @@ test("analyzeGoals: soonest-first allocation, short sees cash only, long picks u
 test("analyzeGoals: a sufficient monthly contribution puts a goal on track", async () => {
   await initAndLogin({ baseCurrency: "USD" });
   const [owner] = await db.select().from(user);
-  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 1_000_000, ownerId: owner.id });
+  const cashId = await addAccount({ name: "Cash", subtype: "bank", openingMinor: 1_000_000, ownerId: owner.id });
 
   // Tiny allocation, large planned saving: the contribution closes the gap.
   await db.insert(goals).values({
@@ -103,6 +107,7 @@ test("analyzeGoals: a sufficient monthly contribution puts a goal on track", asy
     targetDate: "2030-01-01", ownerScope: "household", anchorDate: null,
     monthlyContributionMinor: 2_000_000, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
   });
+  await db.insert(goalAccounts).values({ goalId: "c", accountId: cashId });
 
   const r = await analyzeGoals();
   const g = r.goals.find((x) => x.id === "c")!;
@@ -118,14 +123,17 @@ test("goalProjection: past actual then a single projected trajectory toward targ
   const userId = owner.id;
   await db.insert(memberProfiles).values({ userId, birthYear: 1990 });
 
-  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 5_000_000, ownerId: userId });
-  await addAccount({ name: "CPF", subtype: "other", accessibleFromAge: 55, openingMinor: 10_000_000, ownerId: userId });
+  const cashId = await addAccount({ name: "Cash", subtype: "bank", openingMinor: 5_000_000, ownerId: userId });
+  const cpfId = await addAccount({ name: "CPF", subtype: "other", accessibleFromAge: 55, openingMinor: 10_000_000, ownerId: userId });
 
   await db.insert(goals).values({
     id: "g", name: "Retire", targetAmountMinor: 150_000_000, currency: "USD",
     targetDate: "2050-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0,
     sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
   });
+  await db.insert(goalAccounts).values([
+    { goalId: "g", accountId: cashId }, { goalId: "g", accountId: cpfId },
+  ]);
 
   const r = await goalProjection("g", 2);
   if (!r) throw new Error("expected a projection");
@@ -168,20 +176,21 @@ test("goalProjection: past actual then a single projected trajectory toward targ
 test("goals: an indefinite (no target date) goal reports a reach date, no required rate", async () => {
   await initAndLogin({ baseCurrency: "USD" });
   const [owner] = await db.select().from(user);
-  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 1_000_000, ownerId: owner.id });
+  const cashId = await addAccount({ name: "Cash", subtype: "bank", openingMinor: 1_000_000, ownerId: owner.id });
 
   await db.insert(goals).values({
     id: "indef", name: "Wealth", targetAmountMinor: 50_000_000, currency: "USD",
     targetDate: null, ownerScope: "household", anchorDate: null,
     monthlyContributionMinor: 1_000_000, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
   });
+  await db.insert(goalAccounts).values({ goalId: "indef", accountId: cashId });
 
   const a = (await analyzeGoals()).goals.find((g) => g.id === "indef")!;
   expect(a.targetDate).toBeNull();
   expect(a.requiredMonthlyMinor).toBe(0);          // no deadline -> no required rate
   expect(a.projectedAtTargetMinor).toBeNull();     // no date to project to
   expect(a.reachDate).not.toBeNull();              // but it does reach the amount
-  expect(a.onTrack).toBe(true);                    // reachable within the cap
+  expect(a.onTrack).toBeNull();                    // undated -> no pass/fail
 
   const proj = await goalProjection("indef", 2);
   if (!proj) throw new Error("expected a projection");
@@ -194,7 +203,7 @@ test("goals: an indefinite (no target date) goal reports a reach date, no requir
 test("goalProjection: a monthly-spend goal draws down after its target date", async () => {
   await initAndLogin({ baseCurrency: "USD" });
   const [owner] = await db.select().from(user);
-  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 50_000_000, ownerId: owner.id });
+  const cashId = await addAccount({ name: "Cash", subtype: "bank", openingMinor: 50_000_000, ownerId: owner.id });
 
   await db.insert(goals).values({
     id: "draw", name: "Retire", targetAmountMinor: 40_000_000, currency: "USD",
@@ -202,6 +211,7 @@ test("goalProjection: a monthly-spend goal draws down after its target date", as
     monthlyContributionMinor: 0, spendType: "monthly", spendAmountMinor: 500_000, spendRateBps: null,
     sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
   });
+  await db.insert(goalAccounts).values({ goalId: "draw", accountId: cashId });
 
   const r = await goalProjection("draw", 2);
   if (!r) throw new Error("expected a projection");
@@ -223,7 +233,7 @@ test("goalProjection: a monthly-spend goal draws down after its target date", as
 test("analyzeGoals: a percent-spend goal reports an annual income from balance-at-target", async () => {
   await initAndLogin({ baseCurrency: "USD" });
   const [owner] = await db.select().from(user);
-  await addAccount({ name: "Cash", subtype: "bank", openingMinor: 100_000_000, ownerId: owner.id });
+  const cashId = await addAccount({ name: "Cash", subtype: "bank", openingMinor: 100_000_000, ownerId: owner.id });
 
   await db.insert(goals).values({
     id: "swr", name: "FIRE", targetAmountMinor: 80_000_000, currency: "USD",
@@ -231,10 +241,35 @@ test("analyzeGoals: a percent-spend goal reports an annual income from balance-a
     monthlyContributionMinor: 0, spendType: "percent", spendAmountMinor: null, spendRateBps: 400,
     sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
   });
+  await db.insert(goalAccounts).values({ goalId: "swr", accountId: cashId });
 
   const a = (await analyzeGoals()).goals.find((g) => g.id === "swr")!;
   expect(a.spendType).toBe("percent");
   // 4% of the balance reached by the target date.
   expect(a.annualIncomeMinor).not.toBeNull();
   expect(a.annualIncomeMinor!).toBeGreaterThan(0);
+});
+
+test("analyzeGoals: an unassigned account never funds a goal; undated goal has null onTrack", async () => {
+  await initAndLogin({ baseCurrency: "USD" });
+  const [owner] = await db.select().from(user);
+  const chkId = await addAccount({ name: "Checking", subtype: "bank", openingMinor: 10_000_000, ownerId: owner.id });
+  await addAccount({ name: "Savings", subtype: "bank", openingMinor: 10_000_000, ownerId: owner.id }); // unassigned
+
+  await db.insert(goals).values([
+    { id: "car", name: "Car", targetAmountMinor: 20_000_000, currency: "USD", targetDate: "2030-01-01", ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed" },
+    { id: "buffer", name: "Buffer", targetAmountMinor: 5_000_000, currency: "USD", targetDate: null, ownerScope: "household", anchorDate: null, monthlyContributionMinor: 0, sortOrder: 1, createdAt: nowEpoch(), createdBy: "seed" },
+  ]);
+  await db.insert(goalAccounts).values({ goalId: "car", accountId: chkId });
+
+  const res = await analyzeGoals();
+  const car = res.goals.find((g) => g.id === "car")!;
+  const buffer = res.goals.find((g) => g.id === "buffer")!;
+
+  expect(car.allocatedMinor).toBe(10_000_000);
+  expect(car.accountIds).toEqual([chkId]);
+  expect(typeof car.onTrack).toBe("boolean");
+  expect(buffer.allocatedMinor).toBe(0);
+  expect(buffer.onTrack).toBeNull();
+  expect(res.unallocatedMinor).toBe(10_000_000);
 });

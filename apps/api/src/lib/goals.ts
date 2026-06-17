@@ -1,5 +1,5 @@
 import { db } from "../db/client";
-import { goals as goalsTable, memberProfiles } from "../db/schema";
+import { goals as goalsTable, memberProfiles, goalAccounts } from "../db/schema";
 import {
   convertToBase, toBig, fromBig, roundDiv,
   compoundMonthlyMinor,
@@ -29,10 +29,12 @@ export type GoalAnalysis = {
   monthlyContributionMinor: number;   // the goal's planned saving
   requiredMonthlyMinor: number;       // contribution needed to hit target by the date (0 if indefinite)
   projectedAtTargetMinor: number | null; // where the plan lands by the target date (null if indefinite)
-  onTrack: boolean;                   // dated: projected >= target; indefinite: reachable
+  onTrack: boolean | null;            // dated: projected >= target; indefinite: null (no deadline)
   reachDate: string | null;          // YYYY-MM-DD the plan first reaches target (null = not within ~100y)
   spendType: SpendType;              // how this goal spends at/after targetDate
   annualIncomeMinor: number | null;  // derived recurring income (monthly/percent); null otherwise
+  accountIds: string[];              // accounts assigned to fund this goal
+  contributionAccountId: string | null; // assigned account the monthly contribution lands in
   sources: GoalSource[];
 };
 
@@ -132,6 +134,18 @@ async function targetInBaseMinor(g: GoalRow, base: string): Promise<number> {
   return fromBig(convertToBase(toBig(g.targetAmountMinor), g.currency, base, toBig(rate)));
 }
 
+// goalId -> assigned accountIds (order not significant; allocation sorts by liquidity).
+async function loadAssignments(): Promise<Map<string, string[]>> {
+  const links = await db.select().from(goalAccounts);
+  const byGoal = new Map<string, string[]>();
+  for (const l of links) {
+    const arr = byGoal.get(l.goalId);
+    if (arr) arr.push(l.accountId);
+    else byGoal.set(l.goalId, [l.accountId]);
+  }
+  return byGoal;
+}
+
 // Build the allocation-account list from a netWorth() snapshot + member birth years.
 function toAllocAccounts(
   nwAccounts: Awaited<ReturnType<typeof netWorth>>["accounts"],
@@ -161,6 +175,7 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
   const goalRows = await db.select().from(goalsTable).orderBy(goalsTable.sortOrder);
   const profiles = await db.select().from(memberProfiles);
   const birthByUser = new Map<string, number | null>(profiles.map((p) => [p.userId, p.birthYear]));
+  const accountIdsByGoal = await loadAssignments();
 
   const todayISO = new Date().toISOString().slice(0, 10);
 
@@ -177,6 +192,8 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
     goalInputs.push({
       id: g.id, targetAmountMinor: targetBase, targetYear: g.targetDate ? yearOf(g.targetDate) : null,
       ownerScope: g.ownerScope,
+      accountIds: accountIdsByGoal.get(g.id) ?? [],
+      priority: g.sortOrder,
     });
   }
 
@@ -201,8 +218,8 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
     const monthsToTarget = g.targetDate ? monthsBetween(todayISO, g.targetDate) : null;
     const reachMonths = sg.reachMonth;
     const balanceAtTarget = monthsToTarget === null ? null : (sg.balances[monthsToTarget] ?? null);
-    const onTrack = monthsToTarget === null
-      ? reachMonths !== null
+    const onTrack: boolean | null = monthsToTarget === null
+      ? null
       : reachMonths !== null && reachMonths <= monthsToTarget;
 
     analyses.push({
@@ -216,6 +233,8 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
       reachDate: reachMonths === null ? null : addMonthsISO(todayISO, reachMonths),
       spendType: g.spendType,
       annualIncomeMinor: annualIncomeMinorFor(g.spendType, g.spendAmountMinor, g.spendRateBps, balanceAtTarget),
+      accountIds: accountIdsByGoal.get(g.id) ?? [],
+      contributionAccountId: g.contributionAccountId,
       sources: alloc.lines.map((line) => ({
         accountId: line.accountId,
         name: nameById.get(line.accountId) ?? line.accountId,
@@ -224,7 +243,7 @@ export async function analyzeGoals(): Promise<GoalsAnalysisResult> {
     });
   }
 
-  const behindCount = analyses.filter((a) => !a.onTrack).length;
+  const behindCount = analyses.filter((a) => a.onTrack === false).length;
   return {
     baseCurrency: base,
     contributionGrowthRateBps: planRateBps,
@@ -249,7 +268,7 @@ export type GoalProjectionResult = {
   monthlyContributionMinor: number;
   requiredMonthlyMinor: number;
   projectedAtTargetMinor: number | null;
-  onTrack: boolean;
+  onTrack: boolean | null;
   reachDate: string | null; // YYYY-MM-DD the plan first reaches target (null = not within ~100y)
   spendType: SpendType;
   spendAmountMinor: number | null;   // 'once' lump / 'monthly' flat (for display); null otherwise
@@ -277,6 +296,7 @@ export async function goalProjection(
 
   const profiles = await db.select().from(memberProfiles);
   const birthByUser = new Map<string, number | null>(profiles.map((p) => [p.userId, p.birthYear]));
+  const accountIdsByGoal = await loadAssignments();
 
   const todayISO = new Date().toISOString().slice(0, 10);
 
@@ -289,6 +309,8 @@ export async function goalProjection(
     goalInputs.push({
       id: g.id, targetAmountMinor: tb, targetYear: g.targetDate ? yearOf(g.targetDate) : null,
       ownerScope: g.ownerScope,
+      accountIds: accountIdsByGoal.get(g.id) ?? [],
+      priority: g.sortOrder,
     });
   }
   const targetBase = targetBaseById.get(goal.id)!;
@@ -321,8 +343,8 @@ export async function goalProjection(
   const sg = sim.goals.find((g) => g.id === goal.id)!;
   const reachMonths = sg.reachMonth;
   const balanceAtTarget = monthsToTarget === null ? null : (sg.balances[monthsToTarget] ?? null);
-  const onTrack = monthsToTarget === null
-    ? reachMonths !== null
+  const onTrack: boolean | null = monthsToTarget === null
+    ? null
     : reachMonths !== null && reachMonths <= monthsToTarget;
 
   // Display window: to the target date for accumulate-only dated goals; extended
