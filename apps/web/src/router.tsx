@@ -10,6 +10,7 @@ import { requireInitializedAndAuthed } from "./lib/guards";
 import { OnboardingPage } from "./routes/onboarding";
 import { LoginPage } from "./routes/login";
 import { DashboardPage } from "./routes/dashboard";
+import { AssetsPage } from "./routes/assets";
 import { AccountDetailPage } from "./routes/account-detail";
 import { InstrumentsPage } from "./routes/instruments";
 import { TransactionsPage } from "./routes/transactions";
@@ -86,6 +87,12 @@ const dashboardRoute = createRoute({
   component: DashboardPage,
 });
 
+const assetsRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: "/assets",
+  component: AssetsPage,
+});
+
 const accountDetailRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/accounts/$id",
@@ -139,6 +146,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   appLayoutRoute.addChildren([
     dashboardRoute,
+    assetsRoute,
     accountDetailRoute,
     instrumentsRoute,
     transactionsRoute,
