@@ -145,6 +145,7 @@ async function loadAssignments(): Promise<Map<string, string[]>> {
     if (arr) arr.push(l.accountId);
     else byGoal.set(l.goalId, [l.accountId]);
   }
+  for (const arr of byGoal.values()) arr.sort();
   return byGoal;
 }
 
