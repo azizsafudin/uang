@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronsUpDownIcon, Settings } from "lucide-react";
 import { useSession } from "@/lib/auth";
@@ -9,7 +9,6 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -66,13 +65,31 @@ function HouseholdSwitcher() {
                 Household
               </DropdownMenuLabel>
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link to="/settings" />}>
-              <Settings />
-              Settings
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
+  );
+}
+
+function NavSettings() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          render={<Link to="/settings" />}
+          isActive={pathname.startsWith("/settings")}
+          tooltip="Settings"
+          onClick={() => {
+            if (isMobile) setOpenMobile(false);
+          }}
+        >
+          <Settings />
+          <span>Settings</span>
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   );
@@ -104,6 +121,7 @@ export function AppSidebar() {
             <ThemeToggle />
           </div>
         ) : null}
+        <NavSettings />
         <NavUser user={user} />
       </SidebarFooter>
 
