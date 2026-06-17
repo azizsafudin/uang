@@ -6,12 +6,12 @@ test.beforeEach(async ({ backend, request, context }) => {
   await seedHousehold(request, context, backend.apiURL);
 });
 
-test("sidebar navigates between dashboard and projections", async ({ page }) => {
+test("sidebar navigates between dashboard and plan", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("networth-hero")).toBeVisible();
 
-  await page.getByRole("link", { name: "Projections" }).click();
-  await expect(page.getByRole("heading", { name: "Projections" })).toBeVisible();
+  await page.getByRole("link", { name: "Plan" }).click();
+  await expect(page.getByRole("heading", { name: "Plan" })).toBeVisible();
 
   await page.getByRole("link", { name: "Dashboard" }).click();
   await expect(page.getByTestId("networth-hero")).toBeVisible();
@@ -44,5 +44,5 @@ test("sidebar is absent on the login page", async ({ page, context }) => {
   await context.clearCookies();
   await page.goto("/login");
   await expect(page.getByRole("link", { name: "Dashboard" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Projections" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Plan" })).toHaveCount(0);
 });
