@@ -106,6 +106,8 @@ export type GoalInput = {
   targetAmountMinor: number;   // already in base currency
   targetYear: number | null;   // year component of targetDate; null = indefinite (no deadline)
   ownerScope: string;          // 'household' | a userId
+  accountIds: string[];        // accounts assigned to fund this goal
+  priority: number;            // lower = funded first (goals.sortOrder)
 };
 
 export type AllocAccount = AccessibilityConfig & {
@@ -180,9 +182,10 @@ export function allocateGoals(params: {
   const remaining = new Map<string, number>();
   for (const a of accounts) if (a.baseMinor > 0) remaining.set(a.id, a.baseMinor);
 
-  // Soonest deadline first (indefinite goals have no deadline -> last claim on
-  // funds); tie-break by smallest target amount, then id for stable ordering.
+  // Goal priority first (sortOrder), then soonest deadline (indefinite last),
+  // then smallest target, then id for stable ordering.
   const ordered = [...goals].sort((g1, g2) => {
+    if (g1.priority !== g2.priority) return g1.priority - g2.priority;
     const y1 = g1.targetYear ?? Number.POSITIVE_INFINITY;
     const y2 = g2.targetYear ?? Number.POSITIVE_INFINITY;
     if (y1 !== y2) return y1 - y2;
@@ -196,8 +199,9 @@ export function allocateGoals(params: {
     let allocated = 0;
     const lines: GoalAllocationLine[] = [];
 
+    const assigned = new Set(goal.accountIds);
     const eligible = accounts
-      .filter((a) => (remaining.get(a.id) ?? 0) > 0 && ownerScopeAllows(a, goal.ownerScope))
+      .filter((a) => assigned.has(a.id) && (remaining.get(a.id) ?? 0) > 0 && ownerScopeAllows(a, goal.ownerScope))
       .sort((x, y) => liquidityRank(x) - liquidityRank(y));
 
     for (const a of eligible) {

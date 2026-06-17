@@ -128,6 +128,7 @@ export function GoalForm({
         ownerScope: "household",
         anchorDate: null,
         monthlyContributionMinor,
+        contributionAccountId: null,
         spendType: values.spendType,
         spendAmountMinor,
         spendRateBps,

@@ -84,8 +84,8 @@ test("allocateGoals: soonest-first, no double-counting, short sees cash only", (
   const cpf = acct("cpf", 10_000_000, cpfCfg);
   const goals: GoalInput[] = [
     // owner age in 2050 = 60 (CPF unlocked); in 2030 = 40 (CPF locked).
-    { id: "long", targetAmountMinor: 20_000_000, targetYear: 2050, ownerScope: "household", term: "long", sortOrder: 0 },
-    { id: "short", targetAmountMinor: 3_000_000, targetYear: 2030, ownerScope: "household", term: "short", sortOrder: 0 },
+    { id: "long",  targetAmountMinor: 20_000_000, targetYear: 2050, ownerScope: "household", accountIds: ["cash", "cpf"], priority: 1 },
+    { id: "short", targetAmountMinor: 3_000_000,  targetYear: 2030, ownerScope: "household", accountIds: ["cash", "cpf"], priority: 0 },
   ];
   const r = allocateGoals({ goals, accounts: [cash, cpf] });
   const short = r.goals.find((g) => g.id === "short")!;
@@ -103,7 +103,7 @@ test("allocateGoals: penalty account is valued after the haircut", () => {
   const srs = acct("srs", 1_000_000, srsCfg);
   const goals: GoalInput[] = [
     // owner age in 2030 = 40 (< 62) -> penalty 5%; eligible at 95% value.
-    { id: "g", targetAmountMinor: 2_000_000, targetYear: 2030, ownerScope: "household", term: "long", sortOrder: 0 },
+    { id: "g", targetAmountMinor: 2_000_000, targetYear: 2030, ownerScope: "household", accountIds: ["srs"], priority: 0 },
   ];
   const r = allocateGoals({ goals, accounts: [srs] });
   expect(r.goals[0].allocatedMinor).toBe(950_000); // 1_000_000 * 0.95
@@ -115,7 +115,7 @@ test("allocateGoals: illiquid excluded unless liquidationAge reached by target",
   const propSold = acct("prop2", 7_000_000, { ...liquid, illiquid: true, liquidationAge: 50 });
   const goals: GoalInput[] = [
     // owner age in 2050 = 60 >= 50 -> propSold eligible; propLocked never.
-    { id: "g", targetAmountMinor: 100_000_000, targetYear: 2050, ownerScope: "household", term: "long", sortOrder: 0 },
+    { id: "g", targetAmountMinor: 100_000_000, targetYear: 2050, ownerScope: "household", accountIds: ["prop", "prop2"], priority: 0 },
   ];
   const r = allocateGoals({ goals, accounts: [propLocked, propSold] });
   expect(r.goals[0].allocatedMinor).toBe(7_000_000);
@@ -127,7 +127,7 @@ test("allocateGoals: ownerScope — personal goal sees only that member's solo a
   const u2solo = acct("b", 1_000_000, liquid, ["u2"], [1992]);
   const shared = acct("c", 1_000_000, liquid, ["u1", "u2"], [1990, 1992]);
   const goals: GoalInput[] = [
-    { id: "mine", targetAmountMinor: 9_000_000, targetYear: 2030, ownerScope: "u1", term: "short", sortOrder: 0 },
+    { id: "mine", targetAmountMinor: 9_000_000, targetYear: 2030, ownerScope: "u1", accountIds: ["a", "b", "c"], priority: 0 },
   ];
   const r = allocateGoals({ goals, accounts: [u1solo, u2solo, shared] });
   // Only u1's solo account funds a u1-personal goal (shared funds household only).
@@ -139,11 +139,37 @@ test("allocateGoals: liabilities / negative balances never fund a goal", () => {
   const debt = acct("debt", -500_000, liquid);
   const cash = acct("cash", 1_000_000, liquid);
   const goals: GoalInput[] = [
-    { id: "g", targetAmountMinor: 5_000_000, targetYear: 2030, ownerScope: "household", term: "short", sortOrder: 0 },
+    { id: "g", targetAmountMinor: 5_000_000, targetYear: 2030, ownerScope: "household", accountIds: ["debt", "cash"], priority: 0 },
   ];
   const r = allocateGoals({ goals, accounts: [debt, cash] });
   expect(r.goals[0].allocatedMinor).toBe(1_000_000);
   expect(r.unallocatedMinor).toBe(0);
+});
+
+test("allocateGoals: a shared account funds higher-priority goal first", () => {
+  const checking = acct("chk", 25_000_000, liquid);
+  const goals: GoalInput[] = [
+    { id: "car",  targetAmountMinor: 20_000_000, targetYear: 2030, ownerScope: "household", accountIds: ["chk"], priority: 0 },
+    { id: "reno", targetAmountMinor: 15_000_000, targetYear: 2031, ownerScope: "household", accountIds: ["chk"], priority: 1 },
+  ];
+  const r = allocateGoals({ goals, accounts: [checking] });
+  const car = r.goals.find((g) => g.id === "car")!;
+  const reno = r.goals.find((g) => g.id === "reno")!;
+  expect(car.allocatedMinor).toBe(20_000_000);
+  expect(reno.allocatedMinor).toBe(5_000_000);
+  expect(reno.progressPct).toBe(33);
+  expect(r.unallocatedMinor).toBe(0);
+});
+
+test("allocateGoals: an unassigned account never funds a goal", () => {
+  const checking = acct("chk", 10_000_000, liquid);
+  const savings = acct("sav", 10_000_000, liquid);
+  const goals: GoalInput[] = [
+    { id: "car", targetAmountMinor: 20_000_000, targetYear: 2030, ownerScope: "household", accountIds: ["chk"], priority: 0 },
+  ];
+  const r = allocateGoals({ goals, accounts: [checking, savings] });
+  expect(r.goals[0].allocatedMinor).toBe(10_000_000);
+  expect(r.unallocatedMinor).toBe(10_000_000);
 });
 
 import { goalOnTrack } from "./goals";
