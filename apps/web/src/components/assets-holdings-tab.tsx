@@ -60,27 +60,29 @@ export function AssetsHoldingsTab({ owner }: { owner: string }) {
 
       <AllocationDonut slices={slices} baseCurrency={base} />
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <table className="w-full text-sm">
+      {/* Horizontal scroll as a safety net on very narrow screens; the Units
+          column is hidden below sm so the common case fits without scrolling. */}
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+        <table className="w-full min-w-[20rem] text-sm">
           <thead>
             <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="px-4 py-2 text-left font-medium">Holding</th>
-              <th className="px-4 py-2 text-right font-medium">Units</th>
-              <th className="px-4 py-2 text-right font-medium">Value</th>
-              <th className="px-4 py-2 text-right font-medium">% port</th>
-              <th className="px-4 py-2 text-right font-medium">Unrealized</th>
+              <th className="px-3 py-2 text-left font-medium sm:px-4">Holding</th>
+              <th className="hidden px-3 py-2 text-right font-medium sm:table-cell sm:px-4">Units</th>
+              <th className="px-3 py-2 text-right font-medium sm:px-4">Value</th>
+              <th className="px-3 py-2 text-right font-medium sm:px-4">% port</th>
+              <th className="px-3 py-2 text-right font-medium sm:px-4">Unrealized</th>
             </tr>
           </thead>
           <tbody>
             {data.securities.length > 0 && (
-              <tr><td colSpan={5} className="px-4 pt-3 pb-1 text-xs uppercase tracking-wide text-muted-foreground">Securities</td></tr>
+              <tr><td colSpan={5} className="px-3 pt-3 pb-1 text-xs uppercase tracking-wide text-muted-foreground sm:px-4">Securities</td></tr>
             )}
             {data.securities.map((s) => {
               const pct = data.totalBaseMinor > 0 ? Math.round((s.valueBaseMinor / data.totalBaseMinor) * 100) : 0;
               const up = s.unrealizedGainBaseMinor >= 0;
               return (
                 <tr key={s.instrumentId} data-testid="holding-row" className="border-b border-border/60 last:border-b-0 hover:bg-accent/40">
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3 sm:px-4">
                     <Link to="/instruments/$id" params={{ id: s.instrumentId }} className="block">
                       <span className="font-medium">{s.symbol ?? s.name}</span>
                       <span className="ml-2 rounded-full bg-accent px-2 py-0.5 text-[0.65rem] text-muted-foreground">
@@ -89,11 +91,11 @@ export function AssetsHoldingsTab({ owner }: { owner: string }) {
                       <span className="mt-0.5 block text-xs text-muted-foreground">{s.name} · {accts(s.accountCount)}</span>
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmtUnits(s.units)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="hidden px-3 py-3 text-right tabular-nums sm:table-cell sm:px-4">{fmtUnits(s.units)}</td>
+                  <td className="px-3 py-3 text-right tabular-nums sm:px-4">
                     {s.missing ? <span className="text-destructive">—</span> : <Money minor={s.valueBaseMinor} currency={base} />}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{pct}%</td>
+                  <td className="px-3 py-3 text-right tabular-nums text-muted-foreground sm:px-4">{pct}%</td>
                   <td className={cnGain(up)}>
                     {up ? "▲ " : "▼ "}<Money minor={Math.abs(s.unrealizedGainBaseMinor)} currency={base} />
                   </td>
@@ -102,20 +104,20 @@ export function AssetsHoldingsTab({ owner }: { owner: string }) {
             })}
 
             {data.cash.length > 0 && (
-              <tr><td colSpan={5} className="px-4 pt-3 pb-1 text-xs uppercase tracking-wide text-muted-foreground">Cash</td></tr>
+              <tr><td colSpan={5} className="px-3 pt-3 pb-1 text-xs uppercase tracking-wide text-muted-foreground sm:px-4">Cash</td></tr>
             )}
             {data.cash.map((c) => {
               const pct = data.totalBaseMinor > 0 ? Math.round((c.valueBaseMinor / data.totalBaseMinor) * 100) : 0;
               return (
                 <tr key={c.currency} data-testid="cash-row" className="border-b border-border/60 last:border-b-0">
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3 sm:px-4">
                     <span className="font-medium">{c.currency}</span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">{accts(c.accountCount)}</span>
                   </td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">—</td>
-                  <td className="px-4 py-3 text-right tabular-nums"><Money minor={c.valueBaseMinor} currency={base} /></td>
-                  <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{pct}%</td>
-                  <td className="px-4 py-3 text-right text-muted-foreground">—</td>
+                  <td className="hidden px-3 py-3 text-right text-muted-foreground sm:table-cell sm:px-4">—</td>
+                  <td className="px-3 py-3 text-right tabular-nums sm:px-4"><Money minor={c.valueBaseMinor} currency={base} /></td>
+                  <td className="px-3 py-3 text-right tabular-nums text-muted-foreground sm:px-4">{pct}%</td>
+                  <td className="px-3 py-3 text-right text-muted-foreground sm:px-4">—</td>
                 </tr>
               );
             })}
@@ -128,5 +130,5 @@ export function AssetsHoldingsTab({ owner }: { owner: string }) {
 
 // Gain column color: pine for up, brick for down.
 function cnGain(up: boolean): string {
-  return `px-4 py-3 text-right tabular-nums ${up ? "text-primary" : "text-destructive"}`;
+  return `px-3 py-3 text-right tabular-nums sm:px-4 ${up ? "text-primary" : "text-destructive"}`;
 }
