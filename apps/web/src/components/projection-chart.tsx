@@ -15,8 +15,10 @@ import {
 
 type GoalAnalysisRow = {
   id: string;
+  name: string;
   targetDate: string | null;
   reachDate: string | null;
+  onTrack: boolean | null;
   monthlyContributionMinor: number;
   contributionAccountId: string | null;
   accountIds: string[];
@@ -104,7 +106,7 @@ export function ProjectionChart() {
   const base = nwQ.data?.baseCurrency ?? "";
   const thisYear = new Date().getFullYear();
 
-  const { rows, milestones } = useMemo(() => {
+  const { rows, milestones, goalMarkers } = useMemo(() => {
     const accounts = nwQ.data?.accounts ?? [];
     const members = membersQ.data ?? [];
     const birthById = new Map(members.map((m) => [m.id, m.birthYear]));
@@ -171,7 +173,16 @@ export function ProjectionChart() {
           })),
       );
 
-    return { rows, milestones };
+    const goalMarkers = goalRows
+      .filter((g) => g.targetDate)
+      .map((g) => ({
+        year: parseInt(g.targetDate!.slice(0, 10), 10),
+        name: g.name,
+        behind: g.onTrack === false,
+      }))
+      .filter((m) => m.year >= thisYear && m.year <= (rows.at(-1)?.year ?? thisYear));
+
+    return { rows, milestones, goalMarkers };
   }, [nwQ.data, membersQ.data, goalsQ.data, endAge, thisYear]);
 
   return (
@@ -224,6 +235,15 @@ export function ProjectionChart() {
                     row={ms.row}
                   />
                 }
+              />
+            ))}
+            {goalMarkers.map((m) => (
+              <ReferenceLine
+                key={`goal-${m.name}-${m.year}`}
+                x={m.year}
+                stroke={m.behind ? "var(--destructive)" : "var(--primary)"}
+                strokeDasharray="4 3"
+                label={{ value: m.name, position: "insideTopRight", fontSize: 10, fill: m.behind ? "var(--destructive)" : "var(--primary)" }}
               />
             ))}
             <Line
