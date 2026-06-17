@@ -9,6 +9,7 @@ import { accountsRoutes } from "./routes/accounts";
 import { transactionsRoutes } from "./routes/transactions";
 import { fxRoutes } from "./routes/fx";
 import { networthRoutes } from "./routes/networth";
+import { holdingsRoutes } from "./routes/holdings";
 import { networthSeriesRoutes } from "./routes/networth-series";
 import { usersRoutes } from "./routes/users";
 import { membersRoutes } from "./routes/members";
@@ -40,6 +41,7 @@ export function createApiApp() {
     .use(importsRoutes)
     .use(fxRoutes)
     .use(networthRoutes)
+    .use(holdingsRoutes)
     .use(networthSeriesRoutes)
     .use(usersRoutes)
     .use(membersRoutes)
