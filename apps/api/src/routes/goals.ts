@@ -139,6 +139,7 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
     { body: t.Object({ accountIds: t.Array(t.String()) }) },
   )
   .delete("/:id", async ({ params }: any) => {
+    await db.delete(goalAccounts).where(eq(goalAccounts.goalId, params.id));
     await db.delete(goals).where(eq(goals.id, params.id));
     return { ok: true };
   });

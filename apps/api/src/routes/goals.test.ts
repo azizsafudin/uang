@@ -1,5 +1,8 @@
 import { expect, test, beforeEach } from "bun:test";
 import { resetDb, makeApp, initAndLogin } from "../lib/test-helpers";
+import { db } from "../db/client";
+import { goalAccounts } from "../db/schema";
+import { eq } from "drizzle-orm";
 import { goalsRoutes } from "./goals";
 
 beforeEach(resetDb);
@@ -147,4 +150,28 @@ test("PUT /goals/:id/accounts replaces the funding set; analysis reflects it", a
     new Request("http://localhost/goals/analysis", { headers: { cookie } }),
   )).json();
   expect(analysis2.goals.find((x: any) => x.id === id).accountIds).toEqual([]);
+});
+
+test("DELETE /goals/:id also clears its goal_accounts rows", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const id = crypto.randomUUID();
+  await app.handle(new Request("http://localhost/goals", {
+    method: "POST", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({
+      id, name: "Car", targetAmountMinor: 20_000_000, currency: "USD",
+      targetDate: "2030-01-01", ownerScope: "household",
+    }),
+  }));
+  await app.handle(new Request(`http://localhost/goals/${id}/accounts`, {
+    method: "PUT", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ accountIds: ["acc-1", "acc-2"] }),
+  }));
+
+  const del = await app.handle(new Request(`http://localhost/goals/${id}`, {
+    method: "DELETE", headers: { cookie },
+  }));
+  expect(del.status).toBe(200);
+
+  const rows = await db.select().from(goalAccounts).where(eq(goalAccounts.goalId, id));
+  expect(rows.length).toBe(0);
 });
