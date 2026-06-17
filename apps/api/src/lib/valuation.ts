@@ -57,14 +57,6 @@ export type AccountValuation = {
   earlyHaircutBps: number;
   illiquid: boolean;
   liquidationAge: number | null;
-  spendType: "none" | "once" | "monthly" | "percent";
-  spendAmountMinor: number | null;
-  spendRateBps: number | null;
-  spendStartKind: "age" | "target";
-  spendStartAge: number | null;
-  spendStartTargetMinor: number | null;
-  contributionMinor: number;
-  contributionUntilAge: number | null;
   compoundInterval: "monthly" | "quarterly" | "annually";
   loanTermMonths: number | null;
   groupId: string | null; sortOrder: number;
@@ -111,14 +103,6 @@ export async function netWorth(opts: NetWorthOpts = {}): Promise<NetWorth> {
       earlyHaircutBps: a.earlyHaircutBps,
       illiquid: a.illiquid === 1,
       liquidationAge: a.liquidationAge ?? null,
-      spendType: a.spendType,
-      spendAmountMinor: a.spendAmountMinor ?? null,
-      spendRateBps: a.spendRateBps ?? null,
-      spendStartKind: a.spendStartKind,
-      spendStartAge: a.spendStartAge ?? null,
-      spendStartTargetMinor: a.spendStartTargetMinor ?? null,
-      contributionMinor: a.contributionMinor,
-      contributionUntilAge: a.contributionUntilAge ?? null,
       compoundInterval: a.compoundInterval,
       loanTermMonths: a.loanTermMonths ?? null,
       groupId: a.groupId ?? null,
