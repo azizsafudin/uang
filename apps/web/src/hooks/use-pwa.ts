@@ -21,7 +21,9 @@ function detectPWA(): boolean {
  * homescreen in standalone mode), false when running in a normal browser tab.
  */
 export function useIsPWA() {
-  const [isPWA, setIsPWA] = React.useState<boolean | undefined>(undefined)
+  // Initialize synchronously (matchMedia is sync) so the very first render
+  // already knows whether we're standalone — avoids a layout flash.
+  const [isPWA, setIsPWA] = React.useState<boolean>(detectPWA)
 
   React.useEffect(() => {
     const mql = window.matchMedia(STANDALONE_QUERY)
@@ -31,5 +33,5 @@ export function useIsPWA() {
     return () => mql.removeEventListener("change", onChange)
   }, [])
 
-  return !!isPWA
+  return isPWA
 }
