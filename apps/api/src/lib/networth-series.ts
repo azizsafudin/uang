@@ -34,17 +34,10 @@ async function baseCurrencyFromSettings(): Promise<string> {
 
 type Flow = { date: string; baseMinor: number };
 
-// External contributions = every transaction that is NOT part of an internal
-// transfer pair, from the same account set net worth uses (non-archived,
-// owner-filtered), each valued in base currency at its own date's FX:
-//   - currency rows  → the cash amount       (deposit +, withdrawal −)
-//   - security rows  → cost/proceeds         (buy +, sell −) = unitsDelta × unitPriceScaled
-// A transaction is internal (excluded) when it is itself a cash leg
-// (linkedTransactionId set) or a security row that a cash leg points at.
-async function contributionFlowsBase(owner?: string): Promise<Flow[]> {
-  const base = await baseCurrencyFromSettings();
+// The set of account ids net worth and contributions both draw from:
+// non-archived, and (for a member owner) only that member's sole-owned accounts.
+async function includedAccountIds(owner?: string): Promise<Set<string>> {
   const ownerSets = await getAllOwnerSets();
-
   const accts = await db.select().from(accounts).where(eq(accounts.isArchived, 0));
   const included = new Set<string>();
   for (const a of accts) {
@@ -55,6 +48,34 @@ async function contributionFlowsBase(owner?: string): Promise<Flow[]> {
     }
     included.add(a.id);
   }
+  return included;
+}
+
+// Earliest transaction date across the owner's included accounts (the natural
+// start for an "all time" range), or null when there are no transactions.
+async function earliestTxDate(owner?: string): Promise<string | null> {
+  const included = await includedAccountIds(owner);
+  const rows = await db
+    .select({ date: transactions.date, accountId: transactions.accountId })
+    .from(transactions);
+  let min: string | null = null;
+  for (const r of rows) {
+    if (!included.has(r.accountId)) continue;
+    if (min === null || r.date < min) min = r.date;
+  }
+  return min;
+}
+
+// External contributions = every transaction that is NOT part of an internal
+// transfer pair, from the same account set net worth uses (non-archived,
+// owner-filtered), each valued in base currency at its own date's FX:
+//   - currency rows  → the cash amount       (deposit +, withdrawal −)
+//   - security rows  → cost/proceeds         (buy +, sell −) = unitsDelta × unitPriceScaled
+// A transaction is internal (excluded) when it is itself a cash leg
+// (linkedTransactionId set) or a security row that a cash leg points at.
+async function contributionFlowsBase(owner?: string): Promise<Flow[]> {
+  const base = await baseCurrencyFromSettings();
+  const included = await includedAccountIds(owner);
 
   const rows = await db
     .select()
@@ -97,12 +118,14 @@ async function contributionFlowsBase(owner?: string): Promise<Flow[]> {
 }
 
 export async function netWorthSeries(opts: {
-  from: string;
+  from?: string;
   to?: string;
   owner?: string;
 }): Promise<NetWorthSeries> {
   const to = opts.to ?? todayISO();
-  const dates = weeklyDates(opts.from, to);
+  // No `from` → "all time": start at the earliest transaction (or `to` if none).
+  const from = opts.from ?? (await earliestTxDate(opts.owner)) ?? to;
+  const dates = weeklyDates(from, to);
   const flows = await contributionFlowsBase(opts.owner);
 
   const points: NetWorthPoint[] = [];

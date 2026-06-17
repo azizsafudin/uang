@@ -17,7 +17,7 @@ import {
 type SeriesPoint = { date: string; totalBaseMinor: number; netDepositsBaseMinor: number };
 type Series = { baseCurrency: string; points: SeriesPoint[] };
 
-const PRESETS = ["YTD", "1M", "6M", "1Y", "3Y", "Custom"] as const;
+const PRESETS = ["All", "YTD", "1M", "6M", "1Y", "3Y", "Custom"] as const;
 type Preset = (typeof PRESETS)[number];
 
 const chartConfig = {
@@ -56,8 +56,8 @@ function formatMoneyCompact(minor: number, currency: string): string {
   return `${sign}${currencySymbol(currency)}${num}`;
 }
 
-// Map a non-custom preset to a {from, to} range (to = today).
-function presetRange(preset: Exclude<Preset, "Custom">): { from: string; to: string } {
+// Map a fixed-window preset to a {from, to} range (to = today).
+function presetRange(preset: Exclude<Preset, "Custom" | "All">): { from: string; to: string } {
   const today = new Date();
   const d = new Date(today);
   switch (preset) {
@@ -80,8 +80,10 @@ function presetRange(preset: Exclude<Preset, "Custom">): { from: string; to: str
   return { from: iso(d), to: iso(today) };
 }
 
-async function fetchSeries(from: string, to: string, owner: string): Promise<Series> {
-  const { data, error } = await api.networth.series.get({ query: { from, to, owner } });
+async function fetchSeries(from: string | undefined, to: string, owner: string): Promise<Series> {
+  // Omit `from` for "All time" — the API derives the earliest transaction date.
+  const query = from ? { from, to, owner } : { to, owner };
+  const { data, error } = await api.networth.series.get({ query });
   if (error) throw new Error(String(error));
   return data as unknown as Series;
 }
@@ -94,16 +96,21 @@ export function NetWorthChart({
   onOwnerChange: (v: string) => void;
 }) {
   const money = useMoney();
-  const [preset, setPreset] = useState<Preset>("1Y");
+  const [preset, setPreset] = useState<Preset>("All");
   // Custom range inputs (used only when preset === "Custom").
   const [customFrom, setCustomFrom] = useState(() => presetRange("1Y").from);
   const [customTo, setCustomTo] = useState(() => iso(new Date()));
 
-  const { from, to } =
-    preset === "Custom" ? { from: customFrom, to: customTo } : presetRange(preset);
+  // `from` is undefined for "All" (the API derives the earliest tx date).
+  const { from, to }: { from?: string; to: string } =
+    preset === "Custom"
+      ? { from: customFrom, to: customTo }
+      : preset === "All"
+        ? { to: iso(new Date()) }
+        : presetRange(preset);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["networth-series", owner, from, to],
+    queryKey: ["networth-series", owner, from ?? "all", to],
     queryFn: () => fetchSeries(from, to, owner),
   });
 
@@ -203,31 +210,58 @@ export function NetWorthChart({
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  labelFormatter={(label) =>
-                    formatDay(label, { year: "numeric", month: "short", day: "numeric" })
-                  }
+                  // The x-axis value is epoch ms (numeric), so read the date off
+                  // the hovered data point rather than the tooltip's label arg
+                  // (which shadcn only treats as a date when it's a string).
+                  labelFormatter={(_label, payload) => {
+                    const t = (payload?.[0]?.payload as { t?: number } | undefined)?.t;
+                    return formatDay(t, { year: "numeric", month: "short", day: "numeric" });
+                  }}
+                  // Each row renders its own label + colour swatch + value (the
+                  // formatter replaces the default row). Appreciation (net worth −
+                  // net contributions) is appended under the last row.
                   formatter={(value, _name, item) => {
-                    const formatted = money(Number(value), base);
-                    // After the "net" row, surface the derived appreciation
-                    // (net worth − net deposits) for the hovered point.
-                    if (item?.dataKey === "net") {
-                      const p = item.payload as { net: number; deposits: number };
-                      return (
-                        <span className="flex flex-1 flex-col gap-0.5">
-                          <span>{formatted}</span>
-                          <span className="flex justify-between gap-3 text-muted-foreground">
-                            <span>Appreciation</span>
-                            <span className="font-mono tabular-nums">
+                    const p = item?.payload as { t: number; net: number; deposits: number };
+                    const isDeposits = item?.dataKey === "deposits";
+                    const label = isDeposits ? "Net contributions" : "Net worth";
+                    const color = item?.color ?? `var(--color-${String(item?.dataKey)})`;
+                    return (
+                      <div className="flex flex-1 flex-col gap-1">
+                        <div className="flex flex-1 items-center justify-between gap-4">
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <span
+                              className="h-2 w-2 shrink-0 rounded-[2px]"
+                              style={{ backgroundColor: color }}
+                            />
+                            {label}
+                          </span>
+                          <span className="font-mono font-medium tabular-nums text-foreground">
+                            {money(Number(value), base)}
+                          </span>
+                        </div>
+                        {isDeposits && (
+                          <div className="flex flex-1 items-center justify-between gap-4">
+                            <span className="pl-3.5 text-muted-foreground">Appreciation</span>
+                            <span className="font-mono tabular-nums text-muted-foreground">
                               {money(p.net - p.deposits, base)}
                             </span>
-                          </span>
-                        </span>
-                      );
-                    }
-                    return formatted;
+                          </div>
+                        )}
+                      </div>
+                    );
                   }}
                 />
               }
+            />
+            {/* `net` declared first so the tooltip lists Net worth, then its
+                breakdown (Net contributions + Appreciation). */}
+            <Area
+              dataKey="net"
+              type="monotone"
+              fill="var(--color-net)"
+              fillOpacity={0.15}
+              stroke="var(--color-net)"
+              strokeWidth={2}
             />
             <Area
               dataKey="deposits"
@@ -237,14 +271,6 @@ export function NetWorthChart({
               stroke="var(--color-deposits)"
               strokeWidth={2}
               strokeDasharray="4 3"
-            />
-            <Area
-              dataKey="net"
-              type="monotone"
-              fill="var(--color-net)"
-              fillOpacity={0.15}
-              stroke="var(--color-net)"
-              strokeWidth={2}
             />
           </AreaChart>
         </ChartContainer>

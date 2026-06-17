@@ -88,6 +88,28 @@ test("weekly points are ascending, anchored on `to`, with as-of values", async (
   expect(series.points.at(-1)).toEqual({ date: "2026-02-05", totalBaseMinor: 150000, netDepositsBaseMinor: 150000 });
 });
 
+test("omitting `from` starts the range at the earliest transaction", async () => {
+  await seedSettings("USD");
+  const { id: acct, instrumentId } = await seedAccount({ cls: "asset", currency: "USD", amountMinor: 100000, date: "2025-01-06" });
+  await seedTx(acct, instrumentId, 50000, "2025-06-02");
+
+  const series = await netWorthSeries({ to: "2025-06-02" });
+
+  // First point is the earliest tx date, last is `to`.
+  expect(series.points[0].date).toBe("2025-01-06");
+  expect(series.points.at(-1)!.date).toBe("2025-06-02");
+  expect(series.points.at(-1)!.totalBaseMinor).toBe(150000);
+});
+
+test("omitting `from` with no transactions yields a single point at `to`", async () => {
+  await seedSettings("EUR");
+
+  const series = await netWorthSeries({ to: "2026-03-01" });
+
+  expect(series.baseCurrency).toBe("EUR");
+  expect(series.points.map((p) => p.date)).toEqual(["2026-03-01"]);
+});
+
 test("omitting `to` anchors the last point on today", async () => {
   await seedSettings("USD");
   await seedAccount({ cls: "asset", currency: "USD", amountMinor: 100000, date: "2020-01-01" });

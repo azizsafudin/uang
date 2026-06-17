@@ -48,10 +48,19 @@ test("GET /networth/series returns ascending weekly points", async () => {
   expect(series.points.every((p: any) => p.totalBaseMinor === 100000)).toBe(true);
 });
 
-test("GET /networth/series requires `from` (422 when missing)", async () => {
+test("GET /networth/series without `from` returns all-time from the earliest tx", async () => {
   const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
-  const res = await app.handle(new Request("http://localhost/networth/series", { headers: { cookie } }));
-  expect(res.status).toBe(422);
+  await seedAccount(100000, "2026-01-01");
+
+  const res = await app.handle(
+    new Request("http://localhost/networth/series?to=2026-01-15", { headers: { cookie } }),
+  );
+  expect(res.status).toBe(200);
+
+  const series = await res.json();
+  // Range starts at the earliest transaction date, not a client-supplied `from`.
+  expect(series.points[0].date).toBe("2026-01-01");
+  expect(series.points.map((p: any) => p.date)).toEqual(["2026-01-01", "2026-01-08", "2026-01-15"]);
 });
 
 test("GET /networth/series returns 401 without auth", async () => {

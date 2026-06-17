@@ -22,7 +22,7 @@ test("net-worth chart renders data and responds to preset changes", async ({ pag
 
   const chart = page.getByTestId("networth-chart");
 
-  await test.step("default range (1Y) renders a chart, not the empty state", async () => {
+  await test.step("default range (All) renders a chart, not the empty state", async () => {
     await expect(chart).toBeVisible();
     await expect(chart).not.toContainText("No data for this range.");
   });

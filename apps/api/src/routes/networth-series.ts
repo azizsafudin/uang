@@ -10,7 +10,8 @@ export const networthSeriesRoutes = new Elysia()
       netWorthSeries({ from: query.from, to: query.to, owner: query.owner }),
     {
       query: t.Object({
-        from: t.String(),
+        // `from` omitted → "all time" (series derives the earliest tx date).
+        from: t.Optional(t.String()),
         to: t.Optional(t.String()),
         owner: t.Optional(t.String()),
       }),
