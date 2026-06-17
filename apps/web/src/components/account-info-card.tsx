@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { OwnersField } from "@/components/owners-field";
 import { OwnersBadge } from "@/components/owners-badge";
+import { SUBTYPES, subtypeLabel } from "@/components/labels";
 import { cn } from "@/lib/utils";
 
 type Props = { account: AccountRow };
@@ -24,6 +25,7 @@ export function AccountInfoCard({ account }: Props) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(account.name);
+  const [subtype, setSubtype] = useState(account.subtype);
   const [institution, setInstitution] = useState(account.institution ?? "");
   const [groupId, setGroupId] = useState<string | null>(account.groupId ?? null);
   const [draftOwners, setDraftOwners] = useState<string[]>(account.ownerIds);
@@ -35,6 +37,7 @@ export function AccountInfoCard({ account }: Props) {
 
   function openEdit() {
     setName(account.name);
+    setSubtype(account.subtype);
     setInstitution(account.institution ?? "");
     setGroupId(account.groupId ?? null);
     setDraftOwners(account.ownerIds);
@@ -68,6 +71,8 @@ export function AccountInfoCard({ account }: Props) {
   async function save() {
     await accountsCollection.update(account.id, (draft) => {
       draft.name = name.trim();
+      // Liabilities are a single loan type; only assets can change category.
+      if (account.class !== "liability") draft.subtype = subtype;
       draft.institution = institution.trim() || null;
       draft.groupId = groupId;
     });
@@ -86,6 +91,7 @@ export function AccountInfoCard({ account }: Props) {
       {!editing && (
         <div className="py-1.5">
           <KVRow label="Name" value={account.name} />
+          <KVRow label="Type" value={subtypeLabel(account.subtype)} />
           <KVRow label="Institution" value={account.institution ?? null} empty="—" />
           <KVRow label="Group" value={groupName} empty="None" />
           <div className="flex items-start gap-6 px-4 py-2">
@@ -101,6 +107,23 @@ export function AccountInfoCard({ account }: Props) {
             <Field label="Name">
               <Input value={name} onChange={(e) => setName(e.target.value)} required />
             </Field>
+
+            {account.class !== "liability" && (
+              <Field label="Type" hint="The kind of account: cash, investment portfolio, property, etc.">
+                <Select value={subtype} onValueChange={(v: string | null) => v && setSubtype(v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(v: unknown) => subtypeLabel(String(v))}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUBTYPES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {subtypeLabel(s)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
 
             <Field label="Institution" hint="Optional. The bank or provider holding this account.">
               <Input

@@ -349,6 +349,35 @@ test("PATCH /:id accepts groupId", async () => {
   expect(body.find((a: any) => a.id === accountId).groupId).toBe(groupId);
 });
 
+test("PATCH /:id updates subtype", async () => {
+  const app = makeApp(accountsRoutes);
+  const { cookie } = await initAndLogin({ app });
+
+  const aRes = await app.handle(
+    new Request("http://localhost/accounts", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ name: "CPF OA", class: "asset", subtype: "cash", currency: "SGD" }),
+    }),
+  );
+  const { id: accountId } = await aRes.json();
+
+  const patch = await app.handle(
+    new Request(`http://localhost/accounts/${accountId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ subtype: "other" }),
+    }),
+  );
+  expect(patch.status).toBe(200);
+
+  const list = await app.handle(
+    new Request("http://localhost/accounts", { headers: { cookie } }),
+  );
+  const body = await list.json();
+  expect(body.find((a: any) => a.id === accountId).subtype).toBe("other");
+});
+
 test("loanTermMonths round-trips: POST with field and PATCH update", async () => {
   const app = makeApp(accountsRoutes);
   const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });

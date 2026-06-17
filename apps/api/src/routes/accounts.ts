@@ -137,6 +137,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
     async ({ params, body }: any) => {
       const update: Record<string, unknown> = {};
       if (body.name !== undefined) update.name = body.name;
+      if (body.subtype !== undefined) update.subtype = body.subtype;
       if (body.institution !== undefined) update.institution = body.institution;
       if (body.sortOrder !== undefined) update.sortOrder = body.sortOrder;
       if (body.isArchived !== undefined) update.isArchived = body.isArchived ? 1 : 0;
@@ -155,6 +156,7 @@ export const accountsRoutes = new Elysia({ prefix: "/accounts" })
     {
       body: t.Object({
         name: t.Optional(t.String({ minLength: 1 })),
+        subtype: t.Optional(t.String({ minLength: 1 })),
         institution: t.Optional(t.String()),
         sortOrder: t.Optional(t.Number()),
         groupId: t.Optional(t.Union([t.String(), t.Null()])),

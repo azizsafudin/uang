@@ -76,6 +76,7 @@ export const accountsCollection = createCollection(
       if (!m) return;
       const { error } = await api.accounts({ id: m.id }).patch({
         name: m.name,
+        subtype: m.subtype,
         institution: m.institution ?? undefined,
         sortOrder: m.sortOrder,
         isArchived: m.isArchived === 1,
