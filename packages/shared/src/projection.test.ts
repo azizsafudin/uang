@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { compoundMinor, projectSeries, accessibleValueMinor, type AccessibilityConfig } from "./projection";
+import { loanMonthlyPaymentMinor, projectNetWorth, projectAccountSeries, milestoneYears, type ProjectionAccount, type ContributionStream, type PayoutStream } from "./projection";
 
 test("compoundMinor: zero years returns the input", () => {
   expect(compoundMinor(100_000, 800, 0)).toBe(100_000);
@@ -94,15 +95,13 @@ test("accessibleValueMinor: rejects out-of-range earlyHaircutBps", () => {
   expect(() => accessibleValueMinor(100_000, 50, bad)).toThrow();
 });
 
-import { loanMonthlyPaymentMinor, projectNetWorth, projectAccountSeries, milestoneYears, type ProjectionAccount, type WithdrawalConfig, type AccumulationConfig } from "./projection";
-
-const noSpend: WithdrawalConfig = {
-  spendType: "none", spendAmountMinor: null, spendRateBps: null,
-  spendStartKind: "age", spendStartAge: null, spendStartTargetMinor: null,
-};
-
-const noAcc: AccumulationConfig = {
-  contributionMinor: 0, contributionUntilAge: null, compoundInterval: "annually",
+const baseAcct = {
+  accessibleFromAge: 0, earlyWithdrawal: "none" as const, earlyHaircutBps: 0,
+  illiquid: false, liquidationAge: null,
+  compoundInterval: "annually" as const,
+  contributions: [] as ContributionStream[],
+  payouts: [] as PayoutStream[],
+  isLiability: false, loanTermMonths: null,
 };
 
 test("milestoneYears: default 55/62/65", () => {
@@ -115,29 +114,26 @@ test("milestoneYears: default 55/62/65", () => {
 
 test("projectNetWorth: total grows; accessible respects unlocks", () => {
   const cash: ProjectionAccount = {
+    ...baseAcct,
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 0,
-    earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990], isLiability: false,
-    loanTermMonths: null, ...noSpend, ...noAcc,
+    ownerBirthYears: [1990], isLiability: false, loanTermMonths: null,
   };
-  const cpf: ProjectionAccount = {
+  const cpfAcct: ProjectionAccount = {
+    ...baseAcct,
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
-    earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1990], isLiability: false,
-    loanTermMonths: null, ...noSpend, ...noAcc,
+    ownerBirthYears: [1990], isLiability: false, loanTermMonths: null,
   };
   // 2030: owner age 40 -> CPF locked. 2045: owner age 55 -> CPF unlocks.
-  const pts = projectNetWorth({ accounts: [cash, cpf], fromYear: 2030, toYear: 2045 });
+  const pts = projectNetWorth({ accounts: [cash, cpfAcct], fromYear: 2030, toYear: 2045 });
   expect(pts[0]).toEqual({ year: 2030, totalBaseMinor: 200_000, accessibleBaseMinor: 100_000 });
   expect(pts[pts.length - 1]).toEqual({ year: 2045, totalBaseMinor: 200_000, accessibleBaseMinor: 200_000 });
 });
 
 test("projectNetWorth: shared account uses the youngest owner's age", () => {
   const shared: ProjectionAccount = {
+    ...baseAcct,
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
-    earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [1980, 1990], isLiability: false,
-    loanTermMonths: null, ...noSpend, ...noAcc, // youngest born 1990
+    ownerBirthYears: [1980, 1990], isLiability: false, loanTermMonths: null, // youngest born 1990
   };
   const pts = projectNetWorth({ accounts: [shared], fromYear: 2040, toYear: 2045 });
   // 2040: younger is 50 -> locked. 2045: younger is 55 -> unlocked.
@@ -151,129 +147,80 @@ test("projectNetWorth: rejects inverted range", () => {
 
 test("projectNetWorth: empty ownerBirthYears treats account as accessible", () => {
   const noBirth: ProjectionAccount = {
+    ...baseAcct,
     baseMinor: 100_000, growthRateBps: 0, accessibleFromAge: 55,
-    earlyWithdrawal: "none", earlyHaircutBps: 0, illiquid: false,
-    liquidationAge: null, ownerBirthYears: [], isLiability: false,
-    loanTermMonths: null, ...noSpend, ...noAcc,
+    ownerBirthYears: [], isLiability: false, loanTermMonths: null,
   };
   const pts = projectNetWorth({ accounts: [noBirth], fromYear: 2030, toYear: 2030 });
   expect(pts[0].accessibleBaseMinor).toBe(100_000);
 });
 
-// --- Withdrawals -----------------------------------------------------------
+// --- Payouts + contributions ------------------------------------------------
 
-const liquidSpend = {
-  accessibleFromAge: 0, earlyWithdrawal: "none" as const, earlyHaircutBps: 0,
-  illiquid: false, liquidationAge: null, isLiability: false, loanTermMonths: null,
-  ...noSpend, ...noAcc,
-};
-
-test("withdrawal none: identical to compound-only baseline", () => {
-  const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 100_000, growthRateBps: 800, ownerBirthYears: [1990],
-  };
+test("payout none: identical to compound-only baseline", () => {
+  const a: ProjectionAccount = { ...baseAcct, baseMinor: 100_000, growthRateBps: 800, ownerBirthYears: [1990] };
   expect(projectAccountSeries(a, 2, 2030, 1990)).toEqual(projectSeries(100_000, 800, 2));
 });
 
-test("withdrawal once + age trigger: lump removed once, nothing after", () => {
+test("payout once: lump removed once in startYear, nothing after", () => {
   const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 100_000, growthRateBps: 0, ownerBirthYears: [1990],
-    spendType: "once", spendAmountMinor: 30_000, spendStartKind: "age", spendStartAge: 60,
+    ...baseAcct, baseMinor: 200_000, growthRateBps: 0, ownerBirthYears: [1990],
+    payouts: [{ spendType: "once", spendAmountMinor: 30_000, spendRateBps: null, startYear: 2050 }],
   };
   const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
-  expect(pts.map((p) => p.totalBaseMinor)).toEqual([100_000, 70_000, 70_000]);
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([200_000, 170_000, 170_000]);
 });
 
-test("withdrawal monthly + age trigger: 12x amount per year from start", () => {
+test("payout monthly: 12x amount per year from startYear", () => {
   const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 1_000_000, growthRateBps: 0, ownerBirthYears: [1990],
-    spendType: "monthly", spendAmountMinor: 5_000, spendStartKind: "age", spendStartAge: 60,
+    ...baseAcct, baseMinor: 200_000, growthRateBps: 0, ownerBirthYears: [1990],
+    payouts: [{ spendType: "monthly", spendAmountMinor: 5_000, spendRateBps: null, startYear: 2050 }],
   };
   const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
-  expect(pts.map((p) => p.totalBaseMinor)).toEqual([1_000_000, 940_000, 880_000]);
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([200_000, 140_000, 80_000]);
 });
 
-test("withdrawal percent + age trigger: rate% of balance per year", () => {
+test("payout percent: rate% of balance per year from startYear", () => {
   const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 1_000_000, growthRateBps: 0, ownerBirthYears: [1990],
-    spendType: "percent", spendRateBps: 400, spendStartKind: "age", spendStartAge: 60,
+    ...baseAcct, baseMinor: 100_000, growthRateBps: 0, ownerBirthYears: [1990],
+    payouts: [{ spendType: "percent", spendAmountMinor: null, spendRateBps: 400, startYear: 2050 }],
   };
   const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
-  expect(pts.map((p) => p.totalBaseMinor)).toEqual([1_000_000, 960_000, 921_600]);
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([100_000, 96_000, 92_160]);
 });
 
-test("withdrawal target trigger latches on the first year balance crosses target", () => {
+test("payout capped at available balance (floored at 0)", () => {
   const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 100_000, growthRateBps: 800, ownerBirthYears: [],
-    spendType: "once", spendAmountMinor: 10_000, spendStartKind: "target",
-    spendStartTargetMinor: 120_000,
-  };
-  const series = projectAccountSeries(a, 4, 2030, null);
-  // grow: 100000,108000,116640,125971 -> at 125971 (>=120000) withdraw 10000 -> 115971; then grow.
-  expect(series).toEqual([100_000, 108_000, 116_640, 115_971, 125_249]);
-});
-
-test("withdrawal capped at available balance (floored at 0)", () => {
-  const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 50_000, growthRateBps: 0, ownerBirthYears: [1990],
-    spendType: "monthly", spendAmountMinor: 10_000, spendStartKind: "age", spendStartAge: 60,
+    ...baseAcct, baseMinor: 8_000, growthRateBps: 0, ownerBirthYears: [1990],
+    payouts: [{ spendType: "monthly", spendAmountMinor: 10_000, spendRateBps: null, startYear: 2050 }],
   };
   const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
-  expect(pts.map((p) => p.totalBaseMinor)).toEqual([50_000, 0, 0]);
+  expect(pts.map((p) => p.totalBaseMinor)).toEqual([8_000, 0, 0]);
 });
 
-test("age trigger never fires without an owner birth year", () => {
+test("contribution stream: added monthly during accumulation, stops after untilYear", () => {
   const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 100_000, growthRateBps: 0, ownerBirthYears: [],
-    spendType: "percent", spendRateBps: 400, spendStartKind: "age", spendStartAge: 60,
+    ...baseAcct, baseMinor: 0, growthRateBps: 0, ownerBirthYears: [1990],
+    contributions: [{ monthlyMinor: 1_000, untilYear: 2032 }],
   };
-  const pts = projectNetWorth({ accounts: [a], fromYear: 2049, toYear: 2051 });
-  expect(pts.map((p) => p.totalBaseMinor)).toEqual([100_000, 100_000, 100_000]);
+  const series = projectAccountSeries(a, 3, 2030, 1990);
+  expect(series).toEqual([0, 12_000, 24_000, 24_000]);
 });
 
-test("liabilities keep compounding negative; withdrawal config ignored", () => {
+test("negative balance asset: payouts not applied (b <= 0 guard), still grows negative", () => {
   const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: -100_000, growthRateBps: 250, ownerBirthYears: [1990],
-    spendType: "monthly", spendAmountMinor: 9_999, spendStartKind: "age", spendStartAge: 0,
+    ...baseAcct, baseMinor: -100_000, growthRateBps: 250, ownerBirthYears: [1990],
+    payouts: [{ spendType: "monthly", spendAmountMinor: 9_999, spendRateBps: null, startYear: 2030 }],
   };
   const series = projectAccountSeries(a, 1, 2030, 1990);
   expect(series).toEqual([-100_000, -102_500]);
 });
 
-// --- Contributions + compound interval -------------------------------------
-
-test("monthly contribution compounds (annual interval): 12x/yr added before growth", () => {
-  const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 0, growthRateBps: 1000, ownerBirthYears: [],
-    contributionMinor: 1_000, contributionUntilAge: null,
-  };
-  // y1: (0 + 12000) * 1.10 = 13200 ; y2: (13200 + 12000) * 1.10 = 27720
-  expect(projectAccountSeries(a, 2, 2030, null)).toEqual([0, 13_200, 27_720]);
-});
-
-test("contributions run until the cutoff age, then stop", () => {
-  const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 0, growthRateBps: 0, ownerBirthYears: [2000],
-    contributionMinor: 1_000, contributionUntilAge: 30,
-  };
-  // 2029 (age 29) contributes; 2030 (age 30) and after do not.
-  expect(projectAccountSeries(a, 3, 2028, 2000)).toEqual([0, 12_000, 12_000, 12_000]);
-});
-
-test("no cutoff age + no birth year still contributes for the whole projection", () => {
-  const a: ProjectionAccount = {
-    ...liquidSpend, baseMinor: 0, growthRateBps: 0, ownerBirthYears: [],
-    contributionMinor: 1_000, contributionUntilAge: 40,
-  };
-  // Age can't be computed (no birth year) so the cutoff can't apply — keep contributing.
-  expect(projectAccountSeries(a, 2, 2030, null)).toEqual([0, 12_000, 24_000]);
-});
-
 test("compound interval: monthly > quarterly > annually for the same nominal rate", () => {
-  const base = { ...liquidSpend, baseMinor: 1_000_000, growthRateBps: 1200, ownerBirthYears: [] };
-  const annually = projectAccountSeries({ ...base, compoundInterval: "annually" }, 1, 2030, null)[1];
-  const quarterly = projectAccountSeries({ ...base, compoundInterval: "quarterly" }, 1, 2030, null)[1];
-  const monthly = projectAccountSeries({ ...base, compoundInterval: "monthly" }, 1, 2030, null)[1];
+  const base = { ...baseAcct, baseMinor: 1_000_000, growthRateBps: 1200, ownerBirthYears: [] };
+  const annually = projectAccountSeries({ ...base, compoundInterval: "annually" as const }, 1, 2030, null)[1];
+  const quarterly = projectAccountSeries({ ...base, compoundInterval: "quarterly" as const }, 1, 2030, null)[1];
+  const monthly = projectAccountSeries({ ...base, compoundInterval: "monthly" as const }, 1, 2030, null)[1];
   expect(annually).toBe(1_120_000);
   expect(quarterly).toBeGreaterThan(annually);
   expect(monthly).toBeGreaterThan(quarterly);
@@ -283,25 +230,12 @@ test("compound interval: monthly > quarterly > annually for the same nominal rat
 
 // Minimal liability/loan account factory. baseMinor is negative (debt).
 const loan = (over: Partial<ProjectionAccount>): ProjectionAccount => ({
+  ...baseAcct,
   baseMinor: 0,
   growthRateBps: 0,
   ownerBirthYears: [],
   isLiability: true,
   loanTermMonths: null,
-  accessibleFromAge: 0,
-  earlyWithdrawal: "none",
-  earlyHaircutBps: 0,
-  illiquid: false,
-  liquidationAge: null,
-  spendType: "none",
-  spendAmountMinor: null,
-  spendRateBps: null,
-  spendStartKind: "age",
-  spendStartAge: null,
-  spendStartTargetMinor: null,
-  contributionMinor: 0,
-  contributionUntilAge: null,
-  compoundInterval: "annually",
   ...over,
 });
 

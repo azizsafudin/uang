@@ -5,7 +5,6 @@ import { currencyDecimals, loanMonthlyPaymentMinor } from "@uang/shared";
 import { accountsCollection, type AccountRow } from "@/lib/collections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoneyInput } from "@/components/ui/money-input";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -23,11 +22,6 @@ import { Field } from "@/components/account-info-card";
 // UI shows percent; storage is basis points.
 const toPct = (bps: number) => String(bps / 100);
 const fromPct = (s: string) => Math.round((parseFloat(s) || 0) * 100);
-// Withdrawal amounts are in BASE currency.
-const toMajor = (minor: number, currency: string) =>
-  String(minor / 10 ** currencyDecimals(currency));
-const toMinor = (major: string, currency: string) =>
-  Math.round((parseFloat(major) || 0) * 10 ** currencyDecimals(currency));
 
 // Loan term <-> months. UI edits years + months; storage is total months.
 const splitTerm = (months: number | null) => ({
@@ -46,16 +40,7 @@ const fmtMajor = (minor: number, currency: string) =>
     maximumFractionDigits: currencyDecimals(currency),
   });
 
-type SpendType = AccountRow["spendType"];
-type SpendStartKind = AccountRow["spendStartKind"];
 type CompoundInterval = AccountRow["compoundInterval"];
-
-const SPEND_LABELS: Record<SpendType, string> = {
-  none: "None (no withdrawal)",
-  once: "One-time withdrawal",
-  monthly: "Monthly income",
-  percent: "% of balance / yr",
-};
 
 const COMPOUND_LABELS: Record<CompoundInterval, string> = {
   monthly: "Monthly",
@@ -70,21 +55,13 @@ type FormValues = {
   earlyHaircutPct: string;
   illiquid: boolean;
   liquidationAge: string;
-  contribution: string;
-  contributionUntilAge: string;
   compoundInterval: CompoundInterval;
-  spendType: SpendType;
-  spendAmount: string;
-  spendRate: string;
-  spendStartKind: SpendStartKind;
-  spendStartAge: string;
-  spendStartTarget: string;
   loanRatePct: string;
   loanTermYears: string;
   loanTermMonths: string;
 };
 
-function seedForm(account: AccountRow, base: string): FormValues {
+function seedForm(account: AccountRow): FormValues {
   return {
     growthPct: toPct(account.growthRateBps),
     accessibleFromAge: String(account.accessibleFromAge),
@@ -92,26 +69,16 @@ function seedForm(account: AccountRow, base: string): FormValues {
     earlyHaircutPct: toPct(account.earlyHaircutBps),
     illiquid: account.illiquid === 1,
     liquidationAge: account.liquidationAge == null ? "" : String(account.liquidationAge),
-    contribution: account.contributionMinor ? toMajor(account.contributionMinor, base) : "",
-    contributionUntilAge:
-      account.contributionUntilAge == null ? "" : String(account.contributionUntilAge),
     compoundInterval: account.compoundInterval,
-    spendType: account.spendType,
-    spendAmount: account.spendAmountMinor == null ? "" : toMajor(account.spendAmountMinor, base),
-    spendRate: account.spendRateBps == null ? "" : toPct(account.spendRateBps),
-    spendStartKind: account.spendStartKind,
-    spendStartAge: account.spendStartAge == null ? "" : String(account.spendStartAge),
-    spendStartTarget:
-      account.spendStartTargetMinor == null ? "" : toMajor(account.spendStartTargetMinor, base),
     loanRatePct: toPct(account.growthRateBps),
     loanTermYears: splitTerm(account.loanTermMonths).years,
     loanTermMonths: splitTerm(account.loanTermMonths).months,
   };
 }
 
-// The projection assumptions + decumulation (withdrawal) editor for one account.
-// Rendered inside the edit dialog on /projections. Amounts are base currency.
-// Liabilities never withdraw, so the withdrawal block is hidden for them.
+// The projection assumptions editor for one account (vessel-only: growth,
+// accessibility, compound interval, and loan terms for liabilities).
+// Rendered inside the edit dialog on /projections.
 export function AccountProjectionForm({
   account,
   baseCurrency,
@@ -124,18 +91,16 @@ export function AccountProjectionForm({
   const qc = useQueryClient();
   const isLiability = account.class === "liability";
   const { register, handleSubmit, control, watch, reset } = useForm<FormValues>({
-    defaultValues: seedForm(account, baseCurrency),
+    defaultValues: seedForm(account),
   });
 
   useEffect(() => {
-    reset(seedForm(account, baseCurrency));
+    reset(seedForm(account));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account.id]);
 
   const earlyWithdrawal = watch("earlyWithdrawal");
   const illiquid = watch("illiquid");
-  const spendType = watch("spendType");
-  const spendStartKind = watch("spendStartKind");
   const loanRatePct = watch("loanRatePct");
   const loanTermYears = watch("loanTermYears");
   const loanTermMonths = watch("loanTermMonths");
@@ -144,11 +109,9 @@ export function AccountProjectionForm({
     accountsCollection.update(account.id, (draft) => {
       if (isLiability) {
         // Single loan model: interest rate + remaining term. Balance comes from
-        // transactions; withdrawal/accessibility/contribution are not used.
+        // transactions; accessibility/contribution are not used.
         draft.growthRateBps = fromPct(f.loanRatePct);
         draft.loanTermMonths = joinTerm(f.loanTermYears, f.loanTermMonths);
-        draft.spendType = "none";
-        draft.contributionMinor = 0;
         return;
       }
       draft.growthRateBps = fromPct(f.growthPct);
@@ -157,24 +120,7 @@ export function AccountProjectionForm({
       draft.earlyHaircutBps = fromPct(f.earlyHaircutPct);
       draft.illiquid = f.illiquid ? 1 : 0;
       draft.liquidationAge = f.liquidationAge === "" ? null : parseInt(f.liquidationAge, 10);
-      // Accumulation.
-      draft.contributionMinor = toMinor(f.contribution, baseCurrency);
-      draft.contributionUntilAge =
-        f.contributionUntilAge === "" ? null : parseInt(f.contributionUntilAge, 10);
       draft.compoundInterval = f.compoundInterval;
-      // Decumulation.
-      const spend: SpendType = f.spendType;
-      draft.spendType = spend;
-      draft.spendAmountMinor =
-        spend === "once" || spend === "monthly" ? toMinor(f.spendAmount, baseCurrency) : null;
-      draft.spendRateBps = spend === "percent" ? fromPct(f.spendRate) : null;
-      draft.spendStartKind = f.spendStartKind;
-      draft.spendStartAge =
-        spend !== "none" && f.spendStartKind === "age" ? parseInt(f.spendStartAge, 10) || 0 : null;
-      draft.spendStartTargetMinor =
-        spend !== "none" && f.spendStartKind === "target"
-          ? toMinor(f.spendStartTarget, baseCurrency)
-          : null;
     });
     await qc.invalidateQueries({ queryKey: ["networth"] });
     onClose();
@@ -227,79 +173,6 @@ export function AccountProjectionForm({
                 <Field label="Annual growth %">
                   <Input type="number" step="any" {...register("growthPct")} />
                 </Field>
-                <Field label="Accessible from age">
-                  <Input type="number" min="0" {...register("accessibleFromAge")} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Before that age">
-                  <Controller
-                    control={control}
-                    name="earlyWithdrawal"
-                    render={({ field }) => (
-                      <Select
-                        value={field.value}
-                        onValueChange={(v: string | null) =>
-                          v && field.onChange(v as AccountRow["earlyWithdrawal"])
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue>
-                            {(v: unknown) => (String(v) === "penalty" ? "Withdraw with penalty" : "Locked")}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Locked</SelectItem>
-                          <SelectItem value="penalty">Withdraw with penalty</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </Field>
-                <Field label="Early penalty %">
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    disabled={earlyWithdrawal !== "penalty"}
-                    {...register("earlyHaircutPct")}
-                  />
-                </Field>
-              </div>
-              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                <span className="text-sm">Illiquid (exclude from accessible)</span>
-                <Controller
-                  control={control}
-                  name="illiquid"
-                  render={({ field }) => (
-                    <Switch checked={field.value} onCheckedChange={(v: boolean) => field.onChange(v)} />
-                  )}
-                />
-              </div>
-              {illiquid && (
-                <Field label="Liquidation age (optional)">
-                  <Input type="number" min="0" placeholder="never" {...register("liquidationAge")} />
-                </Field>
-              )}
-
-              <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
-                <Field label={`Monthly contribution (${baseCurrency})`}>
-                  <Controller
-                    control={control}
-                    name="contribution"
-                    render={({ field }) => (
-                      <MoneyInput
-                        currency={baseCurrency}
-                        value={field.value}
-                        onChange={field.onChange}
-                        placeholder="0"
-                      />
-                    )}
-                  />
-                </Field>
-                <Field label="Contribute until age">
-                  <Input type="number" min="0" placeholder="no limit" {...register("contributionUntilAge")} />
-                </Field>
                 <Field label="Compound">
                   <Controller
                     control={control}
@@ -324,98 +197,60 @@ export function AccountProjectionForm({
                   />
                 </Field>
               </div>
-
-              <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
-                <Field label="Withdrawal">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Accessible from age">
+                  <Input type="number" min="0" {...register("accessibleFromAge")} />
+                </Field>
+                <Field label="Before that age">
                   <Controller
                     control={control}
-                    name="spendType"
+                    name="earlyWithdrawal"
                     render={({ field }) => (
                       <Select
                         value={field.value}
-                        onValueChange={(v: string | null) => v && field.onChange(v as SpendType)}
+                        onValueChange={(v: string | null) =>
+                          v && field.onChange(v as AccountRow["earlyWithdrawal"])
+                        }
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue>{(v: unknown) => SPEND_LABELS[v as SpendType]}</SelectValue>
+                          <SelectValue>
+                            {(v: unknown) => (String(v) === "penalty" ? "Withdraw with penalty" : "Locked")}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {(Object.keys(SPEND_LABELS) as SpendType[]).map((k) => (
-                            <SelectItem key={k} value={k}>
-                              {SPEND_LABELS[k]}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="none">Locked</SelectItem>
+                          <SelectItem value="penalty">Withdraw with penalty</SelectItem>
                         </SelectContent>
                       </Select>
                     )}
                   />
                 </Field>
-
-                {(spendType === "once" || spendType === "monthly") && (
-                  <Field
-                    label={spendType === "once" ? `Lump (${baseCurrency})` : `Per month (${baseCurrency})`}
-                  >
-                    <Controller
-                      control={control}
-                      name="spendAmount"
-                      render={({ field }) => (
-                        <MoneyInput currency={baseCurrency} value={field.value} onChange={field.onChange} />
-                      )}
-                    />
-                  </Field>
-                )}
-
-                {spendType === "percent" && (
-                  <Field label="Withdrawal rate (%/yr)">
-                    <Input type="number" step="any" min="0" placeholder="4" {...register("spendRate")} />
-                  </Field>
-                )}
-
-                {spendType !== "none" && (
-                  <>
-                    <Field label="Starts on">
-                      <Controller
-                        control={control}
-                        name="spendStartKind"
-                        render={({ field }) => (
-                          <Select
-                            value={field.value}
-                            onValueChange={(v: string | null) => v && field.onChange(v as SpendStartKind)}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue>
-                                {(v: unknown) => (String(v) === "target" ? "Target balance" : "Owner age")}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="age">Owner age</SelectItem>
-                              <SelectItem value="target">Target balance</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </Field>
-                    {spendStartKind === "age" ? (
-                      <Field label="Start at age">
-                        <Input type="number" min="0" {...register("spendStartAge")} />
-                      </Field>
-                    ) : (
-                      <Field label={`Target balance (${baseCurrency})`}>
-                        <Controller
-                          control={control}
-                          name="spendStartTarget"
-                          render={({ field }) => (
-                            <MoneyInput
-                              currency={baseCurrency}
-                              value={field.value}
-                              onChange={field.onChange}
-                            />
-                          )}
-                        />
-                      </Field>
-                    )}
-                  </>
-                )}
               </div>
+              {earlyWithdrawal === "penalty" && (
+                <Field label="Early penalty %">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    {...register("earlyHaircutPct")}
+                  />
+                </Field>
+              )}
+              <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                <span className="text-sm">Illiquid (exclude from accessible)</span>
+                <Controller
+                  control={control}
+                  name="illiquid"
+                  render={({ field }) => (
+                    <Switch checked={field.value} onCheckedChange={(v: boolean) => field.onChange(v)} />
+                  )}
+                />
+              </div>
+              {illiquid && (
+                <Field label="Liquidation age (optional)">
+                  <Input type="number" min="0" placeholder="never" {...register("liquidationAge")} />
+                </Field>
+              )}
             </div>
           )}
         </div>
