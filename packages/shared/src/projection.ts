@@ -87,41 +87,38 @@ export function accessibleValueMinor(
   return 0;
 }
 
-// Note: the spend-type union is inlined here rather than exported as `SpendType`,
-// because `./goals` already exports a `SpendType` and the package barrel re-exports
-// both modules with `export *` (a named `SpendType` here would collide — TS2308).
-export type SpendStartKind = "age" | "target";
-
-export type WithdrawalConfig = {
-  spendType: "none" | "once" | "monthly" | "percent";
-  spendAmountMinor: number | null;   // base minor: 'once' lump / 'monthly' per-month amount
-  spendRateBps: number | null;       // 'percent' annual % of balance
-  spendStartKind: SpendStartKind;
-  spendStartAge: number | null;      // start when youngest owner reaches this age
-  spendStartTargetMinor: number | null; // start when this account's balance reaches this (base minor)
-};
-
 export type CompoundInterval = "monthly" | "quarterly" | "annually";
 
 function periodsPerYear(interval: CompoundInterval): number {
   return interval === "monthly" ? 12 : interval === "quarterly" ? 4 : 1;
 }
 
-export type AccumulationConfig = {
-  contributionMinor: number;          // base minor, contributed per MONTH during accumulation
-  contributionUntilAge: number | null; // stop when youngest owner reaches this age; null = whole projection
-  compoundInterval: CompoundInterval;  // how often growth + contributions compound within a year
+// A monthly saving stream into an account, running until `untilYear` inclusive
+// (null = the whole projection). Multiple goals may contribute to one account.
+export type ContributionStream = {
+  monthlyMinor: number;
+  untilYear: number | null;
 };
 
-export type ProjectionAccount = AccessibilityConfig &
-  WithdrawalConfig &
-  AccumulationConfig & {
-    baseMinor: number;      // current base-currency balance (signed; negative for debt)
-    growthRateBps: number;  // assets: growth rate; liabilities: annual loan interest rate
-    ownerBirthYears: number[]; // owners' birth years; empty = unknown
-    isLiability: boolean;   // true => amortize as a loan instead of accumulate/withdraw
-    loanTermMonths: number | null; // remaining loan term; null/0 => no paydown (held flat)
-  };
+// A drawdown stream out of an account, beginning in `startYear`. Multiple goals
+// may draw from one account.
+export type PayoutStream = {
+  spendType: "once" | "monthly" | "percent";
+  spendAmountMinor: number | null; // 'once' lump / 'monthly' per-month
+  spendRateBps: number | null;     // 'percent' annual % of balance
+  startYear: number;
+};
+
+export type ProjectionAccount = AccessibilityConfig & {
+  baseMinor: number;       // current base-currency balance (signed; negative for debt)
+  growthRateBps: number;   // assets: growth rate; liabilities: annual loan interest rate
+  ownerBirthYears: number[]; // owners' birth years; empty = unknown
+  isLiability: boolean;    // true => amortize as a loan instead of accumulate/withdraw
+  loanTermMonths: number | null;
+  compoundInterval: CompoundInterval;
+  contributions: ContributionStream[];
+  payouts: PayoutStream[];
+};
 
 export type ProjectionPoint = {
   year: number;
@@ -165,14 +162,13 @@ function amortizeLoanSeries(account: ProjectionAccount, span: number): number[] 
   return out;
 }
 
-// Year-by-year balance for one account: accumulate (contributions + growth,
-// compounded at the chosen interval), then withdraw. Offset 0 is today's balance,
-// untouched. Each later year runs `n` sub-periods (n = 12/4/1 for monthly/quarterly/
-// annually); each sub-period adds that period's share of the monthly contribution
-// then grows by rate/n. Contributions run until the youngest owner hits
-// contributionUntilAge (null = whole projection). Withdrawals are applied once per
-// year after accumulation; they never push a balance below 0, and naturally-negative
-// balances (debt) keep compounding and are never floored.
+// Year-by-year balance for one account: accumulate (contribution streams + growth,
+// compounded at the chosen interval), then apply payout streams. Offset 0 is today's
+// balance, untouched. Each later year runs `n` sub-periods (n = 12/4/1 for monthly/
+// quarterly/annually); each sub-period adds that period's share of the total monthly
+// contributions then grows by rate/n. Contributions run until their respective
+// untilYear (null = whole projection). Payouts are applied once per year after
+// accumulation; they never push a balance below 0.
 export function projectAccountSeries(
   account: ProjectionAccount,
   span: number,
@@ -183,58 +179,38 @@ export function projectAccountSeries(
   if (account.isLiability) return amortizeLoanSeries(account, span);
   const n = periodsPerYear(account.compoundInterval);
   const periods = BigInt(n);
-  const denom = BPS * periods;            // per-period growth: (denom + rate) / denom
+  const denom = BPS * periods;
   const numer = denom + toBig(account.growthRateBps);
-  const monthsPerPeriod = BigInt(12 / n); // monthly contribution accrues over the period
+  const monthsPerPeriod = BigInt(12 / n);
   let b = toBig(account.baseMinor);
   const out: number[] = [fromBig(b)];
-  let started = false;
-  let finishedOnce = false;
+  const onceFired = account.payouts.map(() => false);
   for (let offset = 1; offset <= span; offset++) {
     const year = fromYear + offset;
 
-    // Accumulate: contributions (until the cutoff age) + growth, compounded n times.
-    const contributing =
-      account.contributionMinor > 0 &&
-      (account.contributionUntilAge === null ||
-        youngestBirthYear === null ||
-        year - youngestBirthYear < account.contributionUntilAge);
-    const contribPerPeriod = contributing
-      ? toBig(account.contributionMinor) * monthsPerPeriod
-      : 0n;
+    let monthlyTotal = 0n;
+    for (const c of account.contributions) {
+      if (c.untilYear === null || year <= c.untilYear) monthlyTotal += toBig(c.monthlyMinor);
+    }
+    const contribPerPeriod = monthlyTotal * monthsPerPeriod;
     for (let p = 0; p < n; p++) {
       b = roundDiv((b + contribPerPeriod) * numer, denom);
     }
 
-    if (account.spendType !== "none" && !started) {
-      if (account.spendStartKind === "age") {
-        if (
-          youngestBirthYear !== null &&
-          account.spendStartAge !== null &&
-          year - youngestBirthYear >= account.spendStartAge
-        ) {
-          started = true;
-        }
-      } else if (
-        account.spendStartTargetMinor !== null &&
-        b >= toBig(account.spendStartTargetMinor)
-      ) {
-        started = true;
-      }
-    }
-
-    if (started && b > 0n) {
-      if (account.spendType === "once") {
-        if (!finishedOnce) {
-          const amt = toBig(account.spendAmountMinor ?? 0);
+    for (let i = 0; i < account.payouts.length; i++) {
+      const pay = account.payouts[i];
+      if (year < pay.startYear || b <= 0n) continue;
+      if (pay.spendType === "once") {
+        if (!onceFired[i]) {
+          const amt = toBig(pay.spendAmountMinor ?? 0);
           b = amt > b ? 0n : b - amt;
-          finishedOnce = true;
+          onceFired[i] = true;
         }
-      } else if (account.spendType === "monthly") {
-        const amt = toBig(account.spendAmountMinor ?? 0) * 12n;
+      } else if (pay.spendType === "monthly") {
+        const amt = toBig(pay.spendAmountMinor ?? 0) * 12n;
         b = amt > b ? 0n : b - amt;
-      } else if (account.spendType === "percent") {
-        const wd = roundDiv(b * toBig(account.spendRateBps ?? 0), BPS);
+      } else if (pay.spendType === "percent") {
+        const wd = roundDiv(b * toBig(pay.spendRateBps ?? 0), BPS);
         b = wd > b ? 0n : b - wd;
       }
     }
