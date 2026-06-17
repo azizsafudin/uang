@@ -92,9 +92,18 @@ const dashboardRoute = createRoute({
   component: DashboardPage,
 });
 
+// Assets tab state in the URL. Holdings is the default and is omitted; only the
+// non-default "accounts" tab is persisted, so a clean /assets stays clean.
+export type AssetsSearch = { tab?: "accounts" | "holdings" };
+
+function validateAssetsSearch(search: Record<string, unknown>): AssetsSearch {
+  return { tab: search.tab === "accounts" ? "accounts" : undefined };
+}
+
 const assetsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/assets",
+  validateSearch: validateAssetsSearch,
   component: AssetsPage,
 });
 

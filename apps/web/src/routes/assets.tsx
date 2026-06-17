@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { AppShell } from "@/components/app-layout";
 import { PageHeader } from "@/components/page-header";
@@ -20,7 +21,10 @@ async function fetchNw(): Promise<NetWorth> {
 
 export function AssetsPage() {
   const [owner, setOwner] = useState("household");
-  const [tab, setTab] = useState("accounts");
+  // Active tab lives in the URL (default "holdings" is omitted; "accounts" is persisted).
+  const sp = useSearch({ from: "/app/assets" });
+  const navigate = useNavigate({ from: "/assets" });
+  const tab = sp.tab ?? "holdings";
 
   // Fetch the whole household once; the owner toggle filters client-side.
   const { data } = useQuery({ queryKey: ["networth", "household"], queryFn: fetchNw });
@@ -39,17 +43,26 @@ export function AssetsPage() {
         {data ? <Money minor={total} currency={base} /> : "—"}
       </p>
 
-      <Tabs value={tab} onValueChange={(v) => typeof v === "string" && setTab(v)} className="mt-8">
+      <Tabs
+        value={tab}
+        onValueChange={(v) =>
+          navigate({
+            search: (prev) => ({ ...prev, tab: v === "accounts" ? "accounts" : undefined }),
+            replace: true,
+          })
+        }
+        className="mt-8"
+      >
         <TabsList variant="line" className="w-full justify-start">
-          <TabsTrigger value="accounts" className="flex-none px-3">Accounts</TabsTrigger>
           <TabsTrigger value="holdings" className="flex-none px-3">Holdings</TabsTrigger>
+          <TabsTrigger value="accounts" className="flex-none px-3">Accounts</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="accounts">
-          <AssetsAccountsTab accounts={assetAccounts} baseCurrency={base} />
-        </TabsContent>
         <TabsContent value="holdings">
           <AssetsHoldingsTab owner={owner} />
+        </TabsContent>
+        <TabsContent value="accounts">
+          <AssetsAccountsTab accounts={assetAccounts} baseCurrency={base} />
         </TabsContent>
       </Tabs>
     </AppShell>
