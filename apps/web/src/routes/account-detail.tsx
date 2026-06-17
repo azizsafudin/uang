@@ -202,9 +202,6 @@ export function AccountDetailPage() {
           <TabsTrigger value="history" className="flex-none px-3">
             History
           </TabsTrigger>
-          <TabsTrigger value="projections" className="flex-none px-3">
-            Projections
-          </TabsTrigger>
           <TabsTrigger value="details" className="flex-none px-3">
             Details
           </TabsTrigger>
@@ -216,11 +213,9 @@ export function AccountDetailPage() {
         <TabsContent value="history" className="mt-5">
           <HistoryPanel accountId={id} />
         </TabsContent>
-        <TabsContent value="projections" className="mt-5">
-          <AccountProjectionCard account={account} />
-        </TabsContent>
-        <TabsContent value="details" className="mt-5">
+        <TabsContent value="details" className="mt-5 space-y-5">
           <AccountInfoCard account={account} />
+          <AccountProjectionCard account={account} />
           {dangerZone}
         </TabsContent>
       </Tabs>
