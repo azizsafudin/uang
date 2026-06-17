@@ -110,9 +110,34 @@ const instrumentsRoute = createRoute({
   component: InstrumentsPage,
 });
 
+// Transactions list state (search + filters + page) lives in the URL as the
+// source of truth. All fields optional; defaults (empty/all/page 1) are omitted
+// from the URL so a clean /transactions stays clean.
+export type TransactionsSearch = {
+  q?: string;
+  kind?: string;
+  account?: string;
+  owner?: string;
+  page?: number;
+};
+
+function validateTransactionsSearch(search: Record<string, unknown>): TransactionsSearch {
+  const str = (v: unknown) => (typeof v === "string" && v !== "" ? v : undefined);
+  const pageNum = Number(search.page);
+  return {
+    q: str(search.q),
+    kind: str(search.kind),
+    account: str(search.account),
+    owner: str(search.owner),
+    // page is 1-based in the URL; only persist when past the first page.
+    page: Number.isInteger(pageNum) && pageNum > 1 ? pageNum : undefined,
+  };
+}
+
 const transactionsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/transactions",
+  validateSearch: validateTransactionsSearch,
   component: TransactionsPage,
 });
 
