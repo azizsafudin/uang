@@ -6,6 +6,7 @@ import { currencyDecimals, currencySymbol } from "@uang/shared";
 import { useMoney } from "@/lib/values-hidden";
 import { Button } from "@/components/ui/button";
 import { NetWorthToggle } from "@/components/net-worth-toggle";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import {
   ChartContainer,
@@ -96,6 +97,7 @@ export function NetWorthChart({
   onOwnerChange: (v: string) => void;
 }) {
   const money = useMoney();
+  const isMobile = useIsMobile();
   const [preset, setPreset] = useState<Preset>("All");
   // Custom range inputs (used only when preset === "Custom").
   const [customFrom, setCustomFrom] = useState(() => presetRange("1Y").from);
@@ -128,7 +130,9 @@ export function NetWorthChart({
   // typical finance chart. Long spans show "Jun 2026"; short spans show "14 Jun".
   const minT = rows.length ? rows[0].t : 0;
   const maxT = rows.length ? rows[rows.length - 1].t : 0;
-  const TICK_COUNT = 6;
+  // Narrow screens can't fit 6 "Mar 2022"-style labels without overlap, so use
+  // fewer ticks and a 2-digit year ("Mar 22") on mobile.
+  const TICK_COUNT = isMobile ? 4 : 6;
   const xTicks =
     rows.length > 1
       ? Array.from({ length: TICK_COUNT }, (_, i) =>
@@ -137,7 +141,7 @@ export function NetWorthChart({
       : rows.map((r) => r.t);
   const tickDateOpts: Intl.DateTimeFormatOptions =
     maxT - minT > 90 * 86_400_000
-      ? { month: "short", year: "numeric" }
+      ? { month: "short", year: isMobile ? "2-digit" : "numeric" }
       : { day: "numeric", month: "short" };
 
   return (
@@ -185,7 +189,7 @@ export function NetWorthChart({
         <p className="py-12 text-center text-sm text-muted-foreground">No data for this range.</p>
       ) : (
         <ChartContainer config={chartConfig} className="h-[400px] w-full">
-          <AreaChart data={rows} margin={{ left: 8, right: 8, top: 8 }}>
+          <AreaChart data={rows} margin={{ left: 8, right: isMobile ? 16 : 8, top: 8 }}>
             <CartesianGrid vertical={false} />
             <YAxis
               dataKey="net"
