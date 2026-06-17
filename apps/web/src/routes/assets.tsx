@@ -9,7 +9,7 @@ import { NetWorthToggle } from "@/components/net-worth-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssetsAccountsTab } from "@/components/assets-accounts-tab";
 import { AssetsHoldingsTab } from "@/components/assets-holdings-tab";
-import { visibleForOwner, type AccountValuation } from "@/lib/account-grouping";
+import { type AccountValuation } from "@/lib/account-grouping";
 
 type NetWorth = { baseCurrency: string; accounts: AccountValuation[] };
 
@@ -29,7 +29,13 @@ export function AssetsPage() {
   // Fetch the whole household once; the owner toggle filters client-side.
   const { data } = useQuery({ queryKey: ["networth", "household"], queryFn: fetchNw });
   const base = data?.baseCurrency ?? "";
-  const assetAccounts = visibleForOwner(data?.accounts ?? [], owner).filter((a) => a.class === "asset");
+  // Sole-owner semantics, identical to netWorth and the Holdings endpoint: a
+  // member sees only accounts they solely own (shared accounts are household-only),
+  // so the header total, the Accounts list, and the Holdings total all agree.
+  const visible = (data?.accounts ?? []).filter(
+    (a) => owner === "household" || (a.ownerIds.length === 1 && a.ownerIds[0] === owner),
+  );
+  const assetAccounts = visible.filter((a) => a.class === "asset");
   const total = assetAccounts.filter((a) => !a.missingRate).reduce((sum, a) => sum + a.baseMinor, 0);
 
   return (
