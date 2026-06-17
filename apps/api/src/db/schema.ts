@@ -149,6 +149,8 @@ export const goals = sqliteTable("goals", {
   anchorDate: text("anchor_date"), // YYYY-MM-DD | null
   // Assumed planned saving toward this goal (base of the projected line).
   monthlyContributionMinor: integer("monthly_contribution_minor").notNull().default(0),
+  // Which assigned account the monthly contribution lands in (null = none chosen yet).
+  contributionAccountId: text("contribution_account_id"),
   // How this goal spends at/after targetDate. 'none' = pure accumulation.
   spendType: text("spend_type", { enum: ["none", "once", "monthly", "percent"] })
     .notNull()
@@ -159,6 +161,17 @@ export const goals = sqliteTable("goals", {
   createdAt: integer("created_at").notNull(),
   createdBy: text("created_by").notNull(),
 });
+
+// Which accounts fund a goal (many-to-many). An account may fund several goals;
+// contention between goals sharing an account is resolved by goal priority
+// (goals.sortOrder) in allocateGoals.
+export const goalAccounts = sqliteTable("goal_accounts", {
+  goalId: text("goal_id").notNull(),       // FK -> goals.id
+  accountId: text("account_id").notNull(), // FK -> accounts.id
+}, (t) => [
+  primaryKey({ columns: [t.goalId, t.accountId] }),
+  index("goal_accounts_account_idx").on(t.accountId),
+]);
 
 // A reusable, user-editable declarative parser for a statement format.
 // `config` and `fingerprint` are JSON strings (see lib/import/types.ts).
