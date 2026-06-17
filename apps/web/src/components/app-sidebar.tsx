@@ -1,16 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronsUpDownIcon, Settings } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useSession } from "@/lib/auth";
 import { api } from "@/lib/api";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarHeader,
@@ -30,7 +22,6 @@ import { useIsPWA } from "@/hooks/use-pwa";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 function HouseholdSwitcher() {
-  const { isMobile } = useSidebar();
   const { data: household } = useQuery({
     queryKey: ["household"],
     queryFn: async () => (await api.onboarding.household.get()).data,
@@ -41,32 +32,18 @@ function HouseholdSwitcher() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<SidebarMenuButton size="lg" className="aria-expanded:bg-sidebar-accent" />}
-          >
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary font-heading text-base leading-none text-primary-foreground">
-              u<span className="text-gold">.</span>
-            </div>
-            <div className="grid flex-1 text-left leading-tight">
-              <span className="truncate font-heading text-base tracking-tight">{name}</span>
-              <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
-            </div>
-            <ChevronsUpDownIcon className="ml-auto size-4" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="min-w-56"
-            side={isMobile ? "bottom" : "right"}
-            align="start"
-            sideOffset={4}
-          >
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                Household
-              </DropdownMenuLabel>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <SidebarMenuButton
+          size="lg"
+          className="cursor-default hover:bg-transparent active:bg-transparent"
+        >
+          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary font-heading text-base leading-none text-primary-foreground">
+            u<span className="text-gold">.</span>
+          </div>
+          <div className="grid flex-1 text-left leading-tight">
+            <span className="truncate font-heading text-base tracking-tight">{name}</span>
+            <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
+          </div>
+        </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
   );

@@ -17,15 +17,6 @@ test("sidebar navigates between dashboard and goals", async ({ page }) => {
   await expect(page.getByTestId("networth-hero")).toBeVisible();
 });
 
-test("header switcher opens without error", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByTestId("networth-hero")).toBeVisible();
-
-  // Regression: the dropdown label needs a group wrapper to open without error.
-  await page.getByRole("button", { name: /E2E Household/ }).click();
-  await expect(page.getByText("Household", { exact: true })).toBeVisible();
-});
-
 test("sidebar navigates to Settings", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("networth-hero")).toBeVisible();
