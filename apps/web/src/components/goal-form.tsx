@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
+import { useLiveQuery } from "@tanstack/react-db";
 import { currencyDecimals } from "@uang/shared";
-import { goalsCollection, newId, type GoalRow } from "@/lib/collections";
+import { goalsCollection, newId, type GoalRow, accountsCollection } from "@/lib/collections";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -63,6 +65,11 @@ export function GoalForm({
   const setOpen = onOpenChange ?? setOpenState;
   const [error, setError] = useState<string | null>(null);
 
+  const { data: accounts = [] } = useLiveQuery(accountsCollection);
+  const eligible = accounts.filter((a) => a.class === "asset" && a.isArchived === 0);
+  const [accountIds, setAccountIds] = useState<string[]>([]);
+  const [contributionAccountId, setContributionAccountId] = useState<string | null>(null);
+
   const defaults = (): FormValues => ({
     name: goal?.name ?? "",
     amount: goal ? toMajor(goal.targetAmountMinor, currency) : "",
@@ -82,13 +89,24 @@ export function GoalForm({
     if (open) {
       reset(defaults());
       setError(null);
+      if (goal) {
+        setContributionAccountId(goal.contributionAccountId ?? null);
+        api.goals.analysis.get().then(({ data }) => {
+          const row = (data as unknown as { goals: Array<{ id: string; accountIds: string[] }> } | null)
+            ?.goals.find((g) => g.id === goal.id);
+          setAccountIds(row?.accountIds ?? []);
+        });
+      } else {
+        setAccountIds([]);
+        setContributionAccountId(null);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const spendType = watch("spendType");
 
-  function onSubmit(values: FormValues) {
+  async function onSubmit(values: FormValues) {
     const targetAmountMinor = toMinor(values.amount, currency);
     const monthlyContributionMinor = toMinor(values.contribution, currency);
     const targetDate = values.targetDate || null; // empty -> indefinite goal
@@ -108,19 +126,22 @@ export function GoalForm({
     const spendRateBps =
       values.spendType === "percent" ? Math.round((parseFloat(values.spendRate) || 0) * 100) : null;
 
+    const goalId = editing ? goal!.id : newId();
+
     if (editing) {
       goalsCollection.update(goal!.id, (draft) => {
         draft.name = values.name;
         draft.targetAmountMinor = targetAmountMinor;
         draft.targetDate = targetDate;
         draft.monthlyContributionMinor = monthlyContributionMinor;
+        draft.contributionAccountId = contributionAccountId;
         draft.spendType = values.spendType;
         draft.spendAmountMinor = spendAmountMinor;
         draft.spendRateBps = spendRateBps;
       });
     } else {
       goalsCollection.insert({
-        id: newId(),
+        id: goalId,
         name: values.name,
         targetAmountMinor,
         currency,
@@ -128,7 +149,7 @@ export function GoalForm({
         ownerScope: "household",
         anchorDate: null,
         monthlyContributionMinor,
-        contributionAccountId: null,
+        contributionAccountId,
         spendType: values.spendType,
         spendAmountMinor,
         spendRateBps,
@@ -137,6 +158,7 @@ export function GoalForm({
         createdBy: "",
       });
     }
+    await api.goals({ id: goalId }).accounts.put({ accountIds });
     setOpen(false);
   }
 
@@ -220,6 +242,49 @@ export function GoalForm({
               {spendType === "percent" && (
                 <Field label="Withdrawal rate (%/yr)">
                   <Input type="number" step="any" min="0" placeholder="4" {...register("spendRate")} />
+                </Field>
+              )}
+            </div>
+
+            <div className="space-y-2 border-t border-border/70 pt-4">
+              <Field label="Funded by">
+                <div className="flex flex-col gap-1.5">
+                  {eligible.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No asset accounts yet.</p>
+                  )}
+                  {eligible.map((a) => {
+                    const checked = accountIds.includes(a.id);
+                    return (
+                      <label key={a.id} className="flex items-center gap-2 text-sm" data-testid={`assign-${a.id}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            setAccountIds((prev) => {
+                              const next = e.target.checked ? [...prev, a.id] : prev.filter((id) => id !== a.id);
+                              if (!next.includes(contributionAccountId ?? "")) setContributionAccountId(next[0] ?? null);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span>{a.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </Field>
+              {accountIds.length > 0 && (
+                <Field label="Monthly contribution lands in">
+                  <Select value={contributionAccountId ?? accountIds[0]} onValueChange={(v) => v && setContributionAccountId(v)}>
+                    <SelectTrigger>
+                      <SelectValue>{(v: unknown) => eligible.find((a) => a.id === String(v))?.name ?? "—"}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accountIds.map((id) => (
+                        <SelectItem key={id} value={id}>{eligible.find((a) => a.id === id)?.name ?? id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               )}
             </div>
