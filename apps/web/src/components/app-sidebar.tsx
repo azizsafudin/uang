@@ -25,6 +25,10 @@ import {
 } from "@/components/ui/sidebar";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ValuePrivacyToggle } from "@/components/value-privacy-toggle";
+import { useIsPWA } from "@/hooks/use-pwa";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 function HouseholdSwitcher() {
   const { isMobile } = useSidebar();
@@ -81,6 +85,7 @@ export function AppSidebar() {
     email: session?.user?.email ?? "",
     avatar: session?.user?.image ?? undefined,
   };
+  const isPwaMobile = useIsPWA() && useIsMobile();
 
   return (
     <Sidebar collapsible="icon">
@@ -93,6 +98,12 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
+        {isPwaMobile ? (
+          <div className="flex items-center justify-end gap-1 px-1 pb-1">
+            <ValuePrivacyToggle />
+            <ThemeToggle />
+          </div>
+        ) : null}
         <NavUser user={user} />
       </SidebarFooter>
 

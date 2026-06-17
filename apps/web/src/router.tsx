@@ -19,16 +19,42 @@ import { SettingsPage } from "./routes/settings";
 import { ProjectionsPage } from "./routes/projections";
 import { GoalsPage } from "./routes/goals";
 import { GoalDetailPage } from "./routes/goal-detail";
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/app-sidebar";
-import { AppBreadcrumb } from "@/components/app-breadcrumb";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { ValuesHiddenProvider } from "@/lib/values-hidden";
-import { ValuePrivacyToggle } from "@/components/value-privacy-toggle";
+import { AppTopBar } from "@/components/app-top-bar";
+import { PwaTabBar } from "@/components/pwa-tab-bar";
+import { useIsPWA } from "@/hooks/use-pwa";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const rootRoute = createRootRoute({ component: () => <Outlet /> });
+
+function AppLayout() {
+  // PWA-mobile = installed standalone AND phone-width. Reuse both hooks inline
+  // (no combined hook). In this mode the top bar is replaced by a bottom tab bar.
+  const isPwaMobile = useIsPWA() && useIsMobile();
+  return (
+    <ValuesHiddenProvider>
+      <TooltipProvider>
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarInset>
+            {isPwaMobile ? null : <AppTopBar />}
+            {isPwaMobile ? (
+              <div className="pb-[calc(4rem+env(safe-area-inset-bottom))]">
+                <Outlet />
+              </div>
+            ) : (
+              <Outlet />
+            )}
+            {isPwaMobile ? <PwaTabBar /> : null}
+          </SidebarInset>
+        </SidebarProvider>
+      </TooltipProvider>
+    </ValuesHiddenProvider>
+  );
+}
 
 // Pathless layout route: renders the sidebar shell once around every
 // authenticated route. Its id ("app") prefixes child route ids — hence
@@ -37,27 +63,7 @@ const appLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "app",
   beforeLoad: requireInitializedAndAuthed,
-  component: () => (
-    <ValuesHiddenProvider>
-      <TooltipProvider>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset>
-            <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/70 bg-background/95 px-4 backdrop-blur">
-              <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" className="mr-1 h-4" />
-              <AppBreadcrumb />
-              <div className="ml-auto flex items-center gap-1">
-                <ValuePrivacyToggle />
-                <ThemeToggle />
-              </div>
-            </header>
-            <Outlet />
-          </SidebarInset>
-        </SidebarProvider>
-      </TooltipProvider>
-    </ValuesHiddenProvider>
-  ),
+  component: AppLayout,
 });
 
 const onboardingRoute = createRoute({
