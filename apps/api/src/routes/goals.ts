@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/client";
-import { goals } from "../db/schema";
+import { goals, goalAccounts } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { authGuard } from "../lib/auth-guard";
 import { createId, nowEpoch } from "../lib/ids";
@@ -44,6 +44,7 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
           ownerScope: body.ownerScope ?? "household",
           anchorDate: body.anchorDate ?? null,
           monthlyContributionMinor: body.monthlyContributionMinor ?? 0,
+          contributionAccountId: body.contributionAccountId ?? null,
           spendType,
           spendAmountMinor: body.spendAmountMinor ?? null,
           spendRateBps: body.spendRateBps ?? null,
@@ -70,6 +71,7 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
         ownerScope: t.Optional(t.String()),
         anchorDate: t.Optional(t.Union([t.String(), t.Null()])),
         monthlyContributionMinor: t.Optional(t.Number()),
+        contributionAccountId: t.Optional(t.Union([t.String(), t.Null()])),
         spendType: t.Optional(t.Union([t.Literal("none"), t.Literal("once"), t.Literal("monthly"), t.Literal("percent")])),
         spendAmountMinor: t.Optional(t.Union([t.Number(), t.Null()])),
         spendRateBps: t.Optional(t.Union([t.Number(), t.Null()])),
@@ -97,6 +99,7 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
       if (body.ownerScope !== undefined) update.ownerScope = body.ownerScope;
       if (body.anchorDate !== undefined) update.anchorDate = body.anchorDate;
       if (body.monthlyContributionMinor !== undefined) update.monthlyContributionMinor = body.monthlyContributionMinor;
+      if (body.contributionAccountId !== undefined) update.contributionAccountId = body.contributionAccountId;
       if (body.spendType !== undefined) update.spendType = body.spendType;
       if (body.spendAmountMinor !== undefined) update.spendAmountMinor = body.spendAmountMinor;
       if (body.spendRateBps !== undefined) update.spendRateBps = body.spendRateBps;
@@ -113,12 +116,27 @@ export const goalsRoutes = new Elysia({ prefix: "/goals" })
         ownerScope: t.Optional(t.String()),
         anchorDate: t.Optional(t.Union([t.String(), t.Null()])),
         monthlyContributionMinor: t.Optional(t.Number()),
+        contributionAccountId: t.Optional(t.Union([t.String(), t.Null()])),
         spendType: t.Optional(t.Union([t.Literal("none"), t.Literal("once"), t.Literal("monthly"), t.Literal("percent")])),
         spendAmountMinor: t.Optional(t.Union([t.Number(), t.Null()])),
         spendRateBps: t.Optional(t.Union([t.Number(), t.Null()])),
         sortOrder: t.Optional(t.Number()),
       }),
     },
+  )
+  // Replace the full set of accounts funding a goal.
+  .put(
+    "/:id/accounts",
+    async ({ params, body }: any) => {
+      await db.delete(goalAccounts).where(eq(goalAccounts.goalId, params.id));
+      if (body.accountIds.length) {
+        await db.insert(goalAccounts).values(
+          body.accountIds.map((accountId: string) => ({ goalId: params.id, accountId })),
+        );
+      }
+      return { ok: true };
+    },
+    { body: t.Object({ accountIds: t.Array(t.String()) }) },
   )
   .delete("/:id", async ({ params }: any) => {
     await db.delete(goals).where(eq(goals.id, params.id));

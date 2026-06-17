@@ -114,3 +114,37 @@ test("PATCH /goals rejects enabling spend when the goal has no target date (422)
   }));
   expect(res.status).toBe(422);
 });
+
+test("PUT /goals/:id/accounts replaces the funding set; analysis reflects it", async () => {
+  const { cookie } = await initAndLogin({ app, baseCurrency: "USD" });
+  const id = crypto.randomUUID();
+  await app.handle(new Request("http://localhost/goals", {
+    method: "POST", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({
+      id, name: "Car", targetAmountMinor: 20_000_000, currency: "USD",
+      targetDate: "2030-01-01", ownerScope: "household",
+    }),
+  }));
+
+  const put = await app.handle(new Request(`http://localhost/goals/${id}/accounts`, {
+    method: "PUT", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ accountIds: ["acc-1", "acc-2"] }),
+  }));
+  expect(put.status).toBe(200);
+
+  const analysis = await (await app.handle(
+    new Request("http://localhost/goals/analysis", { headers: { cookie } }),
+  )).json();
+  const g = analysis.goals.find((x: any) => x.id === id);
+  expect(new Set(g.accountIds)).toEqual(new Set(["acc-1", "acc-2"]));
+
+  // Replacing with an empty set clears funding.
+  await app.handle(new Request(`http://localhost/goals/${id}/accounts`, {
+    method: "PUT", headers: { cookie, "content-type": "application/json" },
+    body: JSON.stringify({ accountIds: [] }),
+  }));
+  const analysis2 = await (await app.handle(
+    new Request("http://localhost/goals/analysis", { headers: { cookie } }),
+  )).json();
+  expect(analysis2.goals.find((x: any) => x.id === id).accountIds).toEqual([]);
+});
