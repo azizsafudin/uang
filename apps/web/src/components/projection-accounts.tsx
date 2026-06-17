@@ -73,39 +73,9 @@ function ProjectionConfig({ account, baseCurrency }: { account: AccountRecord; b
       ? `${pct(account.growthRateBps)}/yr`
       : `${pct(account.growthRateBps)}/yr · ${account.compoundInterval}`;
 
-  const contribution =
-    account.contributionMinor > 0
-      ? `+${formatMoney(account.contributionMinor, baseCurrency)}/mo${
-          account.contributionUntilAge != null ? ` until ${account.contributionUntilAge}` : ""
-        }`
-      : null;
-
-  let withdrawal: string | null = null;
-  if (!isLiability && account.spendType !== "none") {
-    const when =
-      account.spendStartKind === "age"
-        ? account.spendStartAge != null
-          ? `from age ${account.spendStartAge}`
-          : ""
-        : account.spendStartTargetMinor != null
-          ? `at ${formatMoney(account.spendStartTargetMinor, baseCurrency)}`
-          : "";
-    const amount =
-      account.spendType === "percent"
-        ? `${pct(account.spendRateBps ?? 0)}/yr`
-        : account.spendType === "monthly"
-          ? `${formatMoney(account.spendAmountMinor ?? 0, baseCurrency)}/mo`
-          : `${formatMoney(account.spendAmountMinor ?? 0, baseCurrency)} once`;
-    withdrawal = `${amount} ${when}`.trim();
-  }
-
   return (
     <>
       <p className="text-sm font-medium tabular-nums">{growth}</p>
-      {contribution && <p className="text-xs text-primary">{contribution}</p>}
-      <p className="text-xs text-muted-foreground">
-        {withdrawal ?? (isLiability ? "—" : "no withdrawal")}
-      </p>
     </>
   );
 }
