@@ -1,6 +1,6 @@
 import { db } from "../db/client";
 import { settings, accounts, transactions, instruments } from "../db/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { netWorth, convertMinor } from "./valuation";
 import { getAllOwnerSets } from "./owners";
 import { currencyDecimals, toBig, fromBig, roundDiv, SCALE } from "@uang/shared";
@@ -34,10 +34,14 @@ async function baseCurrencyFromSettings(): Promise<string> {
 
 type Flow = { date: string; baseMinor: number };
 
-// External cash flows = currency-instrument transactions NOT linked to a trade
-// (standalone deposits/withdrawals), from the same account set net worth uses
-// (non-archived, owner-filtered), each converted to base at its own date's FX.
-async function externalFlowsBase(owner?: string): Promise<Flow[]> {
+// External contributions = every transaction that is NOT part of an internal
+// transfer pair, from the same account set net worth uses (non-archived,
+// owner-filtered), each valued in base currency at its own date's FX:
+//   - currency rows  → the cash amount       (deposit +, withdrawal −)
+//   - security rows  → cost/proceeds         (buy +, sell −) = unitsDelta × unitPriceScaled
+// A transaction is internal (excluded) when it is itself a cash leg
+// (linkedTransactionId set) or a security row that a cash leg points at.
+async function contributionFlowsBase(owner?: string): Promise<Flow[]> {
   const base = await baseCurrencyFromSettings();
   const ownerSets = await getAllOwnerSets();
 
@@ -55,16 +59,35 @@ async function externalFlowsBase(owner?: string): Promise<Flow[]> {
   const rows = await db
     .select()
     .from(transactions)
-    .innerJoin(instruments, eq(transactions.instrumentId, instruments.id))
-    .where(and(eq(instruments.kind, "currency"), isNull(transactions.linkedTransactionId)));
+    .innerJoin(instruments, eq(transactions.instrumentId, instruments.id));
+
+  // Security rows that a cash leg points at are the internal side of a trade.
+  const linkedToIds = new Set<string>();
+  for (const r of rows) {
+    const linked = r.transactions.linkedTransactionId;
+    if (linked !== null) linkedToIds.add(linked);
+  }
 
   const flows: Flow[] = [];
   for (const r of rows) {
     const tx = r.transactions;
     if (!included.has(tx.accountId)) continue;
+    if (tx.linkedTransactionId !== null) continue; // a cash leg
+    if (linkedToIds.has(tx.id)) continue; // a security row that has a cash leg
+
     const cur = r.instruments.currency;
     const dec = currencyDecimals(cur);
-    const amountMinor = fromBig(roundDiv(toBig(tx.unitsDelta) * 10n ** BigInt(dec), SCALE));
+
+    let amountMinor: number;
+    if (r.instruments.kind === "currency") {
+      amountMinor = fromBig(roundDiv(toBig(tx.unitsDelta) * 10n ** BigInt(dec), SCALE));
+    } else {
+      if (tx.unitPriceScaled === null) continue; // unvaluable holding → skip
+      amountMinor = fromBig(
+        roundDiv(toBig(tx.unitsDelta) * toBig(tx.unitPriceScaled) * 10n ** BigInt(dec), SCALE * SCALE),
+      );
+    }
+
     const conv = await convertMinor(amountMinor, cur, base, base, tx.date);
     if (conv === null) continue; // missing FX → skip (consistent with net worth)
     flows.push({ date: tx.date, baseMinor: conv });
@@ -80,7 +103,7 @@ export async function netWorthSeries(opts: {
 }): Promise<NetWorthSeries> {
   const to = opts.to ?? todayISO();
   const dates = weeklyDates(opts.from, to);
-  const flows = await externalFlowsBase(opts.owner);
+  const flows = await contributionFlowsBase(opts.owner);
 
   const points: NetWorthPoint[] = [];
   let baseCurrency: string | null = null;

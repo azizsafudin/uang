@@ -169,3 +169,107 @@ test("a buy's linked cash leg is excluded from net deposits", async () => {
   const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-01" });
   expect(series.points[0].netDepositsBaseMinor).toBe(0); // cash leg excluded
 });
+
+// Create a non-currency instrument, return its id.
+async function ensureSecurity(symbol: string, currency: string, kind = "stock"): Promise<string> {
+  const id = createId();
+  await db.insert(instruments).values({
+    id, symbol, isin: null, name: symbol, kind, currency, createdAt: nowEpoch(),
+  });
+  return id;
+}
+
+// Create a brokerage (investment) account, return its id.
+async function seedBrokerage(currency = "USD"): Promise<string> {
+  const id = createId();
+  await db.insert(accounts).values({
+    id, name: "Brokerage", class: "asset", subtype: "investment", currency,
+    isArchived: 0, sortOrder: 0, createdAt: nowEpoch(), createdBy: "seed",
+  });
+  return id;
+}
+
+test("a standalone security buy counts as a contribution at cost basis", async () => {
+  await seedSettings("USD");
+  const acc = await seedBrokerage();
+  const stock = await ensureSecurity("AAPL", "USD");
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: stock, date: "2026-01-01",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: "u",
+  });
+
+  const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-01" });
+  expect(series.points[0].netDepositsBaseMinor).toBe(100000); // 10 × $100 = $1000
+});
+
+test("a buy with a cash leg is counted once via the funding deposit", async () => {
+  await seedSettings("USD");
+  const acc = await seedBrokerage();
+  const usd = await ensureCurrency("USD");
+  const stock = await ensureSecurity("AAPL", "USD");
+  // Standalone cash deposit of $5000.
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: usd, date: "2026-01-01",
+    unitsDelta: 5000 * S, unitPriceScaled: S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: "u",
+  });
+  // Buy 10 @ $100 with a linked cash leg of −$1000.
+  const buyId = createId();
+  await db.insert(transactions).values({
+    id: buyId, accountId: acc, instrumentId: stock, date: "2026-01-02",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: usd, date: "2026-01-02",
+    unitsDelta: -1000 * S, unitPriceScaled: S, feesMinor: 0, notes: null,
+    linkedTransactionId: buyId, createdAt: nowEpoch(), createdBy: "u",
+  });
+
+  const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-02" });
+  // Only the $5000 deposit counts: the buy row (has a cash leg) and the cash
+  // leg (linked) are both excluded → no double-count.
+  expect(series.points.at(-1)!.netDepositsBaseMinor).toBe(500000);
+});
+
+test("a standalone sell reduces contributions by proceeds at sale price", async () => {
+  await seedSettings("USD");
+  const acc = await seedBrokerage();
+  const stock = await ensureSecurity("AAPL", "USD");
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: stock, date: "2026-01-01",
+    unitsDelta: 10 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: stock, date: "2026-01-15",
+    unitsDelta: -4 * S, unitPriceScaled: 150 * S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: "u",
+  });
+
+  const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-15" });
+  const byDate = new Map(series.points.map((p) => [p.date, p.netDepositsBaseMinor]));
+  expect(byDate.get("2026-01-01")).toBe(100000);          // +$1000 cost
+  expect(byDate.get("2026-01-15")).toBe(100000 - 60000);  // −$600 proceeds (4 × $150)
+});
+
+test("contributions combine standalone cash and security buys", async () => {
+  await seedSettings("USD");
+  const acc = await seedBrokerage();
+  const usd = await ensureCurrency("USD");
+  const stock = await ensureSecurity("AAPL", "USD");
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: usd, date: "2026-01-01",
+    unitsDelta: 2000 * S, unitPriceScaled: S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: "u",
+  });
+  await db.insert(transactions).values({
+    id: createId(), accountId: acc, instrumentId: stock, date: "2026-01-01",
+    unitsDelta: 5 * S, unitPriceScaled: 100 * S, feesMinor: 0, notes: null,
+    createdAt: nowEpoch(), createdBy: "u",
+  });
+
+  const series = await netWorthSeries({ from: "2026-01-01", to: "2026-01-01" });
+  expect(series.points[0].netDepositsBaseMinor).toBe(250000); // $2000 + $500
+});
