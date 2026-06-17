@@ -16,6 +16,7 @@ export type AccountValuation = {
   ownerIds: string[];
   shared: boolean;
   illiquid: boolean;
+  accessibleFromAge: number;
   groupId: string | null;
   sortOrder: number;
 };

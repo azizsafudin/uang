@@ -31,7 +31,8 @@ function bucketize(
     let label: string;
     if (dim === "type") label = subtypeLabel(a.subtype);
     else if (dim === "currency") label = a.currency;
-    else if (dim === "liquidity") label = a.illiquid ? "Illiquid" : "Liquid";
+    // Illiquid if explicitly flagged OR locked until a future age (e.g. CPF at 55).
+    else if (dim === "liquidity") label = a.illiquid || a.accessibleFromAge > 0 ? "Illiquid" : "Liquid";
     else label = a.ownerIds.length >= 2 ? "Shared" : a.ownerIds.map(userName).join(", ") || "Unassigned";
     totals.set(label, (totals.get(label) ?? 0) + a.baseMinor);
   }
