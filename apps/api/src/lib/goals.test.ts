@@ -1,6 +1,7 @@
 import { expect, test, beforeEach } from "bun:test";
+import { eq } from "drizzle-orm";
 import { db } from "../db/client";
-import { accounts, instruments, transactions, goals, memberProfiles, user } from "../db/schema";
+import { accounts, instruments, transactions, goals, memberProfiles, user, goalAccounts } from "../db/schema";
 import { SCALE, currencyDecimals } from "@uang/shared";
 import { createId, nowEpoch } from "./ids";
 import { setOwners } from "./owners";
@@ -8,6 +9,19 @@ import { resetDb, initAndLogin } from "./test-helpers";
 import { analyzeGoals, goalProjection } from "./goals";
 
 beforeEach(resetDb);
+
+// Reuse one USD instrument across accounts — the instruments_symbol_uq index
+// forbids two rows with the same symbol.
+async function usdInstrumentId(): Promise<string> {
+  const existing = await db.select().from(instruments).where(eq(instruments.symbol, "USD"));
+  if (existing.length) return existing[0].id;
+  const id = createId();
+  await db.insert(instruments).values({
+    id, symbol: "USD", isin: null, name: "US Dollar",
+    kind: "currency", currency: "USD", createdAt: nowEpoch(),
+  });
+  return id;
+}
 
 // Seed an asset account owned by `ownerId`, funded with an opening cash transaction.
 async function addAccount(opts: {
@@ -27,11 +41,7 @@ async function addAccount(opts: {
     createdAt: nowEpoch(), createdBy: "seed",
   });
   await setOwners(id, [opts.ownerId]);
-  const instrId = createId();
-  await db.insert(instruments).values({
-    id: instrId, symbol: "USD", isin: null, name: "US Dollar",
-    kind: "currency", currency: "USD", createdAt: nowEpoch(),
-  });
+  const instrId = await usdInstrumentId();
   const major = opts.openingMinor / 10 ** currencyDecimals("USD");
   await db.insert(transactions).values({
     id: createId(), accountId: id, instrumentId: instrId, date: "2020-01-01",
