@@ -22,7 +22,7 @@ type Preset = (typeof PRESETS)[number];
 
 const chartConfig = {
   net: { label: "Net worth", color: "var(--chart-1)" },
-  deposits: { label: "Net deposits", color: "var(--chart-2)" },
+  deposits: { label: "Net contributions", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
 function iso(d: Date): string {
